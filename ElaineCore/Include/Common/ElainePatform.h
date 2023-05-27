@@ -1,0 +1,19 @@
+#pragma once
+
+#define ELAINE_PLATFORM_WINDOWS		1
+#define ELAINE_PLATFORM_APPLE		2
+#define ELAINE_PLATFORM_ANDROID		3
+#define ELAINE_PLATFORM_LINUX		4
+
+
+
+#if defined (_WIN32) || defined(_WIN64) || defined(__WIN32__) || defined(__NT__)
+	#define ELAINE_PLATFORM ELAINE_PLATFORM_WINDOWS
+#elif __APPLE__
+	#define ELAINE_PLATFORM ELAINE_PLATFORM_APPLE
+#elif __ANDROID__
+	#define ELAINE_PLATFORM ELAINE_PLATFORM_ANDROID
+#elif __linux__
+	#define ELAINE_PLATFORM ELAINE_PLATFORM_LINUX
+#endif
+

@@ -1,0 +1,126 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="资源文件">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Include">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Source">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Include\common">
+      <UniqueIdentifier>{7dc4f3d7-bc57-4ddd-8dfb-977feb93e766}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\common">
+      <UniqueIdentifier>{7d263231-357e-4ab4-a1ad-8107a3a0d12c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="math">
+      <UniqueIdentifier>{2d29a810-555e-45e1-a7d9-4efad4f6946e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="logsystem">
+      <UniqueIdentifier>{2df73454-007b-4b89-9429-5183193f2dd9}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\ElaineRoot.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElaineCoreMacroDefinition.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElaineCorePrerequirements.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElaineSingleton.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElaineStdRequirements.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineLogSystem.h">
+      <Filter>logsystem</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineVector2.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineMath.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineVector3.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineQuaternion.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineMatrix4.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineMatrix3.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineVector4.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineFileSystem.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElainePrecompiledHeader.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\ElainePatform.h">
+      <Filter>Include\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineRandom.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineTransform.h">
+      <Filter>math</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\math\ElaineAxisAlignedBox.h">
+      <Filter>math</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\Source\ElaineRoot.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineLogSystem.cpp">
+      <Filter>logsystem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineVector2.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineMath.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineVector3.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineQuaternion.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineMatrix4.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineMatrix3.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineVector4.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineFileSystem.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Common\ElainePrecompiledHeader.cpp">
+      <Filter>Source\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp">
+      <Filter>math</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>

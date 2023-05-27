@@ -20,12 +20,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\common\ElaineEnginePrerequirements.h" />
-    <ClInclude Include="..\..\Include\framework\component\ElaineComponent.h" />
-    <ClInclude Include="..\..\Include\framework\component\ElaineGameObject.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="..\..\Source\framework\component\ElaineComponent.cpp" />
-    <ClCompile Include="..\..\Source\framework\component\ElaineGameObject.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

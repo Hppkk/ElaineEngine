@@ -3,3 +3,13 @@
 ################################################################################
 
 /ElaineEditor/Project/Windows/.vs/ElaineEditor
+/ElaineCore/Bin/Windows/x64/Debug
+/ElaineCore/Intermediate/Windows/x64/Debug
+/ElaineEditor/Bin/Windows/x64/Debug
+/ElaineEditor/Intermediate/Windows/x64/Debug
+/ElaineCore/PDB/Windows/x64/Debug
+/ElaineEditor/PDB/Windows/x64/Debug
+/ElaineEditor/Project/Windows/x64/Debug
+/ElaineEngine/Bin/Windows/x64/Debug
+/ElaineEngine/Intermediate/Windows/x64/Debug
+/ElaineEngine/PDB/Windows/x64/Debug/ElaineEngine.pdb

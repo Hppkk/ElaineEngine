@@ -25,6 +25,24 @@
     <Filter Include="logsystem">
       <UniqueIdentifier>{2df73454-007b-4b89-9429-5183193f2dd9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="render">
+      <UniqueIdentifier>{4248df4d-9dbc-4e6e-9668-1dabf859db99}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="render\DX12">
+      <UniqueIdentifier>{ad8028ea-e179-42fd-8174-6ab06e080f0e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="render\Vulkan">
+      <UniqueIdentifier>{8b79306c-ea3d-4332-ae3f-2de85277264a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="render\common">
+      <UniqueIdentifier>{ad6962ac-a158-4276-b17a-6714c8eb0509}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="scene">
+      <UniqueIdentifier>{631b21c8-c0ee-4db1-8b23-0f62acdf3d06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="component">
+      <UniqueIdentifier>{cc70fb9a-f59d-4f91-864e-a85a139a734d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\ElaineRoot.h">
@@ -84,6 +102,27 @@
     <ClInclude Include="..\..\Include\math\ElaineAxisAlignedBox.h">
       <Filter>math</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineRenderableObject.h">
+      <Filter>Include</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\common\ElaineRHI.h">
+      <Filter>render\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\common\ElaineRHITypes.h">
+      <Filter>render\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\common\ElaineRenderData.h">
+      <Filter>render\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineSceneNode.h">
+      <Filter>scene</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\component\ElaineComponent.h">
+      <Filter>component</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\component\ElaineGameObject.h">
+      <Filter>component</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
@@ -121,6 +160,21 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp">
       <Filter>math</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineRenderableObject.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\common\ElaineRHI.cpp">
+      <Filter>render\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineSceneNode.cpp">
+      <Filter>scene</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\component\ElaineComponent.cpp">
+      <Filter>component</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\component\ElaineGameObject.cpp">
+      <Filter>component</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

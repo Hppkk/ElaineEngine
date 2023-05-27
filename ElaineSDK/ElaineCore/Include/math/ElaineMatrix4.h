@@ -34,6 +34,20 @@ namespace Elaine
     class ElaineCoreExport Matrix4x4
     {
     public:
+        //float m_mat[4][4];
+        union
+        {
+            struct
+            {
+                float m00, m01, m02, m03;
+                float m10, m11, m12, m13;
+                float m20, m21, m22, m23;
+                float m30, m31, m32, m33;
+            };
+            float		m_mat[4][4];
+        };
+
+    public:
         Matrix4x4(const Matrix4x4_& mat)
         {
             m_mat[0][0] = mat.v0;
@@ -832,20 +846,6 @@ namespace Elaine
         static const Matrix4x4 ZERO;
         static const Matrix4x4 ZEROAFFINE;
         static const Matrix4x4 IDENTITY;
-
-    public:
-        //float m_mat[4][4];
-        union
-        {
-            struct
-            {
-                float m00, m01, m02, m03;
-                float m10, m11, m12, m13;
-                float m20, m21, m22, m23;
-                float m30, m31, m32, m33;
-            };
-            float		m_mat[3][3];
-        };
     };
     Vector4     operator*(const Vector4& v, const Matrix4x4& mat);
 }

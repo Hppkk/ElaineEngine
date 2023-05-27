@@ -14,6 +14,7 @@
 #include "ElaineFileSystem.h"
 #include "ElaineRoot.h"
 #include "ElaineLogSystem.h"
+#include "ElaineSceneNode.h"
 
 namespace Elaine
 {

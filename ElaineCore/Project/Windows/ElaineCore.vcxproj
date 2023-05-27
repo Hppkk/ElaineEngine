@@ -21,13 +21,19 @@
   <ItemGroup>
     <ClInclude Include="..\..\Include\Common\ElaineCoreMacroDefinition.h" />
     <ClInclude Include="..\..\Include\Common\ElaineCorePrerequirements.h" />
+    <ClInclude Include="..\..\Include\Common\ElaineHash.h" />
     <ClInclude Include="..\..\Include\Common\ElainePatform.h" />
     <ClInclude Include="..\..\Include\Common\ElainePrecompiledHeader.h" />
     <ClInclude Include="..\..\Include\Common\ElaineSingleton.h" />
     <ClInclude Include="..\..\Include\Common\ElaineStdRequirements.h" />
+    <ClInclude Include="..\..\Include\component\ElaineComponent.h" />
+    <ClInclude Include="..\..\Include\component\ElaineComponentFactory.h" />
+    <ClInclude Include="..\..\Include\component\ElaineGameObject.h" />
     <ClInclude Include="..\..\Include\ElaineFileSystem.h" />
+    <ClInclude Include="..\..\Include\ElaineRenderableObject.h" />
     <ClInclude Include="..\..\Include\ElaineRoot.h" />
     <ClInclude Include="..\..\Include\ElaineLogSystem.h" />
+    <ClInclude Include="..\..\Include\ElaineSceneNode.h" />
     <ClInclude Include="..\..\Include\math\ElaineAxisAlignedBox.h" />
     <ClInclude Include="..\..\Include\math\ElaineMath.h" />
     <ClInclude Include="..\..\Include\math\ElaineMatrix3.h" />
@@ -38,15 +44,27 @@
     <ClInclude Include="..\..\Include\math\ElaineVector2.h" />
     <ClInclude Include="..\..\Include\math\ElaineVector3.h" />
     <ClInclude Include="..\..\Include\math\ElaineVector4.h" />
+    <ClInclude Include="..\..\Include\render\common\ElaineRenderData.h" />
+    <ClInclude Include="..\..\Include\render\common\ElaineRHI.h" />
+    <ClInclude Include="..\..\Include\render\common\ElaineRHITypes.h" />
+    <ClInclude Include="..\..\Include\render\dx12\ElaineDX12RHI.h" />
+    <ClInclude Include="..\..\Include\render\dx12\ElaineDX12Types.h" />
+    <ClInclude Include="..\..\Include\resource\ElaineResourceBase.h" />
+    <ClInclude Include="..\..\Include\resource\ElaineResourceManager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\Common\ElainePrecompiledHeader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="..\..\Source\component\ElaineComponent.cpp" />
+    <ClCompile Include="..\..\Source\component\ElaineComponentFactory.cpp" />
+    <ClCompile Include="..\..\Source\component\ElaineGameObject.cpp" />
     <ClCompile Include="..\..\Source\ElaineFileSystem.cpp" />
+    <ClCompile Include="..\..\Source\ElaineRenderableObject.cpp" />
     <ClCompile Include="..\..\Source\ElaineRoot.cpp" />
     <ClCompile Include="..\..\Source\ElaineLogSystem.cpp" />
+    <ClCompile Include="..\..\Source\ElaineSceneNode.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineMath.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineMatrix3.cpp" />
@@ -55,6 +73,10 @@
     <ClCompile Include="..\..\Source\math\ElaineVector2.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineVector3.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineVector4.cpp" />
+    <ClCompile Include="..\..\Source\render\common\ElaineRHI.cpp" />
+    <ClCompile Include="..\..\Source\render\dx12\ElaineDX12RHI.cpp" />
+    <ClCompile Include="..\..\Source\resource\ElaineResourceBase.cpp" />
+    <ClCompile Include="..\..\Source\resource\ElaineResourceManager.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

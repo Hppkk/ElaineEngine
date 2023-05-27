@@ -9,4 +9,9 @@ namespace Elaine
 #define GetTypeStringName(val) #val
 #endif // !GetName
 
+#ifndef REGISTERCOMFACTORY
+#define REGISTERCOMFACTORY(comType) ComponentFactory* factory = new ComponentFactory();\
+	ComponentFactoryManager::instance()->registerComFactory(#comType, comType##Factory);
+#endif // !REGISTERCOMFACTORY
+
 }

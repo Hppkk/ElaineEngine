@@ -17,21 +17,15 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\Include\framework\component\ElaineComponent.h">
-      <Filter>framework\component</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\Include\common\ElaineEnginePrerequirements.h">
       <Filter>common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\framework\component\ElaineGameObject.h">
+    <ClInclude Include="..\..\Include\framework\component\ElaineComponentSystem.h">
       <Filter>framework\component</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Source\framework\component\ElaineComponent.cpp">
-      <Filter>framework\component</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\Source\framework\component\ElaineGameObject.cpp">
+    <ClCompile Include="..\..\Source\framework\component\ElaineComponentSystem.cpp">
       <Filter>framework\component</Filter>
     </ClCompile>
   </ItemGroup>

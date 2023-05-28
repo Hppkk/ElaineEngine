@@ -20,12 +20,12 @@
     <ClInclude Include="..\..\Include\common\ElaineEnginePrerequirements.h">
       <Filter>common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\framework\component\ElaineComponentSystem.h">
+    <ClInclude Include="..\..\Include\component\ElaineComponentSystem.h">
       <Filter>framework\component</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Source\framework\component\ElaineComponentSystem.cpp">
+    <ClCompile Include="..\..\Source\component\ElaineComponentSystem.cpp">
       <Filter>framework\component</Filter>
     </ClCompile>
   </ItemGroup>

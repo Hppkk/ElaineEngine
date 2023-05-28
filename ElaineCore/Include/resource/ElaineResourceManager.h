@@ -8,10 +8,14 @@ namespace Elaine
 	{
 	public:
 		ResourceManager();
-		~ResourceManager();
-		void				load(const std::string& path);
-		void				update();
+		virtual ~ResourceManager();
+		virtual	ResourceBase*		createResource(const std::string& path);
+		void						load(const std::string& path);
+		void						update();
+	protected:
+		std::string									m_sResType;
 	private:
 		std::map<std::string, ResourceBase*>		m_ResMap;
+		
 	};
 }

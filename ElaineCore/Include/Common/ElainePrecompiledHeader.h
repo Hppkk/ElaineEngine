@@ -12,9 +12,14 @@
 #include "math/ElaineRandom.h"
 #include "ElaineSingleton.h"
 #include "ElaineFileSystem.h"
+#include "ElaineHash.h"
 #include "ElaineRoot.h"
 #include "ElaineLogSystem.h"
 #include "ElaineSceneNode.h"
+#include "component/ElaineComponentFactory.h"
+#include "resource/ElaineResourceBase.h"
+#include "resource/ElaineResourceManager.h"
+#include "resource/ElaineGameObjectInfoMgr.h"
 
 namespace Elaine
 {

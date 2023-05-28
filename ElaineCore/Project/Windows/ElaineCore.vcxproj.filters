@@ -147,6 +147,12 @@
     <ClInclude Include="..\..\Include\resource\ElaineResourceManager.h">
       <Filter>resource</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\component\ElaineGameObjectMgr.h">
+      <Filter>component</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h">
+      <Filter>resource</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
@@ -211,6 +217,15 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\resource\ElaineResourceManager.cpp">
       <Filter>resource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\component\ElaineGameObjectMgr.cpp">
+      <Filter>component</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\resource\ElaineGameObjectInfoMgr.cpp">
+      <Filter>resource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Common\ElaineHash.cpp">
+      <Filter>Source\common</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

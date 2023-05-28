@@ -5,7 +5,7 @@ namespace Elaine
 {
 	ResourceManager::ResourceManager()
 	{
-
+		m_sResType = GetTypeStringName(ResourceManager);
 	}
 
 	ResourceManager::~ResourceManager()
@@ -15,6 +15,11 @@ namespace Elaine
 			delete iter.second;
 		}
 		m_ResMap.clear();
+	}
+
+	ResourceBase* ResourceManager::createResource(const std::string& path)
+	{
+		return new ResourceBase(path);
 	}
 
 	void ResourceManager::load(const std::string& path)

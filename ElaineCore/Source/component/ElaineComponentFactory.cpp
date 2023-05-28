@@ -4,6 +4,19 @@
 
 namespace Elaine
 {
+	void ComponentFactory::destoryComponent(EComponent* pCom)
+	{
+		if (pCom == nullptr)
+			return;
+
+		
+	}
+
+	void ComponentFactory::destoryAllComponent()
+	{
+
+	}
+
 	ComponentFactory::~ComponentFactory()
 	{
 		for (auto com : m_ComSet)

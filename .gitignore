@@ -13,3 +13,8 @@
 /ElaineEngine/Bin/Windows/x64/Debug
 /ElaineEngine/Intermediate/Windows/x64/Debug
 /ElaineEngine/PDB/Windows/x64/Debug/ElaineEngine.pdb
+/ElaineSDK/ElaineCore/Bin/Windows/x64/Debug/ElaineCore.dll
+/ElaineSDK/ElaineCore/Bin/Windows/x64/Debug/ElaineCore.exp
+/ElaineSDK/ElaineCore/Bin/Windows/x64/Debug/ElaineCore.lib
+/ElaineSDK/ElaineCore/PDB/Windows/x64/Debug/ElaineCore.pdb
+/ElaineSDK/ElaineEngine/Bin/Windows/x64/Debug/ElaineEngine.dll

@@ -12,6 +12,8 @@ namespace Elaine
 		
 		virtual ~ComponentFactory();
 		virtual EComponent*				createComponent() = 0;
+		void							destoryComponent(EComponent* pCom);
+		void							destoryAllComponent();
 	protected:
 		std::string				m_sComType;
 		std::set<EComponent*>	m_ComSet;

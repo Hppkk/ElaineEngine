@@ -2,9 +2,10 @@
 
 namespace Elaine
 {
-	Root::Root(EngineMode mode)
+	Root::Root(EngineMode mode):
+		m_currentMode(mode)
 	{
-		m_currentMode = mode;
+
 	}
 
 	Root::~Root()

@@ -15,18 +15,30 @@
     <Filter Include="common">
       <UniqueIdentifier>{bfa66f7c-aff2-4b07-bf5c-e722a4dcf9d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{caaa8599-b4a7-4645-b3bf-db224db47de7}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{2c9e08cc-c1cc-4aa3-804e-325cbe91d8da}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\common\ElaineEnginePrerequirements.h">
       <Filter>common</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\Include\framework\component\ElaineComponentSystem.h">
+    <ClInclude Include="..\..\Include\component\ElaineComponentSystem.h">
       <Filter>framework\component</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineEngine.h">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\Source\framework\component\ElaineComponentSystem.cpp">
+    <ClCompile Include="..\..\Source\component\ElaineComponentSystem.cpp">
       <Filter>framework\component</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineEngine.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

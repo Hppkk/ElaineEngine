@@ -11,7 +11,7 @@ namespace Elaine
 	class ElaineCoreExport RHI
 	{
 	public:
-        virtual ~RHI() = 0;
+		virtual ~RHI() = 0;
         virtual void initialize(RHIInitInfo initialize_info) = 0;
         virtual void prepareContext() = 0;
 

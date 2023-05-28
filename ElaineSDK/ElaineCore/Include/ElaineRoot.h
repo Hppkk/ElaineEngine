@@ -21,7 +21,7 @@ namespace Elaine
 		std::string&			getExePath() const { return m_sAppPath; }
 		std::string&			getResourcePath()const { return m_sResourcePath; }
 	private:
-		// жуж╧
+		// shutdown
 		void					terminate();
 	private:
 		EngineMode				m_currentMode;

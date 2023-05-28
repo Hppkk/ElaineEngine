@@ -17,6 +17,7 @@
 #include <queue>
 #include <list>
 #include <stack>
+#include <format>
 
 namespace Elaine
 {

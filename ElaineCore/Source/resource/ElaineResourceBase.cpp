@@ -3,7 +3,7 @@
 
 namespace Elaine
 {
-	ResourceBase::ResourceBase(const std::string& res_name)
+	ResourceBase::ResourceBase(const std::string& res_name) :m_sResName(res_name)
 	{
 
 	}
@@ -15,8 +15,15 @@ namespace Elaine
 
 	void ResourceBase::load()
 	{
-		loadImpl();
-		++m_nMemoryUsed;
+		try
+		{
+			loadImpl();
+			++m_nMemoryUsed;
+		}
+		catch (...)
+		{
+			//throw();
+		}
 	}
 
 	void ResourceBase::unload()
@@ -27,13 +34,15 @@ namespace Elaine
 		--m_nMemoryUsed;
 	}
 
-	void ResourceBase::loadImpl()
+	void ResourceBase::asyncLoad()
 	{
-
-	}
-
-	void ResourceBase::unloadImpl()
-	{
-
+		auto resThread = ThreadManager::instance()->getThread("ResourceThread");
+		if (resThread != nullptr)
+		{
+			ThreadEventDesc evenDesc{};
+			evenDesc.init(&ResourceBase::load, this);
+			resThread->pushThreadFunc(evenDesc);
+			//todo  如果线程阻塞，通知线程开启
+		}
 	}
 }

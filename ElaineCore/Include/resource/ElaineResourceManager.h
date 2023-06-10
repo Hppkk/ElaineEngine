@@ -9,7 +9,7 @@ namespace Elaine
 	public:
 		ResourceManager();
 		virtual ~ResourceManager();
-		virtual	ResourceBase*		createResource(const std::string& path);
+		virtual	ResourceBase*		createResource(const std::string& path) = 0;
 		void						load(const std::string& path);
 		void						update();
 	protected:

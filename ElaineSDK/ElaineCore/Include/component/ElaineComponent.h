@@ -14,6 +14,7 @@ namespace Elaine
 	class EGameObject;
 	class ElaineCoreExport EComponent
 	{
+		friend class EGameObject;
 	public:
 		EComponent();
 		virtual ~EComponent();
@@ -24,8 +25,8 @@ namespace Elaine
 	protected:
 		std::string						m_sName;
 		std::string						m_sGUID;
-		EGameObject*					m_pParentGameObject;
-		EComponentInfo*					m_pComInfo;
-		std::string						m_sType;
+		EGameObject*					m_pParentGameObject = nullptr;
+		EComponentInfo*					m_pComInfo = nullptr;
+		static std::string				m_sType;
 	};
 }

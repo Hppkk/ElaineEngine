@@ -24,8 +24,9 @@ namespace Elaine
 		virtual ~ResourceBase();
 		void					load();
 		void					unload();
-		virtual void			loadImpl();
-		virtual	void			unloadImpl();
+		virtual void			loadImpl() = 0;
+		virtual	void			unloadImpl() = 0;
+		void					asyncLoad();
 	protected:
 		uint32_t				m_nMemoryUsed = 0;	//引用计数
 		std::string				m_sResName;	//资源路径

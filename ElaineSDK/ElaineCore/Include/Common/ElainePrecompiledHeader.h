@@ -2,6 +2,9 @@
 #include "ElaineCoreMacroDefinition.h"
 #include "ElaineCorePrerequirements.h"
 #include "ElaineStdRequirements.h"
+#include "ElaineSingleton.h"
+#include "ElaineThread.h"
+#include "ElaineThreadManager.h"
 #include "math/ElaineMath.h"
 #include "math/ElaineMatrix3.h"
 #include "math/ElaineMatrix4.h"
@@ -12,9 +15,17 @@
 #include "math/ElaineRandom.h"
 #include "ElaineSingleton.h"
 #include "ElaineFileSystem.h"
+#include "ElaineHash.h"
 #include "ElaineRoot.h"
 #include "ElaineLogSystem.h"
 #include "ElaineSceneNode.h"
+#include "component/ElaineGameObject.h"
+#include "JobSystem/ElaineJob.h"
+#include "JobSystem/ElaineJobSystem.h"
+#include "component/ElaineComponentFactory.h"
+#include "resource/ElaineResourceBase.h"
+#include "resource/ElaineResourceManager.h"
+#include "resource/ElaineGameObjectInfoMgr.h"
 
 namespace Elaine
 {

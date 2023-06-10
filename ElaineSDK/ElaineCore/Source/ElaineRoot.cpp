@@ -31,10 +31,12 @@ namespace Elaine
 
 
 		new LogSystem();
+		new ThreadManager();
 	}
 
 	void Root::terminate()
 	{
+		delete ThreadManager::instance();
 		delete LogSystem::instance();
 	}
 }

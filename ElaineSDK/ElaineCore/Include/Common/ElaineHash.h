@@ -17,4 +17,6 @@ namespace Elaine
             hash_combine(seed, rest...);
         }
     }
+
+    inline std::string ElaineCoreExport   getHashValString(const std::string& str);
 }

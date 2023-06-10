@@ -18,6 +18,11 @@
 #include <list>
 #include <stack>
 #include <format>
+#include <thread>
+#include <mutex>
+#include <future>
+#include <condition_variable>
+#include <semaphore>
 
 namespace Elaine
 {

@@ -5,7 +5,7 @@ namespace Elaine
 {
 	ResourceManager::ResourceManager()
 	{
-
+		m_sResType = GetTypeStringName(ResourceManager);
 	}
 
 	ResourceManager::~ResourceManager()

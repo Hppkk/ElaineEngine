@@ -49,6 +49,9 @@
     <Filter Include="resource">
       <UniqueIdentifier>{7bff861b-d252-4690-9203-f0d01fba62a2}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ElaineThread">
+      <UniqueIdentifier>{e684f0b9-bbca-4d2a-a4da-20be70dbfefe}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\ElaineRoot.h">
@@ -153,6 +156,18 @@
     <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h">
       <Filter>resource</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\JobSystem\ElaineJob.h">
+      <Filter>JobSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\JobSystem\ElaineJobSystem.h">
+      <Filter>JobSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineThreadManager.h">
+      <Filter>ElaineThread</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineThread.h">
+      <Filter>ElaineThread</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
@@ -226,6 +241,18 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\Common\ElaineHash.cpp">
       <Filter>Source\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\JobSystem\ElaineJob.cpp">
+      <Filter>JobSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\JobSystem\ElaineJobSystem.cpp">
+      <Filter>JobSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineThreadManager.cpp">
+      <Filter>ElaineThread</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineThread.cpp">
+      <Filter>ElaineThread</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

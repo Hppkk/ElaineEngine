@@ -35,6 +35,10 @@
     <ClInclude Include="..\..\Include\ElaineRoot.h" />
     <ClInclude Include="..\..\Include\ElaineLogSystem.h" />
     <ClInclude Include="..\..\Include\ElaineSceneNode.h" />
+    <ClInclude Include="..\..\Include\ElaineThread.h" />
+    <ClInclude Include="..\..\Include\ElaineThreadManager.h" />
+    <ClInclude Include="..\..\Include\JobSystem\ElaineJob.h" />
+    <ClInclude Include="..\..\Include\JobSystem\ElaineJobSystem.h" />
     <ClInclude Include="..\..\Include\math\ElaineAxisAlignedBox.h" />
     <ClInclude Include="..\..\Include\math\ElaineMath.h" />
     <ClInclude Include="..\..\Include\math\ElaineMatrix3.h" />
@@ -69,6 +73,10 @@
     <ClCompile Include="..\..\Source\ElaineRoot.cpp" />
     <ClCompile Include="..\..\Source\ElaineLogSystem.cpp" />
     <ClCompile Include="..\..\Source\ElaineSceneNode.cpp" />
+    <ClCompile Include="..\..\Source\ElaineThread.cpp" />
+    <ClCompile Include="..\..\Source\ElaineThreadManager.cpp" />
+    <ClCompile Include="..\..\Source\JobSystem\ElaineJob.cpp" />
+    <ClCompile Include="..\..\Source\JobSystem\ElaineJobSystem.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineMath.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineMatrix3.cpp" />

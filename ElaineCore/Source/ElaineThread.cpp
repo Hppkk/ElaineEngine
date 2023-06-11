@@ -1,3 +1,4 @@
+#include "ElainePrecompiledHeader.h"
 #include "ElaineThread.h"
 
 namespace Elaine

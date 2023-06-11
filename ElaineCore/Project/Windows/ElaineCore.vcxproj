@@ -189,7 +189,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -202,7 +202,7 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
       <AdditionalLibraryDirectories>$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);</AdditionalLibraryDirectories>
-      <AdditionalDependencies>spdlogd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>spdlogd.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
@@ -222,7 +222,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <CallingConvention>Cdecl</CallingConvention>
@@ -238,7 +238,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
       <AdditionalLibraryDirectories>$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>spdlogd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>spdlogd.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d

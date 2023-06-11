@@ -23,6 +23,7 @@
 #include <future>
 #include <condition_variable>
 #include <semaphore>
+#include <fstream>
 
 namespace Elaine
 {

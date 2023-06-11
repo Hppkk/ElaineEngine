@@ -22,7 +22,7 @@ namespace Elaine
 		}
 		catch (...)
 		{
-			//throw();
+			//throw std::exception(("file: " + m_sResName + "not found!").c_str());
 		}
 	}
 

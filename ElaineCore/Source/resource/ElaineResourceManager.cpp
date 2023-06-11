@@ -1,3 +1,4 @@
+#include "ElainePrecompiledHeader.h"
 #include "resource/ElaineResourceManager.h"
 #include "resource/ElaineResourceBase.h"
 

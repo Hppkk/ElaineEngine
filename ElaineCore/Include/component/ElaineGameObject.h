@@ -18,9 +18,19 @@ namespace Elaine
 		~EGameObjectInfo();
 		virtual void			loadImpl() override;
 		virtual	void			unloadImpl() override;
+		void					importData(cJSON* jsonNode);
+		void					exportData(cJSON* jsonNode);
+		std::string&			getGameObjectName() { return m_sName; }
+		void					setGameObjectName(const std::string& _name) { m_sName = _name; }
+		void					exportToFile();
+
 	private:
-		std::string					m_sFilePath;
-		std::set<EGameObject*>		m_InstGameObjectSet;
+		std::string						m_sFilePath;
+		std::set<EGameObject*>			m_InstGameObjectSet;
+		std::string						m_sGUID;
+		std::vector<EComponentInfo*>	m_Components;
+		std::string						m_sParentGUID;
+		std::string						m_sName;
 	};
 
 	class EComponent;

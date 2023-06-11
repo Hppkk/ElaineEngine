@@ -8,7 +8,12 @@ namespace Elaine
 	public:
 		EComponentInfo();
 		~EComponentInfo();
+		void					exportData(cJSON* jsonNode);
+		void					importData(cJSON* jsonNode);
+		virtual void			exportDataImpl(cJSON* jsonNode);
+		virtual void			importDataImpl(cJSON* jsonNode);
 	private:
+		std::string				m_sGUID;
 	};
 
 	class EGameObject;
@@ -24,7 +29,6 @@ namespace Elaine
 		std::string&					GetType() { return m_sType; }
 	protected:
 		std::string						m_sName;
-		std::string						m_sGUID;
 		EGameObject*					m_pParentGameObject = nullptr;
 		EComponentInfo*					m_pComInfo = nullptr;
 		static std::string				m_sType;

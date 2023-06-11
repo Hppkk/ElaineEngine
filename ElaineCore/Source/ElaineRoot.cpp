@@ -32,10 +32,12 @@ namespace Elaine
 
 		new LogSystem();
 		new ThreadManager();
+		new Dx12RHI();
 	}
 
 	void Root::terminate()
 	{
+		delete Dx12RHI::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();
 	}

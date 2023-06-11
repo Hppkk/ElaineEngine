@@ -17,6 +17,7 @@
 #include "ElaineFileSystem.h"
 #include "ElaineHash.h"
 #include "ElaineRoot.h"
+#include "cJSON.h"
 #include "ElaineLogSystem.h"
 #include "ElaineSceneNode.h"
 #include "component/ElaineGameObject.h"
@@ -26,6 +27,9 @@
 #include "resource/ElaineResourceBase.h"
 #include "resource/ElaineResourceManager.h"
 #include "resource/ElaineGameObjectInfoMgr.h"
+#include "component/ElaineComponent.h"
+#include "render/common/ElaineRHI.h"
+#include "render/dx12/ElaineDX12RHI.h"
 
 namespace Elaine
 {

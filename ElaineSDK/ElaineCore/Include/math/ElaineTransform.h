@@ -1,6 +1,7 @@
 #pragma once
 #include "ElaineVector3.h"
 #include "ElaineMatrix4.h"
+#include "ElaineQuaternion.h"
 
 namespace Elaine
 {

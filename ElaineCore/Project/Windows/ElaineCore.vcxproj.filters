@@ -5,20 +5,6 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
-    <Filter Include="Include">
-      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
-      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
-    </Filter>
-    <Filter Include="Source">
-      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
-      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
-    </Filter>
-    <Filter Include="Include\common">
-      <UniqueIdentifier>{7dc4f3d7-bc57-4ddd-8dfb-977feb93e766}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\common">
-      <UniqueIdentifier>{7d263231-357e-4ab4-a1ad-8107a3a0d12c}</UniqueIdentifier>
-    </Filter>
     <Filter Include="math">
       <UniqueIdentifier>{2d29a810-555e-45e1-a7d9-4efad4f6946e}</UniqueIdentifier>
     </Filter>
@@ -52,22 +38,36 @@
     <Filter Include="ElaineThread">
       <UniqueIdentifier>{e684f0b9-bbca-4d2a-a4da-20be70dbfefe}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Header Files">
+      <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
+      <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
+    </Filter>
+    <Filter Include="Header Files\common">
+      <UniqueIdentifier>{7dc4f3d7-bc57-4ddd-8dfb-977feb93e766}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
+      <Extensions>cpp;c;cc;cxx;c++;cppm;ixx;def;odl;idl;hpj;bat;asm;asmx</Extensions>
+    </Filter>
+    <Filter Include="Source Files\common">
+      <UniqueIdentifier>{7d263231-357e-4ab4-a1ad-8107a3a0d12c}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\ElaineRoot.h">
-      <Filter>Include</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineCoreMacroDefinition.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineCorePrerequirements.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineSingleton.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineStdRequirements.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineLogSystem.h">
       <Filter>logsystem</Filter>
@@ -94,13 +94,13 @@
       <Filter>math</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineFileSystem.h">
-      <Filter>Include</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElainePrecompiledHeader.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElainePatform.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\math\ElaineRandom.h">
       <Filter>math</Filter>
@@ -112,7 +112,7 @@
       <Filter>math</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineRenderableObject.h">
-      <Filter>Include</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\render\common\ElaineRHI.h">
       <Filter>render\common</Filter>
@@ -133,7 +133,7 @@
       <Filter>component</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineHash.h">
-      <Filter>Include\common</Filter>
+      <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineComponentFactory.h">
       <Filter>component</Filter>
@@ -168,10 +168,22 @@
     <ClInclude Include="..\..\Include\ElaineThread.h">
       <Filter>ElaineThread</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineUseCount.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\resource\ElaineWorkBackStageThread.h">
+      <Filter>resource</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\component\ElaineTransformComponent.h">
+      <Filter>component</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineTimer.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineLogSystem.cpp">
       <Filter>logsystem</Filter>
@@ -198,16 +210,16 @@
       <Filter>math</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineFileSystem.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Common\ElainePrecompiledHeader.cpp">
-      <Filter>Source\common</Filter>
+      <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp">
       <Filter>math</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineRenderableObject.cpp">
-      <Filter>Source</Filter>
+      <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\render\common\ElaineRHI.cpp">
       <Filter>render\common</Filter>
@@ -240,7 +252,7 @@
       <Filter>resource</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\Common\ElaineHash.cpp">
-      <Filter>Source\common</Filter>
+      <Filter>Source Files\common</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\JobSystem\ElaineJob.cpp">
       <Filter>JobSystem</Filter>
@@ -253,6 +265,18 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineThread.cpp">
       <Filter>ElaineThread</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineUseCount.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\resource\ElaineWorkBackStageThread.cpp">
+      <Filter>resource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\component\ElaineTransformComponent.cpp">
+      <Filter>component</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineTimer.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

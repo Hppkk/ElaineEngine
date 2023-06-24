@@ -5,7 +5,7 @@
 
 namespace Elaine
 {
-	class ElaineCoreExport Dx12RHI final :public RHI
+	class ElaineCoreExport Dx12RHI final :public RHI, public Singleton<Dx12RHI>
 	{
 	public:
         ~Dx12RHI();
@@ -13,7 +13,9 @@ namespace Elaine
         // initialize
         virtual void initialize(RHIInitInfo init_info) override;
         virtual void prepareContext() override;
+        virtual RHITYPE getRHIType() override;
 
+        virtual bool isPointLightShadowEnabled() override;
         // allocate and create
         bool allocateCommandBuffers(const RHICommandBufferAllocateInfo* pAllocateInfo, RHICommandBuffer*& pCommandBuffers) override;
         bool allocateDescriptorSets(const RHIDescriptorSetAllocateInfo* pAllocateInfo, RHIDescriptorSet*& pDescriptorSets) override;
@@ -32,7 +34,7 @@ namespace Elaine
             RHIImage*& image, RHIDeviceMemory*& memory, RHIImageCreateFlags image_create_flags, uint32_t array_layers, uint32_t miplevels) override;
         void createImageView(RHIImage* image, RHIFormat format, RHIImageAspectFlags image_aspect_flags, RHIImageViewType view_type, uint32_t layout_count, uint32_t miplevels,
             RHIImageView*& image_view) override;
-
+        virtual void createCommandPool() override;
         bool createCommandPool(const RHICommandPoolCreateInfo* pCreateInfo, RHICommandPool*& pCommandPool) override;
         bool createDescriptorPool(const RHIDescriptorPoolCreateInfo* pCreateInfo, RHIDescriptorPool*& pDescriptorPool) override;
         bool createDescriptorSetLayout(const RHIDescriptorSetLayoutCreateInfo* pCreateInfo, RHIDescriptorSetLayout*& pSetLayout) override;

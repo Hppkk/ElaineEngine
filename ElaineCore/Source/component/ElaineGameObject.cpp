@@ -1,6 +1,8 @@
 #include "ElainePrecompiledHeader.h"
 #include "component/ElaineGameObject.h"
 #include "component/ElaineComponent.h"
+#include "component/ElaineGameObjectMgr.h"
+#include "component/ElaineTransformComponent.h"
 
 namespace Elaine
 {
@@ -16,7 +18,10 @@ namespace Elaine
 
 	EGameObjectInfo::~EGameObjectInfo()
 	{
-
+		for (auto& comInfo : m_Components)
+		{
+			SAFE_DELETE(comInfo);
+		}
 	}
 
 	void EGameObjectInfo::loadImpl()
@@ -44,6 +49,7 @@ namespace Elaine
 		outFile.open(m_sFilePath.c_str());
 		outFile << charValue;
 		outFile.close();
+		delete[] charValue;
 	}
 
 	void EGameObjectInfo::importData(cJSON* jsonNode)
@@ -70,6 +76,17 @@ namespace Elaine
 				m_Components.push_back(info);
 			}
 		}
+
+		cJSON* pGameObjectArray = cJSON_GetObjectItem(jsonNode, "GameObjectArray");
+		if (pGameObjectArray)
+		{
+			for (auto pChild = pGameObjectArray->child; pChild != nullptr; pChild = pChild->next)
+			{
+				EGameObjectInfo* info = static_cast<EGameObjectInfo*>(GameObjectInfoMgr::instance()->createResource(""));
+				info->importData(pChild);
+				m_childGameObjectInfos.push_back(info);
+			}
+		}
 	}
 
 	void EGameObjectInfo::exportData(cJSON* jsonNode)
@@ -90,6 +107,15 @@ namespace Elaine
 			m_Components[i]->exportData(pChild);
 		}
 
+		cJSON* pGameObjectArray = cJSON_CreateArray();
+		cJSON_AddItemToObject(jsonNode, "GameObjectArray", pGameObjectArray);
+		for (size_t i = 0; i < m_childGameObjectInfos.size(); ++i)
+		{
+			cJSON* pChild = cJSON_CreateObject();
+			cJSON_AddItemToArray(pGameObjectArray, pChild);
+			m_Components[i]->exportData(pChild);
+		}
+
 	}
 
 
@@ -106,12 +132,41 @@ namespace Elaine
 
 	EGameObject::~EGameObject()
 	{
-
+		destroy();
 	}
 
 	void EGameObject::init(EGameObjectInfo* info)
 	{
 
+		for (auto cominfo : info->m_Components)
+		{
+			auto factroy = ComponentFactoryManager::instance()->getFactoryByComType(cominfo->m_sType);
+			if (factroy)
+			{
+				if (cominfo->m_sType == "TransformComponent")
+				{
+					auto tranInfo = static_cast<TransformComponentInfo*>(cominfo);
+					setWorldPosition(tranInfo->m_pTransform->m_position);
+					setWorldQuaternion(tranInfo->m_pTransform->m_rotation);
+					setWorldScale(tranInfo->m_pTransform->m_scale);
+				}
+
+				auto pComponent = factroy->createComponent();
+				pComponent->init(cominfo);
+				AddComponent(pComponent);
+			}
+		}
+
+		for (auto goInfo : info->m_childGameObjectInfos)
+		{
+			EGameObject* childGo = GameObjectMgr::instance()->createGameObjectByInfo(info);
+			AddChildGameObject(childGo);
+		}
+	}
+
+	void EGameObject::save()
+	{
+		m_info->exportToFile();
 	}
 
 	EComponent* EGameObject::GetComponentByName(const std::string& name)
@@ -124,22 +179,57 @@ namespace Elaine
 
 	void EGameObject::AddChildGameObject(EGameObject* obj)
 	{
-
+		m_childGameObjectIdxMap[obj] = m_childGameObjects.size();
+		m_childGameObjects.push_back(obj);
+		m_childGameObjectMap[m_info->m_sGUID] = obj;
 	}
 
-	void EGameObject::AddComponents(EComponent* com)
+	void EGameObject::AddComponent(EComponent* com)
 	{
-
+		if (m_componentsMap.find(com->m_sType) != m_componentsMap.end())
+			return;
+		auto iter = m_componentsIndexMap.find(com);
+		if (iter != m_componentsIndexMap.end())
+			return;
+		
+		m_componentsIndexMap[com] = m_components.size();
+		m_components.push_back(com);
+		m_componentsMap[com->m_sType] = com;
 	}
 
 	EGameObject* EGameObject::CreateChildGameObject()
 	{
-		return nullptr;
+		EGameObject* newGo = GameObjectMgr::instance()->createGameObject();
+		AddChildGameObject(newGo);
+		return newGo;
 	}
 
 	void EGameObject::destroy()
 	{
+		destoryImpl();
+	}
 
+	void EGameObject::destoryImpl()
+	{
+		for (auto com : m_components)
+		{
+			if (!com)continue;
+
+			auto factory = ComponentFactoryManager::instance()->getFactoryByComType(com->m_sType);
+			if (factory)
+			{
+				factory->destoryComponent(com);
+			}
+		}
+
+		m_components.clear();
+		for (auto go : m_childGameObjects)
+		{
+			if (!go)continue;
+
+			go->destoryImpl();
+		}
+		m_childGameObjects.clear();
 	}
 
 	void EGameObject::removeComponent(EComponent* rhs)
@@ -174,6 +264,32 @@ namespace Elaine
 		size_t idx = it->second;
 		auto iter = m_childGameObjects.begin() + idx;
 		m_childGameObjects.erase(iter);
+
+		GameObjectMgr::instance()->destoryGameObject(rhs);
+	}
+
+	void EGameObject::setWorldPosition(const Vector3& pos)
+	{
+		
+	}
+
+	void EGameObject::setWorldScale(const Vector3& scale)
+	{
+
+	}
+
+	void EGameObject::setWorldEulerRotation(const Vector3& rotation)
+	{
+
+	}
+
+	void EGameObject::setWorldQuaternion(const Quaternion& rotation)
+	{
+
+	}
+
+	void EGameObject::updateNode(bool childUpdate /*= true*/, bool notifyParent /*= true*/)
+	{
 
 	}
 }

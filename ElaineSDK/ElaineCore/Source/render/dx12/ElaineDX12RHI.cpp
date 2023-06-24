@@ -18,6 +18,16 @@ namespace Elaine
 
     }
 
+    RHITYPE Dx12RHI::getRHIType()
+    {
+        return RHITYPE::Dx12;
+    }
+
+    bool Dx12RHI::isPointLightShadowEnabled()
+    {
+        return true;
+    }
+
     // allocate and create
     bool Dx12RHI::allocateCommandBuffers(const RHICommandBufferAllocateInfo* pAllocateInfo, RHICommandBuffer*& pCommandBuffers)
     {
@@ -77,6 +87,11 @@ namespace Elaine
     }
     void Dx12RHI::createImageView(RHIImage* image, RHIFormat format, RHIImageAspectFlags image_aspect_flags, RHIImageViewType view_type, uint32_t layout_count, uint32_t miplevels,
         RHIImageView*& image_view)
+    {
+
+    }
+
+    void Dx12RHI::createCommandPool()
     {
 
     }

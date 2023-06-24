@@ -18,24 +18,28 @@ namespace Elaine
 		m_ResMap.clear();
 	}
 
-	void ResourceManager::load(const std::string& path)
+	ResourceBase* ResourceManager::loadOrGetResource(const std::string& path, bool async /*= true*/)
 	{
-		auto it = m_ResMap.find(path);
-		if (it == m_ResMap.end())
-		{
-			
-		}
-	}
+		ResourceBase* res = nullptr;
 
-	void ResourceManager::update()
-	{
-		for (auto it = m_ResMap.begin(); it != m_ResMap.end(); ++it)
+		auto it = m_ResMap.find(path);
+		if (it != m_ResMap.end())
 		{
-			if (it->second->m_nMemoryUsed == 0)
+			res = it->second;
+			if (res == nullptr)
 			{
-				delete it->second;
-				it = m_ResMap.erase(it);
+				res = createResource(path);
+				res->load(async);
+				m_ResMap[path] = res;
 			}
 		}
+		else
+		{
+			res = createResource(path);
+			res->load(async);
+			m_ResMap[path] = res;
+		}
+		return res;
 	}
+
 }

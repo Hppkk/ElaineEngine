@@ -1,6 +1,6 @@
 #pragma once
 #include "common/ElaineEnginePrerequirements.h"
-#include "common/ElainePrecompiledHeader.h"
+#include <string>
 
 
 namespace Elaine
@@ -11,12 +11,14 @@ namespace Elaine
 		std::string			m_sConfigFile;
 	};
 
-	class ElaineEngineExport Engine
+	class ElaineEngineExport ElaineEngine
 	{
-		Engine() = default;
-		~Engine();
+	public:
+		ElaineEngine() = default;
+		virtual ~ElaineEngine();
 
 		void		initilize(const EngineInitDesc& desc);
 		void		tickOneFrame(float dt);
+		void		close();
 	};
 }

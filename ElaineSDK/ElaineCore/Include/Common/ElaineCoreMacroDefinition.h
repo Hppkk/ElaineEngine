@@ -10,8 +10,8 @@ namespace Elaine
 #endif // !GetName
 
 #ifndef REGISTERCOMFACTORY
-#define REGISTERCOMFACTORY(comType) ComponentFactory* factory = new ComponentFactory();\
-	ComponentFactoryManager::instance()->registerComFactory(#comType, comType##Factory);
+#define REGISTERCOMFACTORY(comType) ComponentFactory* factory = new comType##Factory();\
+	ComponentFactoryManager::instance()->registerComFactory(#comType, factory);
 #endif // !REGISTERCOMFACTORY
 
 }

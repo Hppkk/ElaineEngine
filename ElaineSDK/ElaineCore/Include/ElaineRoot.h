@@ -20,13 +20,21 @@ namespace Elaine
 		EngineMode				GetEngineMode()const { return m_currentMode; }
 		std::string&			getExePath() const { return m_sAppPath; }
 		std::string&			getResourcePath()const { return m_sResourcePath; }
+		float					calculateDeltaTime();
+		void					calculateFPS(float dt);
+		int						getFPS() { return m_fps; }
 	private:
 		// shutdown
 		void					terminate();
 	private:
-		EngineMode				m_currentMode;
-		mutable std::string		m_sAppPath;
-		mutable std::string		m_sResourcePath;
+		EngineMode								m_currentMode;
+		mutable std::string						m_sAppPath;
+		mutable std::string						m_sResourcePath;
+		std::chrono::steady_clock::time_point	m_last_tick_time_point = std::chrono::steady_clock::now();
+		const float								s_fps_alpha = 1.f / 100;
+		int										m_fps = 0;
+		float									m_average_duration = 0.f;
+		int										m_frame_count = 0;
 	};
 
 }

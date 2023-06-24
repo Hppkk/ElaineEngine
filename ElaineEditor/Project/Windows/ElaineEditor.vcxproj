@@ -19,7 +19,11 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\Source\ElaineEditor.cpp" />
     <ClCompile Include="..\..\Source\main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\Include\ElaineEditor.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>
@@ -126,7 +130,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
@@ -136,8 +140,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);;$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ElaineCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);;$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../ElaineSDK/ElaineEngine/Bin/Windows/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;ElaineEngine.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>
@@ -159,7 +163,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
@@ -171,8 +175,8 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ElaineCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../ElaineSDK/ElaineEngine/Bin/Windows/$(Platform)/$(Configuration)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;ElaineEngine.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PreBuildEvent>
       <Command>

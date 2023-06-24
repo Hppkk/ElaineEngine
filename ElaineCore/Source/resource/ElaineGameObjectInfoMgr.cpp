@@ -15,6 +15,8 @@ namespace Elaine
 
 	ResourceBase* GameObjectInfoMgr::createResource(const std::string& path)
 	{
+		if (path.empty())
+			return new EGameObjectInfo();
 		return new EGameObjectInfo(path);
 	}
 }

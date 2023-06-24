@@ -25,12 +25,15 @@ namespace Elaine
         m_logger->set_level(spdlog::level::trace);
 
         spdlog::register_logger(m_logger);
+
+        m_logFile.open(Root::instance()->getExePath() + "/ElaineLog.txt");
 	}
 
 	LogSystem::~LogSystem()
 	{
         m_logger->flush();
         spdlog::drop_all();
+        m_logFile.close();
 	}
 
 }

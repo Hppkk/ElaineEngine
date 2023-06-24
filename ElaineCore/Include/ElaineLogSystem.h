@@ -42,22 +42,33 @@ namespace Elaine
 		template<typename... TARGS>
 		void log(LogLevel level, TARGS&&... args)
 		{
+			std::string s;
 			switch (level)
 			{
 			case LogLevel::debug:
 				m_logger->debug(std::forward<TARGS>(args)...);
+				s = fmt::format("", std::forward<TARGS>(args)...);
+				m_logFile << s.c_str() << std::endl;
 				break;
 			case LogLevel::info:
 				m_logger->info(std::forward<TARGS>(args)...);
+				s = fmt::format("", std::forward<TARGS>(args)...);
+				m_logFile << s.c_str() << std::endl;
 				break;
 			case LogLevel::warn:
 				m_logger->warn(std::forward<TARGS>(args)...);
+				s = fmt::format("", std::forward<TARGS>(args)...);
+				m_logFile << s.c_str() << std::endl;
 				break;
 			case LogLevel::error:
 				m_logger->error(std::forward<TARGS>(args)...);
+				s = fmt::format("", std::forward<TARGS>(args)...);
+				m_logFile << s.c_str() << std::endl;
 				break;
 			case LogLevel::fatal:
 				m_logger->critical(std::forward<TARGS>(args)...);
+				s = fmt::format("", std::forward<TARGS>(args)...);
+				m_logFile << s.c_str() << std::endl;
 				FatalCallFunction(std::forward<TARGS>(args)...);
 				break;
 			default:
@@ -74,5 +85,6 @@ namespace Elaine
 
 	private:
 		std::shared_ptr<spdlog::logger> m_logger;
+		std::ofstream					m_logFile;
 	};
 }

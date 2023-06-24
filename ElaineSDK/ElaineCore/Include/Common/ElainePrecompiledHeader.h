@@ -13,12 +13,15 @@
 #include "math/ElaineVector3.h"
 #include "math/ElaineVector4.h"
 #include "math/ElaineRandom.h"
+#include "math/ElaineTransform.h"
 #include "ElaineSingleton.h"
 #include "ElaineFileSystem.h"
 #include "ElaineHash.h"
 #include "ElaineRoot.h"
+#include "cJSON.h"
 #include "ElaineLogSystem.h"
 #include "ElaineSceneNode.h"
+#include "ElaineUseCount.h"
 #include "component/ElaineGameObject.h"
 #include "JobSystem/ElaineJob.h"
 #include "JobSystem/ElaineJobSystem.h"
@@ -26,6 +29,9 @@
 #include "resource/ElaineResourceBase.h"
 #include "resource/ElaineResourceManager.h"
 #include "resource/ElaineGameObjectInfoMgr.h"
+#include "component/ElaineComponent.h"
+#include "render/common/ElaineRHI.h"
+#include "render/dx12/ElaineDX12RHI.h"
 
 namespace Elaine
 {

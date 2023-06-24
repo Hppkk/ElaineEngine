@@ -30,6 +30,7 @@
     <ClInclude Include="..\..\Include\component\ElaineComponentFactory.h" />
     <ClInclude Include="..\..\Include\component\ElaineGameObject.h" />
     <ClInclude Include="..\..\Include\component\ElaineGameObjectMgr.h" />
+    <ClInclude Include="..\..\Include\component\ElaineTransformComponent.h" />
     <ClInclude Include="..\..\Include\ElaineFileSystem.h" />
     <ClInclude Include="..\..\Include\ElaineRenderableObject.h" />
     <ClInclude Include="..\..\Include\ElaineRoot.h" />
@@ -37,6 +38,8 @@
     <ClInclude Include="..\..\Include\ElaineSceneNode.h" />
     <ClInclude Include="..\..\Include\ElaineThread.h" />
     <ClInclude Include="..\..\Include\ElaineThreadManager.h" />
+    <ClInclude Include="..\..\Include\ElaineTimer.h" />
+    <ClInclude Include="..\..\Include\ElaineUseCount.h" />
     <ClInclude Include="..\..\Include\JobSystem\ElaineJob.h" />
     <ClInclude Include="..\..\Include\JobSystem\ElaineJobSystem.h" />
     <ClInclude Include="..\..\Include\math\ElaineAxisAlignedBox.h" />
@@ -57,6 +60,7 @@
     <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h" />
     <ClInclude Include="..\..\Include\resource\ElaineResourceBase.h" />
     <ClInclude Include="..\..\Include\resource\ElaineResourceManager.h" />
+    <ClInclude Include="..\..\Include\resource\ElaineWorkBackStageThread.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\Common\ElaineHash.cpp" />
@@ -68,6 +72,7 @@
     <ClCompile Include="..\..\Source\component\ElaineComponentFactory.cpp" />
     <ClCompile Include="..\..\Source\component\ElaineGameObject.cpp" />
     <ClCompile Include="..\..\Source\component\ElaineGameObjectMgr.cpp" />
+    <ClCompile Include="..\..\Source\component\ElaineTransformComponent.cpp" />
     <ClCompile Include="..\..\Source\ElaineFileSystem.cpp" />
     <ClCompile Include="..\..\Source\ElaineRenderableObject.cpp" />
     <ClCompile Include="..\..\Source\ElaineRoot.cpp" />
@@ -75,6 +80,8 @@
     <ClCompile Include="..\..\Source\ElaineSceneNode.cpp" />
     <ClCompile Include="..\..\Source\ElaineThread.cpp" />
     <ClCompile Include="..\..\Source\ElaineThreadManager.cpp" />
+    <ClCompile Include="..\..\Source\ElaineTimer.cpp" />
+    <ClCompile Include="..\..\Source\ElaineUseCount.cpp" />
     <ClCompile Include="..\..\Source\JobSystem\ElaineJob.cpp" />
     <ClCompile Include="..\..\Source\JobSystem\ElaineJobSystem.cpp" />
     <ClCompile Include="..\..\Source\math\ElaineAxisAlignedBox.cpp" />
@@ -90,6 +97,7 @@
     <ClCompile Include="..\..\Source\resource\ElaineGameObjectInfoMgr.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineResourceBase.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineResourceManager.cpp" />
+    <ClCompile Include="..\..\Source\resource\ElaineWorkBackStageThread.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>16.0</VCProjectVersion>

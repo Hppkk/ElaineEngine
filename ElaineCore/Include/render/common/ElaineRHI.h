@@ -11,8 +11,10 @@ namespace Elaine
     enum RHITYPE
     {
         Vulkan,
+        Dx11,
         Dx12,
         Metal,
+        OpenGl,
     };
 
 	class ElaineCoreExport RHI

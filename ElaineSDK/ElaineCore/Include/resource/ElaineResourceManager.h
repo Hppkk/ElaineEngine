@@ -10,10 +10,9 @@ namespace Elaine
 		ResourceManager();
 		virtual ~ResourceManager();
 		virtual	ResourceBase*		createResource(const std::string& path) = 0;
-		void						load(const std::string& path);
-		void						update();
+		ResourceBase*				loadOrGetResource(const std::string& path, bool async = true);
 	protected:
-		std::string									m_sResType;
+		inline static std::string					m_sResType = "";
 	private:
 		std::map<std::string, ResourceBase*>		m_ResMap;
 		

@@ -24,6 +24,7 @@
 #include <condition_variable>
 #include <semaphore>
 #include <fstream>
+#include <atomic>
 
 namespace Elaine
 {

@@ -8,13 +8,22 @@ namespace Elaine
         
     };
 
+    enum RHITYPE
+    {
+        Vulkan,
+        Dx11,
+        Dx12,
+        Metal,
+        OpenGl,
+    };
+
 	class ElaineCoreExport RHI
 	{
 	public:
 		virtual ~RHI() = 0;
         virtual void initialize(RHIInitInfo initialize_info) = 0;
         virtual void prepareContext() = 0;
-
+        virtual RHITYPE getRHIType() = 0;
         virtual bool isPointLightShadowEnabled() = 0;
         // allocate and create
         virtual bool allocateCommandBuffers(const RHICommandBufferAllocateInfo* pAllocateInfo, RHICommandBuffer*& pCommandBuffers) = 0;

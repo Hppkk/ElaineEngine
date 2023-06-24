@@ -132,7 +132,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
@@ -141,14 +141,15 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ElaineCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -163,7 +164,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectD
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
@@ -174,14 +175,15 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectD
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>ElaineCore.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
       <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

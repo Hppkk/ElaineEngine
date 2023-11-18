@@ -17,6 +17,6 @@ namespace Elaine
 	{
 		if (path.empty())
 			return new EGameObjectInfo();
-		return new EGameObjectInfo(path);
+		return new EGameObjectInfo(this, path);
 	}
 }

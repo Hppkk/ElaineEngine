@@ -42,6 +42,7 @@ namespace Elaine
 	{
 	public:
 		virtual ~TransformComponentFactory(){ }
-		virtual EComponent* createComponent() { return new TransformComponent(); }
+		virtual EComponent* createComponent() override { auto com = new TransformComponent(); m_ComSet.insert(com); return com; }
+		virtual EComponentInfo* createComponentInfo() override { auto info = new TransformComponentInfo(); m_ComInfoSet.insert(info); return info; }
 	};
 }

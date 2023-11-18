@@ -15,7 +15,7 @@ namespace Elaine
 		friend class EGameObject;
 	public:
 		EGameObjectInfo();
-		EGameObjectInfo(const std::string& path);
+		EGameObjectInfo(ResourceManager* pManager, const std::string& path);
 		~EGameObjectInfo();
 		virtual void			loadImpl() override;
 		virtual	void			unloadImpl() override;

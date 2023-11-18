@@ -35,9 +35,6 @@
     <Filter Include="resource">
       <UniqueIdentifier>{7bff861b-d252-4690-9203-f0d01fba62a2}</UniqueIdentifier>
     </Filter>
-    <Filter Include="ElaineThread">
-      <UniqueIdentifier>{e684f0b9-bbca-4d2a-a4da-20be70dbfefe}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Header Files">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
@@ -51,6 +48,9 @@
     </Filter>
     <Filter Include="Source Files\common">
       <UniqueIdentifier>{7d263231-357e-4ab4-a1ad-8107a3a0d12c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Header Files\ElaineThread">
+      <UniqueIdentifier>{e684f0b9-bbca-4d2a-a4da-20be70dbfefe}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -163,10 +163,10 @@
       <Filter>JobSystem</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineThreadManager.h">
-      <Filter>ElaineThread</Filter>
+      <Filter>Header Files\ElaineThread</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineThread.h">
-      <Filter>ElaineThread</Filter>
+      <Filter>Header Files\ElaineThread</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineUseCount.h">
       <Filter>Header Files</Filter>
@@ -179,6 +179,30 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineTimer.h">
       <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineQuadTree.h">
+      <Filter>scene</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineResourcePtr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\Common\Elaine.h">
+      <Filter>Header Files\common</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\ElaineRenderSystem.h">
+      <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanRHI.h">
+      <Filter>render\Vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanTypes.h">
+      <Filter>render\Vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\resource\ElaineMesh.h">
+      <Filter>resource</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\ElaineWindowSystem.h">
+      <Filter>render</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -261,10 +285,10 @@
       <Filter>JobSystem</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineThreadManager.cpp">
-      <Filter>ElaineThread</Filter>
+      <Filter>Header Files\ElaineThread</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineThread.cpp">
-      <Filter>ElaineThread</Filter>
+      <Filter>Header Files\ElaineThread</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineUseCount.cpp">
       <Filter>Source Files</Filter>
@@ -277,6 +301,27 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineTimer.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineQuadTree.cpp">
+      <Filter>scene</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineResourcePtr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\Common\Elaine.cpp">
+      <Filter>Source Files\common</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\ElaineRenderSystem.cpp">
+      <Filter>render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanRHI.cpp">
+      <Filter>render\Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\resource\ElaineMesh.cpp">
+      <Filter>resource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\ElaineWindowSystem.cpp">
+      <Filter>render</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

@@ -5,7 +5,7 @@ namespace Elaine
 {
     struct RHIInitInfo
     {
-        
+        String windowname;
     };
 
     enum RHITYPE
@@ -21,7 +21,7 @@ namespace Elaine
 	{
 	public:
 		virtual ~RHI() = 0;
-        virtual void initialize(RHIInitInfo initialize_info) = 0;
+        virtual void initialize(RHIInitInfo* initialize_info) = 0;
         virtual void prepareContext() = 0;
         virtual RHITYPE getRHIType() = 0;
         virtual bool isPointLightShadowEnabled() = 0;

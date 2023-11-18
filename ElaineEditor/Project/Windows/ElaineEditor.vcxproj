@@ -20,7 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineEditor.cpp" />
-    <ClCompile Include="..\..\Source\main.cpp" />
+    <ClCompile Include="..\..\Source\winmain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Include\ElaineEditor.h" />
@@ -130,7 +130,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/glfw/include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
@@ -163,7 +163,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../Include;$(ProjectDir)../../../ElaineSDK/ElaineEngine/Include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/glfw/include</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>

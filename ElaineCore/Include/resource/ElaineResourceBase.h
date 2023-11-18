@@ -33,13 +33,13 @@ namespace Elaine
 		ResourceBase*		m_res;
 	};
 
-	class ElaineCoreExport ResourceBase :public _UseCountBase<ResourceBase>
+	class ElaineCoreExport ResourceBase 
 	{
 		friend class ResourceManager;
 
 	public:
 		ResourceBase() = default;
-		ResourceBase(const std::string& res_name);
+		ResourceBase(ResourceManager* pManager, const std::string& res_name);
 		virtual ~ResourceBase();
 		void					load(bool async = true);
 		void					unload();
@@ -49,6 +49,8 @@ namespace Elaine
 		void					asyncLoad();
 		virtual void			loadOrObtainResource(bool async = true);
 	protected:
-		std::string				m_sResName;	//资源路径
+		std::string				msResName;	//资源路径
+		ResourceManager*		mManager = nullptr;
+		unsigned long			mUMemorySize = 0;
 	};
 }

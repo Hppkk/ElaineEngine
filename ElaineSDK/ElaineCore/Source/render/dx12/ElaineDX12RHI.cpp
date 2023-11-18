@@ -8,7 +8,7 @@ namespace Elaine
 
     }
 
-    void Dx12RHI::initialize(RHIInitInfo init_info)
+    void Dx12RHI::initialize(RHIInitInfo* init_info)
     {
 
     }

@@ -21,7 +21,9 @@ namespace Elaine
 
 
 
-	ResourceBase::ResourceBase(const std::string& res_name) :m_sResName(res_name)
+	ResourceBase::ResourceBase(ResourceManager* pManager, const std::string& res_name)
+		: msResName(res_name)
+		, mManager(pManager)
 	{
 
 	}
@@ -34,16 +36,12 @@ namespace Elaine
 	void ResourceBase::load(bool async/* = true*/)
 	{
 		loadImpl();
-		m_uUseMemory++;
+
 	}
 
 	void ResourceBase::loadOrObtainResource(bool async/* = true*/)
 	{
-		if (getUseCount() != 0)
-		{
-			m_uUseMemory++;
-			return;
-		}
+
 
 		try
 		{
@@ -55,11 +53,11 @@ namespace Elaine
 			{
 				loadImpl();
 			}
-			m_uUseMemory++;
+
 		}
 		catch (...)
 		{
-			throw std::exception(("file: " + m_sResName + "not found!").c_str());
+			throw std::exception(("file: " + msResName + "not found!").c_str());
 		}
 	}
 

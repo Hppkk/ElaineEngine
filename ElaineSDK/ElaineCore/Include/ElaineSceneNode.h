@@ -22,6 +22,8 @@ namespace Elaine
 		void					setWorldRotation(const Vector3& rotation);
 		void					setWorldQuaternion(const Quaternion& rotation);
 		void					update(bool updateChild = true, bool notifyParent = true);
+		void					updateBindingBox();
+		void					findVisibilityObject();
 	private:								  
 
 		AxisAlignedBox						m_BoundingBox;

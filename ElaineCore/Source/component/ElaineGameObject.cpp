@@ -11,7 +11,8 @@ namespace Elaine
 
 	}
 
-	EGameObjectInfo::EGameObjectInfo(const std::string& path) :ResourceBase(path)
+	EGameObjectInfo::EGameObjectInfo(ResourceManager* pManager, const std::string& path)
+		: ResourceBase(pManager, path)
 	{
 
 	}

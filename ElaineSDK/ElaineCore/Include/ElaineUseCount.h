@@ -3,44 +3,61 @@
 namespace Elaine
 {
 	template<typename T>
+	class DefaultDeleter
+	{
+		DefaultDeleter(T* rhs)
+		{
+			_ptr = rhs;
+		}
+
+		~DefaultDeleter()
+		{
+			//_delete();
+		}
+
+		void _delete()
+		{
+			SAFE_DELETE(_ptr);
+		}
+
+		T* _ptr = nullptr;
+	};
+
 	class _UseCountBase
 	{
 	public:
 		_UseCountBase()
 		{
-			m_uUseMemory = 0;
-			m_ptr = static_cast<T*>(this);
-		}
-		virtual ~_UseCountBase()
-		{
-			if (m_uUseMemory.load() == 0)
-			{
-				m_ptr = 0;
-			}
-			else
-			{
-				m_uUseMemory--;
-			}
 		}
 
-		template<class T>
-		_UseCountBase(const _UseCountBase<T>& rhs)
-		{
-			rhs.m_uUseMemory++;
-			m_uUseMemory.store(rhs.m_uUseMemory.load());
-			m_ptr = rhs.m_ptr;
+		virtual ~_UseCountBase()
+		{	
 		}
+
+		void _Incref() noexcept
+		{
+			_InterlockedIncrement(reinterpret_cast<volatile long*>(&_Used));
+		}
+
+		void _Decref() noexcept
+		{
+			_InterlockedDecrement(reinterpret_cast<volatile long*>(&_Used));
+		}
+
+		_UseCountBase(const _UseCountBase& rhs) = delete;
+
+		_UseCountBase& operator=(const _UseCountBase& rhs) = delete;
+
 		//_UseCountBase& operator=(const _UseCountBase& rhs);
 		//_UseCountBase& operator=(const _UseCountBase&& rhs);
 
 
-		size_t					getUseCount()
+		unsigned long getUseCount()
 		{
-			return m_uUseMemory.load();
+			return _Used;
 		}
 
 	protected:
-		std::atomic_size_t		m_uUseMemory;
-		T*						m_ptr = nullptr;
+		unsigned long	_Used = 0;
 	};
 }

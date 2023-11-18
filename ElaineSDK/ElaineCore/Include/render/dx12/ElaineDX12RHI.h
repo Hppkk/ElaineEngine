@@ -11,7 +11,7 @@ namespace Elaine
         ~Dx12RHI();
 
         // initialize
-        virtual void initialize(RHIInitInfo init_info) override;
+        virtual void initialize(RHIInitInfo* init_info) override;
         virtual void prepareContext() override;
         virtual RHITYPE getRHIType() override;
 

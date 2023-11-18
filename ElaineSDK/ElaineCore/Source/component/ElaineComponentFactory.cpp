@@ -9,7 +9,27 @@ namespace Elaine
 		if (pCom == nullptr)
 			return;
 
+		auto iter = m_ComSet.find(pCom);
+		if (iter == m_ComSet.end())
+			return;
+
+		m_ComSet.erase(iter);
 		
+		SAFE_DELETE(pCom)
+	}
+
+	void ComponentFactory::destoryComponentInfo(EComponentInfo* pInfo)
+	{
+		if (pInfo == nullptr)
+			return;
+
+		auto iter = m_ComInfoSet.find(pInfo);
+		if (iter == m_ComInfoSet.end())
+			return;
+
+		m_ComInfoSet.erase(iter);
+
+		SAFE_DELETE(pInfo)
 	}
 
 	void ComponentFactory::destoryAllComponent()
@@ -23,7 +43,12 @@ namespace Elaine
 		{
 			SAFE_DELETE(com);
 		}
+		for (auto info : m_ComInfoSet)
+		{
+			SAFE_DELETE(info)
+		}
 		m_ComSet.clear();
+		m_ComInfoSet.clear();
 	}
 
 	ComponentFactoryManager::~ComponentFactoryManager()

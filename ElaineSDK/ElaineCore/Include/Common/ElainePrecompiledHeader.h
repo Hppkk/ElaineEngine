@@ -1,4 +1,5 @@
 #pragma once
+#include "Elaine.h"
 #include "ElaineCoreMacroDefinition.h"
 #include "ElaineCorePrerequirements.h"
 #include "ElaineStdRequirements.h"
@@ -32,6 +33,8 @@
 #include "component/ElaineComponent.h"
 #include "render/common/ElaineRHI.h"
 #include "render/dx12/ElaineDX12RHI.h"
+#include "render/ElaineRenderSystem.h"
+#include "render/vulkan/ElaineVulkanRHI.h"
 
 namespace Elaine
 {

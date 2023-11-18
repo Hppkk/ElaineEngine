@@ -4,6 +4,7 @@
 namespace Elaine
 {
 	class EComponent;
+	class EComponentInfo;
 
 	class ElaineCoreExport ComponentFactory
 	{
@@ -12,11 +13,14 @@ namespace Elaine
 		
 		virtual ~ComponentFactory();
 		virtual EComponent*				createComponent() = 0;
+		virtual EComponentInfo*			createComponentInfo() = 0;
 		void							destoryComponent(EComponent* pCom);
+		void							destoryComponentInfo(EComponentInfo* pInfo);
 		void							destoryAllComponent();
 	protected:
-		std::string				m_sComType;
-		std::set<EComponent*>	m_ComSet;
+		std::string						m_sComType;
+		std::set<EComponent*>			m_ComSet;
+		std::set<EComponentInfo*>		m_ComInfoSet;
 	};
 
 	class ElaineCoreExport ComponentFactoryManager :public Singleton<ComponentFactoryManager>

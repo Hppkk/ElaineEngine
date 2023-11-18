@@ -1,4 +1,6 @@
 #include "ElainePrecompiledHeader.h"
+#include "ElaineTimer.h"
+#include "render/ElaineWindowSystem.h"
 
 namespace Elaine
 {
@@ -15,6 +17,7 @@ namespace Elaine
 
 	void Root::Init()
 	{
+		m_timer = new Timer();
 #if  ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 		char szFilePath[MAX_PATH + 1] = { 0 };
 		GetModuleFileNameA(NULL, szFilePath, MAX_PATH);
@@ -32,7 +35,15 @@ namespace Elaine
 
 		new LogSystem();
 		new ThreadManager();
-		new Dx12RHI();
+		new WindowSystem();
+		new RenderSystem();
+		new VulkanRHI();
+		RHIInitInfo info;
+		if (m_currentMode == em_Editor)
+			info.windowname = "ElaineEditor";
+		else
+			info.windowname = "Runtime";
+		VulkanRHI::instance()->initialize(&info);
 	}
 
 	float Root::calculateDeltaTime()
@@ -62,8 +73,11 @@ namespace Elaine
 
 	void Root::terminate()
 	{
-		delete Dx12RHI::instance();
+		delete VulkanRHI::instance();
+		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();
+		delete WindowSystem::instance();
+		SAFE_DELETE(m_timer);
 	}
 }

@@ -2,6 +2,7 @@
 #include "ElaineLogSystem.h"
 #include "ElaineEditor.h"
 #include "ElaineEngine.h"
+#include "render/ElaineWindowSystem.h"
 
 #if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 #include <Windows.h>
@@ -112,29 +113,30 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
-		initMainWindow();
+		//initMainWindow();
 
 		new Root(em_Editor);
 		Root::instance()->Init();
+		
 		ElaineEngine* engine = new ElaineEngine();
 		EngineInitDesc desc{};
 		engine->initilize(desc);
 		ElaineEditor* editor = new ElaineEditor();
 		editor->initialize();
-		
-		MSG msg = { 0 };
-		while (msg.message != WM_QUIT)
-		{
-			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
-			{
-				TranslateMessage(&msg);
-				DispatchMessage(&msg);
-			}
-			else
-			{
-				
-			}
-		}
+		WindowSystem::instance()->tick();
+		//MSG msg = { 0 };
+		//while (msg.message != WM_QUIT)
+		//{
+		//	if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+		//	{
+		//		TranslateMessage(&msg);
+		//		DispatchMessage(&msg);
+		//	}
+		//	else
+		//	{
+		//		
+		//	}
+		//}
 		delete editor;
 		delete engine;
 		delete Root::instance();

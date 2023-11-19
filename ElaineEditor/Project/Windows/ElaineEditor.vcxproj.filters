@@ -29,5 +29,8 @@
     <ClInclude Include="..\..\Include\ElaineEditor.h">
       <Filter>Include</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineEditorPrerequirements.h">
+      <Filter>Include</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

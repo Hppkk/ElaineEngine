@@ -32,7 +32,9 @@
     <ClInclude Include="..\..\Include\component\ElaineGameObject.h" />
     <ClInclude Include="..\..\Include\component\ElaineGameObjectMgr.h" />
     <ClInclude Include="..\..\Include\component\ElaineTransformComponent.h" />
+    <ClInclude Include="..\..\Include\ElaineCamera.h" />
     <ClInclude Include="..\..\Include\ElaineFileSystem.h" />
+    <ClInclude Include="..\..\Include\ElaineInputSystem.h" />
     <ClInclude Include="..\..\Include\ElaineQuadTree.h" />
     <ClInclude Include="..\..\Include\ElaineRenderableObject.h" />
     <ClInclude Include="..\..\Include\ElaineResourcePtr.h" />
@@ -60,10 +62,12 @@
     <ClInclude Include="..\..\Include\render\common\ElaineRHITypes.h" />
     <ClInclude Include="..\..\Include\render\dx12\ElaineDX12RHI.h" />
     <ClInclude Include="..\..\Include\render\dx12\ElaineDX12Types.h" />
+    <ClInclude Include="..\..\Include\render\ElaineEntity.h" />
     <ClInclude Include="..\..\Include\render\ElaineRenderSystem.h" />
     <ClInclude Include="..\..\Include\render\ElaineWindowSystem.h" />
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanRHI.h" />
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanTypes.h" />
+    <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanUtil.h" />
     <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h" />
     <ClInclude Include="..\..\Include\resource\ElaineMesh.h" />
     <ClInclude Include="..\..\Include\resource\ElaineResourceBase.h" />
@@ -82,7 +86,9 @@
     <ClCompile Include="..\..\Source\component\ElaineGameObject.cpp" />
     <ClCompile Include="..\..\Source\component\ElaineGameObjectMgr.cpp" />
     <ClCompile Include="..\..\Source\component\ElaineTransformComponent.cpp" />
+    <ClCompile Include="..\..\Source\ElaineCamera.cpp" />
     <ClCompile Include="..\..\Source\ElaineFileSystem.cpp" />
+    <ClCompile Include="..\..\Source\ElaineInputSystem.cpp" />
     <ClCompile Include="..\..\Source\ElaineQuadTree.cpp" />
     <ClCompile Include="..\..\Source\ElaineRenderableObject.cpp" />
     <ClCompile Include="..\..\Source\ElaineResourcePtr.cpp" />
@@ -105,9 +111,11 @@
     <ClCompile Include="..\..\Source\math\ElaineVector4.cpp" />
     <ClCompile Include="..\..\Source\render\common\ElaineRHI.cpp" />
     <ClCompile Include="..\..\Source\render\dx12\ElaineDX12RHI.cpp" />
+    <ClCompile Include="..\..\Source\render\ElaineEntity.cpp" />
     <ClCompile Include="..\..\Source\render\ElaineRenderSystem.cpp" />
     <ClCompile Include="..\..\Source\render\ElaineWindowSystem.cpp" />
     <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanRHI.cpp" />
+    <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanUtil.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineGameObjectInfoMgr.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineMesh.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineResourceBase.cpp" />
@@ -212,7 +220,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;$(ProjectDir)../../../3rdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -245,7 +253,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;$(ProjectDir)../../../3rdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <CallingConvention>Cdecl</CallingConvention>

@@ -25,6 +25,7 @@
 #include <semaphore>
 #include <fstream>
 #include <atomic>
+#include <array>
 
 namespace Elaine
 {

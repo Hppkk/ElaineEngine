@@ -115,15 +115,15 @@ extern "C" {
 	{
 		//initMainWindow();
 
-		new Root(em_Editor);
+		new Root(em_Editor, tm_Thread0);
 		Root::instance()->Init();
 		
 		ElaineEngine* engine = new ElaineEngine();
 		EngineInitDesc desc{};
 		engine->initilize(desc);
-		ElaineEditor* editor = new ElaineEditor();
+		ElaineEditor* editor = new ElaineEditor(engine);
 		editor->initialize();
-		WindowSystem::instance()->tick();
+		editor->tick();
 		//MSG msg = { 0 };
 		//while (msg.message != WM_QUIT)
 		//{

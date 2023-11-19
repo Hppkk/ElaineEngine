@@ -18,7 +18,7 @@ namespace Elaine
 		virtual ~ElaineEngine();
 
 		void		initilize(const EngineInitDesc& desc);
-		void		tickOneFrame(float dt);
+		void		tickOneFrame();
 		void		close();
 	};
 }

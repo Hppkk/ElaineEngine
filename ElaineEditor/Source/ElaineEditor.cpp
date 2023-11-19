@@ -1,9 +1,13 @@
 #include "ElaineEditor.h"
 #include "ElaineLogSystem.h"
+#include "ElaineRoot.h"
+#include "render/ElaineWindowSystem.h"
+#include "ElaineInputSystem.h"
 
 namespace Elaine
 {
-	ElaineEditor::ElaineEditor()
+	ElaineEditor::ElaineEditor(ElaineEngine* engine)
+		: m_pEngine(engine)
 	{
 
 	}
@@ -23,8 +27,12 @@ namespace Elaine
 		LOG_INFO("Editor Close");
 	}
 
-	void ElaineEditor::tick(float dt)
+	void ElaineEditor::tick()
 	{
-
+		while (!WindowSystem::instance()->shouldClose(WindowSystem::instance()->getMainWindow()))
+		{
+			InputSystem::instance()->PollEvent();
+			m_pEngine->tickOneFrame();
+		}
 	}
 }

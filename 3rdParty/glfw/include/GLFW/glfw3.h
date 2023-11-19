@@ -106,7 +106,7 @@ extern "C" {
  * Include it unconditionally to avoid surprising side-effects.
  */
 #include <stdint.h>
-
+#define GLFW_INCLUDE_VULKAN
 #if defined(GLFW_INCLUDE_VULKAN)
   #include <vulkan/vulkan.h>
 #endif /* Vulkan header */

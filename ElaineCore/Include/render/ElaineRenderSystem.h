@@ -8,9 +8,11 @@ namespace Elaine
 	{
 	public:
 		RenderSystem();
+		void initilize();
+		RHI* getRHI() { return m_pRHI; }
 		~RenderSystem();
 		
 	private:
-
+		RHI* m_pRHI = nullptr;
 	};
 }

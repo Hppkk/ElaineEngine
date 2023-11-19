@@ -1,11 +1,13 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineTimer.h"
 #include "render/ElaineWindowSystem.h"
+#include "ElaineInputSystem.h"
 
 namespace Elaine
 {
-	Root::Root(EngineMode mode):
-		m_currentMode(mode)
+	Root::Root(EngineMode runtimeMode, ThreadMode threadMode)
+		: m_RuntimeMode(runtimeMode)
+		, m_ThreadMode(threadMode)
 	{
 
 	}
@@ -36,14 +38,10 @@ namespace Elaine
 		new LogSystem();
 		new ThreadManager();
 		new WindowSystem();
-		new RenderSystem();
-		new VulkanRHI();
-		RHIInitInfo info;
-		if (m_currentMode == em_Editor)
-			info.windowname = "ElaineEditor";
-		else
-			info.windowname = "Runtime";
-		VulkanRHI::instance()->initialize(&info);
+		m_pRenderSystem = new RenderSystem();
+		m_pRenderSystem->initilize();
+		new InputSystem();
+		
 	}
 
 	float Root::calculateDeltaTime()
@@ -71,13 +69,36 @@ namespace Elaine
 		m_fps = static_cast<int>(1.f / m_average_duration);
 	}
 
+	void Root::beginFrame(float dt)
+	{
+		
+	}
+	void Root::fixedUpdate(float dt)
+	{
+
+	}
+	void Root::endFrame(float dt)
+	{
+
+	}
+
+	void Root::tickOnceFrame()
+	{
+		float dt = calculateDeltaTime();
+		calculateFPS(dt);
+		beginFrame(dt);
+		fixedUpdate(dt);
+		endFrame(dt);
+		
+	}
+
 	void Root::terminate()
 	{
-		delete VulkanRHI::instance();
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();
 		delete WindowSystem::instance();
 		SAFE_DELETE(m_timer);
+		delete InputSystem::instance();
 	}
 }

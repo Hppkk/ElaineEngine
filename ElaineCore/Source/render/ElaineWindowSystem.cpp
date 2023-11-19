@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/ElaineWindowSystem.h"
+#include "GLFW/glfw3.h"
 
 namespace Elaine
 {
@@ -53,17 +54,6 @@ namespace Elaine
 		return m_windowSize[it->second];
 	}
 
-	void WindowSystem::tick()
-	{
-		if (m_mainWindow == nullptr)
-			return;
-
-		while (!glfwWindowShouldClose(m_mainWindow))
-		{
-			glfwPollEvents();
-		}
-	}
-
 	void WindowSystem::destoryWindow(const String& name)
 	{
 		auto iter = m_windows.find(name);
@@ -78,6 +68,8 @@ namespace Elaine
 	{
 		glfwDestroyWindow(window);
 	}
+
+	bool WindowSystem::shouldClose(GLFWwindow* window) const { return glfwWindowShouldClose(window); }
 
 	void WindowSystem::Terminate()
 	{

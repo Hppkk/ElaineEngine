@@ -204,6 +204,18 @@
     <ClInclude Include="..\..\Include\render\ElaineWindowSystem.h">
       <Filter>render</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanUtil.h">
+      <Filter>render\Vulkan</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineCamera.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\ElaineEntity.h">
+      <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineInputSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
@@ -322,6 +334,18 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\render\ElaineWindowSystem.cpp">
       <Filter>render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanUtil.cpp">
+      <Filter>render\Vulkan</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineCamera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\ElaineEntity.cpp">
+      <Filter>render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineInputSystem.cpp">
+      <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

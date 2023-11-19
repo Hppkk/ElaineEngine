@@ -36,13 +36,11 @@ namespace Elaine
 		ElaineThread(const std::string& name = "");
 		~ElaineThread();
 		void			ThreadMainFunc();
-		void			pushThreadFunc(ThreadEventDesc even);
 	private:
 		std::future<void>				m_thread;
 		std::string						m_sThreadName;
 		bool							m_bIsExit;
-		std::deque<ThreadEventDesc>		m_ThreadFuncQueue;
-		std::condition_variable			m_conditionVariable;
 		std::mutex						m_mutex;
+		bool							m_bPause;
 	};
 }

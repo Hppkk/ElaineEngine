@@ -1,5 +1,6 @@
 #include "ElaineEngine.h"
 #include "ElaineLogSystem.h"
+#include "ElaineRoot.h"
 
 namespace Elaine
 {
@@ -13,9 +14,9 @@ namespace Elaine
 		LOG_INFO("Engine Init");
 	}
 
-	void ElaineEngine::tickOneFrame(float dt)
+	void ElaineEngine::tickOneFrame()
 	{
-
+		Root::instance()->tickOnceFrame();
 	}
 
 	void ElaineEngine::close()

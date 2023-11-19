@@ -1,12 +1,13 @@
 #pragma once
 #include "render/common/ElaineRHI.h"
 #include "render/vulkan/ElaineVulkanTypes.h"
-#include "GLFW/glfw3.h"
 #include "vulkan.h"
+#include "GLFW/glfw3.h"
+#include "vk_mem_alloc.h"
 
 namespace Elaine
 {
-	class VulkanRHI final: public RHI, public Singleton<VulkanRHI>
+	class VulkanRHI final: public RHI
 	{
 	public:
 		// initialize
@@ -193,13 +194,13 @@ namespace Elaine
         VkSwapchainKHR           m_swapchain{ nullptr };
         std::vector<VkImage>     m_swapchain_images;
 
-        RHIImage* m_depth_image; //= new VulkanImage();
+        RHIImage* m_depth_image = new VulkanImage();
         VkDeviceMemory m_depth_image_memory{ nullptr };
 
         std::vector<VkFramebuffer> m_swapchain_framebuffers;
 
-        // asset allocator use VMA library
-        //VmaAllocator m_assets_allocator;
+        //asset allocator use VMA library
+        VmaAllocator m_assets_allocator;
 
         // function pointers
         PFN_vkCmdBeginDebugUtilsLabelEXT _vkCmdBeginDebugUtilsLabelEXT;

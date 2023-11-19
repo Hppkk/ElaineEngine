@@ -35,6 +35,8 @@
 #include "render/dx12/ElaineDX12RHI.h"
 #include "render/ElaineRenderSystem.h"
 #include "render/vulkan/ElaineVulkanRHI.h"
+#include "ElaineCamera.h"
+#include "render/ElaineEntity.h"
 
 namespace Elaine
 {

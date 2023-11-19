@@ -14,4 +14,14 @@ namespace Elaine
 		#endif
 	#endif // ElaineCORE_DLLEXPORT
 #endif // WIN32
+
+
+	class RenderSystem;
+	class Vector2;
+	class Vector3;
+	class WindowSystem;
+	class VulkanRHI;
+	class RHI;
+	class DX12RHI;
+	class Camera;
 }

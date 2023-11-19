@@ -79,7 +79,7 @@ namespace Elaine
 		{
 			ThreadEventDesc evenDesc{};
 			evenDesc.init(&ResourceBase::loadImpl, this);
-			resThread->pushThreadFunc(evenDesc);
+			//resThread->pushThreadFunc(evenDesc);
 			//todo  如果线程阻塞，通知线程开启
 		}
 	}

@@ -11,6 +11,8 @@ namespace Elaine
 
 	void ElaineEngine::initilize(const EngineInitDesc& desc)
 	{
+		new Root(em_Editor, tm_Thread0);
+		Root::instance()->Init();
 		LOG_INFO("Engine Init");
 	}
 

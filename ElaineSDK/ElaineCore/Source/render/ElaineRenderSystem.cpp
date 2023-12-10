@@ -18,12 +18,24 @@ namespace Elaine
 			info.windowname = "Runtime";
 		m_pRHI->initialize(&info);
 
-
 	}
 
 	RenderSystem::~RenderSystem()
 	{
 		SAFE_DELETE(m_pRHI)
+	}
+
+	void RenderSystem::tick(float dt)
+	{
+
+	}
+	void RenderSystem::clear()
+	{
+
+	}
+	void RenderSystem::swapLogicRenderData()
+	{
+
 	}
 
 }

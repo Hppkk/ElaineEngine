@@ -3,6 +3,12 @@
 namespace Elaine
 {
 
+    Camera::Camera(const String& name)
+        : mName(name)
+    {
+
+    }
+
     void Camera::setMainViewMatrix(const Matrix4x4& view_matrix)
     {
         std::lock_guard<std::mutex> lock_guard(m_view_matrix_mutex);

@@ -6,7 +6,7 @@ namespace Elaine
 	class ElaineCoreExport Camera
 	{
     public:
-        Camera() = default;
+        Camera(const String& name);
         void setMainViewMatrix(const Matrix4x4& view_matrix);
 
         void move(Vector3 delta);
@@ -51,5 +51,6 @@ namespace Elaine
         float m_fovy{ 0.f };
 
         std::mutex m_view_matrix_mutex;
+        String mName;
 	};
 }

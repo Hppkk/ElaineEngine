@@ -41,6 +41,8 @@ namespace Elaine
 		m_pRenderSystem = new RenderSystem();
 		m_pRenderSystem->initilize();
 		new InputSystem();
+		m_MainSceneMgr = new SceneManager("Main SceneManager");
+		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);
 		
 	}
 
@@ -92,6 +94,27 @@ namespace Elaine
 		
 	}
 
+	SceneManager* Root::getSceneManager(const String& name)
+	{
+		auto iter = m_SceneMgrs.find(name);
+		if (iter != m_SceneMgrs.end())
+			return iter->second;
+
+		return nullptr;
+	}
+
+	SceneManager* Root::getMainSceneManager()
+	{
+		return m_MainSceneMgr;
+	}
+
+	SceneManager* Root::createSceneManager(const String& name)
+	{
+		auto mgr = new SceneManager(name);
+		m_SceneMgrs.emplace(name, mgr);
+		return mgr;
+	}
+
 	void Root::terminate()
 	{
 		delete RenderSystem::instance();
@@ -100,5 +123,11 @@ namespace Elaine
 		delete WindowSystem::instance();
 		SAFE_DELETE(m_timer);
 		delete InputSystem::instance();
+
+		for (auto& iter : m_SceneMgrs)
+		{
+			SAFE_DELETE(iter.second);
+		}
+		
 	}
 }

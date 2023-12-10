@@ -40,6 +40,7 @@
     <ClInclude Include="..\..\Include\ElaineResourcePtr.h" />
     <ClInclude Include="..\..\Include\ElaineRoot.h" />
     <ClInclude Include="..\..\Include\ElaineLogSystem.h" />
+    <ClInclude Include="..\..\Include\ElaineSceneManager.h" />
     <ClInclude Include="..\..\Include\ElaineSceneNode.h" />
     <ClInclude Include="..\..\Include\ElaineThread.h" />
     <ClInclude Include="..\..\Include\ElaineThreadManager.h" />
@@ -63,6 +64,7 @@
     <ClInclude Include="..\..\Include\render\dx12\ElaineDX12RHI.h" />
     <ClInclude Include="..\..\Include\render\dx12\ElaineDX12Types.h" />
     <ClInclude Include="..\..\Include\render\ElaineEntity.h" />
+    <ClInclude Include="..\..\Include\render\ElainePass.h" />
     <ClInclude Include="..\..\Include\render\ElaineRenderSystem.h" />
     <ClInclude Include="..\..\Include\render\ElaineWindowSystem.h" />
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanRHI.h" />
@@ -94,6 +96,7 @@
     <ClCompile Include="..\..\Source\ElaineResourcePtr.cpp" />
     <ClCompile Include="..\..\Source\ElaineRoot.cpp" />
     <ClCompile Include="..\..\Source\ElaineLogSystem.cpp" />
+    <ClCompile Include="..\..\Source\ElaineSceneManager.cpp" />
     <ClCompile Include="..\..\Source\ElaineSceneNode.cpp" />
     <ClCompile Include="..\..\Source\ElaineThread.cpp" />
     <ClCompile Include="..\..\Source\ElaineThreadManager.cpp" />
@@ -112,6 +115,7 @@
     <ClCompile Include="..\..\Source\render\common\ElaineRHI.cpp" />
     <ClCompile Include="..\..\Source\render\dx12\ElaineDX12RHI.cpp" />
     <ClCompile Include="..\..\Source\render\ElaineEntity.cpp" />
+    <ClCompile Include="..\..\Source\render\ElainePass.cpp" />
     <ClCompile Include="..\..\Source\render\ElaineRenderSystem.cpp" />
     <ClCompile Include="..\..\Source\render\ElaineWindowSystem.cpp" />
     <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanRHI.cpp" />

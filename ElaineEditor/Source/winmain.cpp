@@ -114,9 +114,6 @@ extern "C" {
 	int main(int argc, char** argv)
 	{
 		//initMainWindow();
-
-		new Root(em_Editor, tm_Thread0);
-		Root::instance()->Init();
 		
 		ElaineEngine* engine = new ElaineEngine();
 		EngineInitDesc desc{};

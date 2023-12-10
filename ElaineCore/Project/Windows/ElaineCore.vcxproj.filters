@@ -216,6 +216,12 @@
     <ClInclude Include="..\..\Include\ElaineInputSystem.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\Include\ElaineSceneManager.h">
+      <Filter>scene</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\render\ElainePass.h">
+      <Filter>render</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\Source\ElaineRoot.cpp">
@@ -346,6 +352,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineInputSystem.cpp">
       <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\ElaineSceneManager.cpp">
+      <Filter>scene</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\render\ElainePass.cpp">
+      <Filter>render</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

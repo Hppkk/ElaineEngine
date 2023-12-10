@@ -2,6 +2,7 @@
 #include "ElaineCorePrerequirements.h"
 #include "ElaineSingleton.h"
 #include "ElaineTimer.h"
+#include "ElaineSceneManager.h"
 
 namespace Elaine
 {
@@ -35,6 +36,9 @@ namespace Elaine
 		void					endFrame(float dt);
 		void					tickOnceFrame();
 		RenderSystem*			getRenderSystem() { return m_pRenderSystem; }
+		SceneManager*			getSceneManager(const String& name);
+		SceneManager*			getMainSceneManager();
+		SceneManager*			createSceneManager(const String& name);
 	private:
 		// shutdown
 		void					terminate();
@@ -50,6 +54,8 @@ namespace Elaine
 		int										m_frame_count = 0;
 		Timer*									m_timer = nullptr;
 		RenderSystem*							m_pRenderSystem = nullptr;
+		std::map<String, SceneManager*>			m_SceneMgrs;
+		SceneManager*							m_MainSceneMgr = nullptr;
 	};
 
 }

@@ -4,6 +4,8 @@ namespace Elaine
 {
 #define MAX_DEPTH  8
 
+	class SceneNode;
+
 	class ElaineCoreExport QuadTreeNode
 	{
 		friend class QuadTree;

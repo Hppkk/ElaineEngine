@@ -30,10 +30,13 @@ The steps below take you through cloning your own private fork, then compiling a
    
    ```
    git pull
+   git submodule init
    git submodule update --recursive
    ```
 
 2. Install Visual Studio 2022 or Visual Studio 2019. Then you can run the solution in path: `ElaineEditor/Project/Windows/ElaineEditor.sln`.Now you can start creating your own.
+
+3.  Choose one config between EditorDebug or EditorRelease  to debug your Editor.
 
 # Features
 

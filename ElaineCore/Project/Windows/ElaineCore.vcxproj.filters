@@ -26,9 +26,6 @@
     <Filter Include="scene">
       <UniqueIdentifier>{631b21c8-c0ee-4db1-8b23-0f62acdf3d06}</UniqueIdentifier>
     </Filter>
-    <Filter Include="component">
-      <UniqueIdentifier>{cc70fb9a-f59d-4f91-864e-a85a139a734d}</UniqueIdentifier>
-    </Filter>
     <Filter Include="JobSystem">
       <UniqueIdentifier>{b712d843-61ce-4b53-bc81-2d79e4565c51}</UniqueIdentifier>
     </Filter>
@@ -51,6 +48,9 @@
     </Filter>
     <Filter Include="Header Files\ElaineThread">
       <UniqueIdentifier>{e684f0b9-bbca-4d2a-a4da-20be70dbfefe}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="framework">
+      <UniqueIdentifier>{cc70fb9a-f59d-4f91-864e-a85a139a734d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -127,16 +127,16 @@
       <Filter>scene</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineComponent.h">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineGameObject.h">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\Common\ElaineHash.h">
       <Filter>Header Files\common</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineComponentFactory.h">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\render\dx12\ElaineDX12RHI.h">
       <Filter>render\DX12</Filter>
@@ -151,7 +151,7 @@
       <Filter>resource</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineGameObjectMgr.h">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h">
       <Filter>resource</Filter>
@@ -175,7 +175,7 @@
       <Filter>resource</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\component\ElaineTransformComponent.h">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClInclude>
     <ClInclude Include="..\..\Include\ElaineTimer.h">
       <Filter>Header Files</Filter>
@@ -221,6 +221,12 @@
     </ClInclude>
     <ClInclude Include="..\..\Include\render\ElainePass.h">
       <Filter>render</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\resource\ElaineDataStream.h">
+      <Filter>resource</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\Include\resource\ElaineDataStreamMgr.h">
+      <Filter>resource</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -270,13 +276,13 @@
       <Filter>scene</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineComponent.cpp">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineGameObject.cpp">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineComponentFactory.cpp">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\render\dx12\ElaineDX12RHI.cpp">
       <Filter>render\DX12</Filter>
@@ -288,7 +294,7 @@
       <Filter>resource</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineGameObjectMgr.cpp">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\resource\ElaineGameObjectInfoMgr.cpp">
       <Filter>resource</Filter>
@@ -315,7 +321,7 @@
       <Filter>resource</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineTransformComponent.cpp">
-      <Filter>component</Filter>
+      <Filter>framework</Filter>
     </ClCompile>
     <ClCompile Include="..\..\Source\ElaineTimer.cpp">
       <Filter>Source Files</Filter>
@@ -358,6 +364,12 @@
     </ClCompile>
     <ClCompile Include="..\..\Source\render\ElainePass.cpp">
       <Filter>render</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\resource\ElaineDataStream.cpp">
+      <Filter>resource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\Source\resource\ElaineDataStreamMgr.cpp">
+      <Filter>resource</Filter>
     </ClCompile>
   </ItemGroup>
 </Project>

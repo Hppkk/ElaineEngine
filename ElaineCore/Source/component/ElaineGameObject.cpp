@@ -83,7 +83,7 @@ namespace Elaine
 		{
 			for (auto pChild = pGameObjectArray->child; pChild != nullptr; pChild = pChild->next)
 			{
-				EGameObjectInfo* info = static_cast<EGameObjectInfo*>(GameObjectInfoMgr::instance()->createResource(""));
+				EGameObjectInfo* info = static_cast<EGameObjectInfo*>(GameObjectInfoMgr::instance()->createResource("").get());
 				info->importData(pChild);
 				m_childGameObjectInfos.push_back(info);
 			}
@@ -189,12 +189,14 @@ namespace Elaine
 	{
 		if (m_componentsMap.find(com->m_sType) != m_componentsMap.end())
 			return;
+#ifdef _HAS_EDITOR_
 		auto iter = m_componentsIndexMap.find(com);
 		if (iter != m_componentsIndexMap.end())
 			return;
 		
 		m_componentsIndexMap[com] = m_components.size();
 		m_components.push_back(com);
+#endif
 		m_componentsMap[com->m_sType] = com;
 	}
 
@@ -212,18 +214,18 @@ namespace Elaine
 
 	void EGameObject::destoryImpl()
 	{
-		for (auto com : m_components)
+		for (auto com : m_componentsMap)
 		{
-			if (!com)continue;
+			if (!com.second)continue;
 
-			auto factory = ComponentFactoryManager::instance()->getFactoryByComType(com->m_sType);
+			auto factory = ComponentFactoryManager::instance()->getFactoryByComType(com.second->m_sType);
 			if (factory)
 			{
-				factory->destoryComponent(com);
+				factory->destoryComponent(com.second);
 			}
 		}
 
-		m_components.clear();
+		m_componentsMap.clear();
 		for (auto go : m_childGameObjects)
 		{
 			if (!go)continue;
@@ -237,7 +239,7 @@ namespace Elaine
 	{
 		if (rhs == nullptr)
 			return;
-
+#ifdef _HAS_EDITOR
 		auto it = m_componentsIndexMap.find(rhs);
 		if (it == m_componentsIndexMap.end())
 			return;
@@ -246,12 +248,13 @@ namespace Elaine
 		m_componentsIndexMap.erase(it);
 		auto iter = m_components.begin() + idx;
 		m_components.erase(iter);
+#endif
 		
 		auto factory = ComponentFactoryManager::instance()->getFactoryByComType(rhs->m_sType);
 		if (factory == nullptr)
 			return;
 
-		factory->destoryComponent(removeCom);
+		factory->destoryComponent(rhs);
 	}
 
 	void EGameObject::removeChildGameObject(EGameObject* rhs)

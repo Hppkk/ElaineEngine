@@ -39,7 +39,7 @@ namespace Elaine
 		new ThreadManager();
 		new WindowSystem();
 		m_pRenderSystem = new RenderSystem();
-		m_pRenderSystem->initilize();
+		m_pRenderSystem->initilize(Vulkan);
 		new InputSystem();
 		m_MainSceneMgr = new SceneManager("Main SceneManager");
 		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);

@@ -5,6 +5,22 @@
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorDebug|Win32">
+      <Configuration>EditorDebug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorDebug|x64">
+      <Configuration>EditorDebug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorRelease|Win32">
+      <Configuration>EditorRelease</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorRelease|x64">
+      <Configuration>EditorRelease</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
@@ -70,6 +86,8 @@
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanRHI.h" />
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanTypes.h" />
     <ClInclude Include="..\..\Include\render\vulkan\ElaineVulkanUtil.h" />
+    <ClInclude Include="..\..\Include\resource\ElaineDataStream.h" />
+    <ClInclude Include="..\..\Include\resource\ElaineDataStreamMgr.h" />
     <ClInclude Include="..\..\Include\resource\ElaineGameObjectInfoMgr.h" />
     <ClInclude Include="..\..\Include\resource\ElaineMesh.h" />
     <ClInclude Include="..\..\Include\resource\ElaineResourceBase.h" />
@@ -81,7 +99,9 @@
     <ClCompile Include="..\..\Source\Common\ElaineHash.cpp" />
     <ClCompile Include="..\..\Source\Common\ElainePrecompiledHeader.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="..\..\Source\component\ElaineComponent.cpp" />
     <ClCompile Include="..\..\Source\component\ElaineComponentFactory.cpp" />
@@ -120,6 +140,8 @@
     <ClCompile Include="..\..\Source\render\ElaineWindowSystem.cpp" />
     <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanRHI.cpp" />
     <ClCompile Include="..\..\Source\render\vulkan\ElaineVulkanUtil.cpp" />
+    <ClCompile Include="..\..\Source\resource\ElaineDataStream.cpp" />
+    <ClCompile Include="..\..\Source\resource\ElaineDataStreamMgr.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineGameObjectInfoMgr.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineMesh.cpp" />
     <ClCompile Include="..\..\Source\resource\ElaineResourceBase.cpp" />
@@ -141,7 +163,20 @@
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
@@ -154,7 +189,20 @@
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
@@ -169,13 +217,26 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="PropertySheet.props" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="PropertySheet.props" />
   </ImportGroup>
@@ -184,11 +245,31 @@
     <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'">
+    <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
+    <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'">
+    <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
+    <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -216,6 +297,22 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_CONSOLE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Console</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -224,7 +321,7 @@
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;$(ProjectDir)../../../3rdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../ThirdParty/glfw/include;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/;$(ProjectDir)../../../ThirdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <TreatWarningAsError>true</TreatWarningAsError>
@@ -236,14 +333,43 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/VulkanSDK/lib/Windows;</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/VulkanSDK/lib/Windows</AdditionalLibraryDirectories>
       <AdditionalDependencies>spdlogd.lib;cjson.lib;vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;ELAINECORE_DLLEXPORT;_HAS_EDITOR_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../ThirdParty/glfw/include;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/;$(ProjectDir)../../../ThirdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4251</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>ElainePrecompiledHeader.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>ElainePrecompiledHeader.h</ForcedIncludeFiles>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ThirdParty/libs/$(Platform)/Debug;$(ProjectDir)../../../ThirdParty/VulkanSDK/lib/Windows</AdditionalLibraryDirectories>
+      <AdditionalDependencies>spdlogd.lib;cjson.lib;vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -257,7 +383,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../3rdParty/cJSON;$(ProjectDir)../../../3rdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../3rdParty/glfw/include;$(ProjectDir)../../../3rdParty/VulkanSDK/include/;$(ProjectDir)../../../3rdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../ThirdParty/glfw/include;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/;$(ProjectDir)../../../ThirdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <CallingConvention>Cdecl</CallingConvention>
@@ -272,14 +398,48 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/VulkanSDK/lib/Windows;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/VulkanSDK/lib/Windows;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>spdlogd.lib;cjson.lib;vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;ELAINECORE_DLLEXPORT;_HAS_EDITOR_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/Common;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/vulkan;$(ProjectDir)../../../ThirdParty/glfw/include;$(ProjectDir)../../../ThirdParty/VulkanSDK/include/;$(ProjectDir)../../../ThirdParty/VulkanMemoryAllocator/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <DisableSpecificWarnings>4251</DisableSpecificWarnings>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <CallingConvention>Cdecl</CallingConvention>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>ElainePrecompiledHeader.h</PrecompiledHeaderFile>
+      <ForcedIncludeFiles>ElainePrecompiledHeader.h</ForcedIncludeFiles>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ThirdParty/libs/$(Platform)/Release;$(ProjectDir)../../../ThirdParty/VulkanSDK/lib/Windows;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>spdlogd.lib;cjson.lib;vulkan-1.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

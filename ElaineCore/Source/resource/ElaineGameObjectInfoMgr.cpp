@@ -3,9 +3,11 @@
 
 namespace Elaine
 {
+	//std::string GameObjectInfoMgr::m_sResType = GetTypeStringName(GameObjectInfo);
+
 	GameObjectInfoMgr::GameObjectInfoMgr()
 	{
-		m_sResType = GetTypeStringName(GameObjectInfo);
+		
 	}
 
 	GameObjectInfoMgr::~GameObjectInfoMgr()
@@ -13,7 +15,7 @@ namespace Elaine
 
 	}
 
-	ResourceBase* GameObjectInfoMgr::createResource(const std::string& path)
+	ResourceBasePtr GameObjectInfoMgr::createResourceImpl(const std::string& path)
 	{
 		if (path.empty())
 			return new EGameObjectInfo();

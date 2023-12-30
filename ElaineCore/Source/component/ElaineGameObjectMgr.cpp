@@ -33,7 +33,7 @@ namespace Elaine
 
 	EGameObject* GameObjectMgr::createGameObjectByInfo(const std::string& path, bool async)
 	{
-		EGameObjectInfo* newInfo = static_cast<EGameObjectInfo*>(GameObjectInfoMgr::instance()->createResource(path));
+		EGameObjectInfo* newInfo = static_cast<EGameObjectInfo*>(GameObjectInfoMgr::instance()->createResource(path).get());
 		if (async)
 		{
 			

@@ -185,6 +185,7 @@ namespace Elaine
 
         m_scissor = { {0, 0}, {m_swapchain_extent.width, m_swapchain_extent.height} };
     }
+
     void VulkanRHI::recreateSwapchain()
     {
         int width = 0;
@@ -311,6 +312,75 @@ namespace Elaine
             return sampler;
         }
     }
+
+    bool VulkanRHI::createBufferVMA(VmaAllocator allocator, const RHIBufferCreateInfo* pBufferCreateInfo, const VmaAllocationCreateInfo* pAllocationCreateInfo, RHIBuffer*& pBuffer, VmaAllocation* pAllocation, VmaAllocationInfo* pAllocationInfo)
+    {
+        VkBuffer vk_buffer;
+        VkBufferCreateInfo buffer_create_info{};
+        buffer_create_info.sType = (VkStructureType)pBufferCreateInfo->sType;
+        buffer_create_info.pNext = (const void*)pBufferCreateInfo->pNext;
+        buffer_create_info.flags = (VkBufferCreateFlags)pBufferCreateInfo->flags;
+        buffer_create_info.size = (VkDeviceSize)pBufferCreateInfo->size;
+        buffer_create_info.usage = (VkBufferUsageFlags)pBufferCreateInfo->usage;
+        buffer_create_info.sharingMode = (VkSharingMode)pBufferCreateInfo->sharingMode;
+        buffer_create_info.queueFamilyIndexCount = pBufferCreateInfo->queueFamilyIndexCount;
+        buffer_create_info.pQueueFamilyIndices = (const uint32_t*)pBufferCreateInfo->pQueueFamilyIndices;
+
+        pBuffer = new VulkanBuffer();
+        VkResult result = vmaCreateBuffer(allocator,
+            &buffer_create_info,
+            pAllocationCreateInfo,
+            &vk_buffer,
+            pAllocation,
+            pAllocationInfo);
+
+        ((VulkanBuffer*)pBuffer)->setResource(vk_buffer);
+
+        if (result == VK_SUCCESS)
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    bool VulkanRHI::createBufferWithAlignmentVMA(VmaAllocator allocator, const RHIBufferCreateInfo* pBufferCreateInfo, const VmaAllocationCreateInfo* pAllocationCreateInfo, RHIDeviceSize minAlignment, RHIBuffer*& pBuffer, VmaAllocation* pAllocation, VmaAllocationInfo* pAllocationInfo)
+    {
+        VkBuffer vk_buffer;
+        VkBufferCreateInfo buffer_create_info{};
+        buffer_create_info.sType = (VkStructureType)pBufferCreateInfo->sType;
+        buffer_create_info.pNext = (const void*)pBufferCreateInfo->pNext;
+        buffer_create_info.flags = (VkBufferCreateFlags)pBufferCreateInfo->flags;
+        buffer_create_info.size = (VkDeviceSize)pBufferCreateInfo->size;
+        buffer_create_info.usage = (VkBufferUsageFlags)pBufferCreateInfo->usage;
+        buffer_create_info.sharingMode = (VkSharingMode)pBufferCreateInfo->sharingMode;
+        buffer_create_info.queueFamilyIndexCount = pBufferCreateInfo->queueFamilyIndexCount;
+        buffer_create_info.pQueueFamilyIndices = (const uint32_t*)pBufferCreateInfo->pQueueFamilyIndices;
+
+        pBuffer = new VulkanBuffer();
+        VkResult result = vmaCreateBufferWithAlignment(allocator,
+            &buffer_create_info,
+            pAllocationCreateInfo,
+            minAlignment,
+            &vk_buffer,
+            pAllocation,
+            pAllocationInfo);
+
+        ((VulkanBuffer*)pBuffer)->setResource(vk_buffer);
+
+        if (result == VK_SUCCESS)
+        {
+            return true;
+        }
+        else
+        {
+            LOG_ERROR("vmaCreateBufferWithAlignment failed!");
+            return false;
+        }
+    }
+
     RHIShader* VulkanRHI::createShaderModule(const std::vector<unsigned char>& shader_code)
     {
         RHIShader* shahder = new VulkanShader();
@@ -386,8 +456,33 @@ namespace Elaine
         vk_image_view = VulkanUtil::createImageView(m_device, vk_image, (VkFormat)format, image_aspect_flags, (VkImageViewType)view_type, layout_count, miplevels);
         ((VulkanImageView*)image_view)->setResource(vk_image_view);
     }
-    //void createGlobalImage(RHIImage*& image, RHIImageView*& image_view, VmaAllocation& image_allocation, uint32_t texture_image_width, uint32_t texture_image_height, void* texture_image_pixels, RHIFormat texture_image_format, uint32_t miplevels = 0) override;
-    //void createCubeMap(RHIImage*& image, RHIImageView*& image_view, VmaAllocation& image_allocation, uint32_t texture_image_width, uint32_t texture_image_height, std::array<void*, 6> texture_image_pixels, RHIFormat texture_image_format, uint32_t miplevels) override;
+    
+    void VulkanRHI::createGlobalImage(RHIImage*& image, RHIImageView*& image_view, VmaAllocation& image_allocation, uint32_t texture_image_width, uint32_t texture_image_height, void* texture_image_pixels, RHIFormat texture_image_format, uint32_t miplevels)
+    {
+        VkImage vk_image;
+        VkImageView vk_image_view;
+
+        VulkanUtil::createGlobalImage(this, vk_image, vk_image_view, image_allocation, texture_image_width, texture_image_height, texture_image_pixels, texture_image_format, miplevels);
+
+        image = new VulkanImage();
+        image_view = new VulkanImageView();
+        ((VulkanImage*)image)->setResource(vk_image);
+        ((VulkanImageView*)image_view)->setResource(vk_image_view);
+    }
+
+    void VulkanRHI::createCubeMap(RHIImage*& image, RHIImageView*& image_view, VmaAllocation& image_allocation, uint32_t texture_image_width, uint32_t texture_image_height, std::array<void*, 6> texture_image_pixels, RHIFormat texture_image_format, uint32_t miplevels)
+    {
+        VkImage vk_image;
+        VkImageView vk_image_view;
+
+        VulkanUtil::createCubeMap(this, vk_image, vk_image_view, image_allocation, texture_image_width, texture_image_height, texture_image_pixels, texture_image_format, miplevels);
+
+        image = new VulkanImage();
+        image_view = new VulkanImageView();
+        ((VulkanImage*)image)->setResource(vk_image);
+        ((VulkanImageView*)image_view)->setResource(vk_image_view);
+    }
+
     bool VulkanRHI::createCommandPool(const RHICommandPoolCreateInfo* pCreateInfo, RHICommandPool*& pCommandPool)
     {
         VkCommandPoolCreateInfo create_info{};

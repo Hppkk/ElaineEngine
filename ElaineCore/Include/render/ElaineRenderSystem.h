@@ -8,7 +8,7 @@ namespace Elaine
 	{
 	public:
 		RenderSystem();
-		void initilize();
+		void initilize(RHITYPE type);
 		RHI* getRHI() { return m_pRHI; }
 		~RenderSystem();
 		void tick(float dt);

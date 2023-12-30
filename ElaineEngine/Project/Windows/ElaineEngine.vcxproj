@@ -5,6 +5,22 @@
       <Configuration>Debug</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorDebug|Win32">
+      <Configuration>EditorDebug</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorDebug|x64">
+      <Configuration>EditorDebug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorRelease|Win32">
+      <Configuration>EditorRelease</Configuration>
+      <Platform>Win32</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="EditorRelease|x64">
+      <Configuration>EditorRelease</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|Win32">
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
@@ -42,7 +58,20 @@
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
@@ -55,7 +84,20 @@
     <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>v143</PlatformToolset>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v143</PlatformToolset>
@@ -70,13 +112,25 @@
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'" Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
@@ -84,11 +138,34 @@
     <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'">
+    <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
+    <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
     <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'">
+    <OutDir>$(ProjectDir)../../Bin/Windows/$(Platform)/$(Configuration)/</OutDir>
+    <IntDir>$(ProjectDir)../../Intermediate/Windows/$(Platform)/$(Configuration)/</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;_DEBUG;EAGLEENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
@@ -122,6 +199,25 @@
       <EnableUAC>false</EnableUAC>
     </Link>
   </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|Win32'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>WIN32;NDEBUG;EAGLEENGINE_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+    </Link>
+  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -132,7 +228,7 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/Include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ElaineSDK/Include/Common;$(ProjectDir)../../../ElaineSDK/Include/component;$(ProjectDir)../../../ElaineSDK/Include/math;$(ProjectDir)../../../ElaineSDK/Include/resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
@@ -141,14 +237,42 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorDebug|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>_DEBUG;EAGLEENGINE_EXPORTS;_WINDOWS;_USRDLL;_HAS_EDITOR_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/Include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ElaineSDK/Include/Common;$(ProjectDir)../../../ElaineSDK/Include/component;$(ProjectDir)../../../ElaineSDK/Include/math;$(ProjectDir)../../../ElaineSDK/Include/resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <DisableSpecificWarnings>4251</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
@@ -164,7 +288,7 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp20</LanguageStandard>
       <LanguageStandard_C>stdc17</LanguageStandard_C>
-      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../3rdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include/Common;$(ProjectDir)../../../ElaineSDK/ElaineCore/Include;$(ProjectDir)../../../3rdParty/cJSON;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/Include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ElaineSDK/Include/Common;$(ProjectDir)../../../ElaineSDK/Include/component;$(ProjectDir)../../../ElaineSDK/Include/math;$(ProjectDir)../../../ElaineSDK/Include/resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <TreatWarningAsError>true</TreatWarningAsError>
       <DisableSpecificWarnings>4251</DisableSpecificWarnings>
     </ClCompile>
@@ -175,14 +299,46 @@ xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName)
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
       <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
-      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/ElaineCore/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../3rdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <PostBuildEvent>
-      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Include\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Source\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Source\" /s/e/y/d
-xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\$(ProjectName)\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='EditorRelease|x64'">
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <SDLCheck>true</SDLCheck>
+      <PreprocessorDefinitions>NDEBUG;EAGLEENGINE_EXPORTS;_WINDOWS;_USRDLL;_HAS_EDITOR_;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <ConformanceMode>true</ConformanceMode>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <LanguageStandard_C>stdc17</LanguageStandard_C>
+      <AdditionalIncludeDirectories>$(ProjectDir)../../Include/;$(ProjectDir)../../Include/framework;$(ProjectDir)../../../ThirdParty/spdlog/include;$(ProjectDir)../../../ElaineSDK/Include;$(ProjectDir)../../../ThirdParty/cJSON;$(ProjectDir)../../../ElaineSDK/Include/Common;$(ProjectDir)../../../ElaineSDK/Include/component;$(ProjectDir)../../../ElaineSDK/Include/math;$(ProjectDir)../../../ElaineSDK/Include/resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <DisableSpecificWarnings>4251</DisableSpecificWarnings>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <EnableUAC>false</EnableUAC>
+      <ProgramDatabaseFile>$(ProjectDir)../../PDB/Windows/$(Platform)/$(Configuration)/$(TargetName).pdb</ProgramDatabaseFile>
+      <AdditionalLibraryDirectories>$(ProjectDir)../../../ElaineSDK/Bin/Windows/$(Platform)/$(Configuration);$(ProjectDir)../../../ThirdParty/libs/$(Platform)/$(Configuration);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ElaineCore.lib;cjson.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <PostBuildEvent>
+      <Command>xcopy "$(ProjectDir)..\..\PDB\Windows\$(Platform)\$(Configuration)\$(TargetName).pdb" "$(ProjectDir)..\..\..\ElaineSDK\PDB\Windows\$(Platform)\$(Configuration)/$(TargetName).pdb" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Include\" "$(ProjectDir)..\..\..\ElaineSDK\Include\" /s/e/y/d
+xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\" "$(ProjectDir)..\..\..\ElaineSDK\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d
 xcopy "$(ProjectDir)..\..\Bin\Windows\$(Platform)\$(Configuration)\$(TargetName).dll" "$(ProjectDir)..\..\..\ElaineEditor\Bin\Windows\$(Platform)\$(Configuration)\" /s/e/y/d</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>

@@ -2,6 +2,7 @@
 #include "ElaineTimer.h"
 #include "render/ElaineWindowSystem.h"
 #include "ElaineInputSystem.h"
+#include "resource/ElaineDataStreamMgr.h"
 
 namespace Elaine
 {
@@ -31,15 +32,16 @@ namespace Elaine
 		m_sAppPath = szFilePath;
 		auto pos = m_sAppPath.find_last_of('/');
 		m_sAppPath = m_sAppPath.substr(0, pos);
-		m_sResourcePath = m_sAppPath + "/../../../../../Asset/";
+		m_sResourcePath = m_sAppPath + "/../../../../../Contents/";
 #endif 
 
-
 		new LogSystem();
+		new DataStreamMgr();
+		readConfig(m_sResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
 		new WindowSystem();
 		m_pRenderSystem = new RenderSystem();
-		m_pRenderSystem->initilize(Vulkan);
+		m_pRenderSystem->initilize(m_RHIType);
 		new InputSystem();
 		m_MainSceneMgr = new SceneManager("Main SceneManager");
 		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);
@@ -115,6 +117,17 @@ namespace Elaine
 		return mgr;
 	}
 
+	void Root::readConfig(const std::string& file)
+	{
+		 ResourceBasePtr res = DataStreamMgr::instance()->getDataStreamFromFile(file);
+		 DataStream* ds = static_cast<DataStream*>(res.get());
+		 auto stream = ds->getDataStream();
+		 cJSON* pNode = cJSON_Parse(stream);
+		 cJSON* pWindows = cJSON_GetObjectItem(pNode, "Windows");
+		 cJSON* pRHI = cJSON_GetObjectItem(pWindows, "RenderRHI");
+		 m_RHIType = (RHITYPE)pRHI->valueint;
+	}
+
 	void Root::terminate()
 	{
 		delete RenderSystem::instance();
@@ -123,6 +136,7 @@ namespace Elaine
 		delete WindowSystem::instance();
 		SAFE_DELETE(m_timer);
 		delete InputSystem::instance();
+		delete DataStreamMgr::instance();
 
 		for (auto& iter : m_SceneMgrs)
 		{

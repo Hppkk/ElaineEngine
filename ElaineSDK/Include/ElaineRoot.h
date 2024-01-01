@@ -3,6 +3,7 @@
 #include "ElaineSingleton.h"
 #include "ElaineTimer.h"
 #include "ElaineSceneManager.h"
+#include "render/common/ElaineRHI.h"
 
 namespace Elaine
 {
@@ -39,9 +40,11 @@ namespace Elaine
 		SceneManager*			getSceneManager(const String& name);
 		SceneManager*			getMainSceneManager();
 		SceneManager*			createSceneManager(const String& name);
+		RHITYPE					getRenderRHI() { return m_RHIType;}
 	private:
 		// shutdown
 		void					terminate();
+		void					readConfig(const std::string& file);
 	private:
 		EngineMode								m_RuntimeMode = em_Editor;
 		ThreadMode								m_ThreadMode = tm_Thread1;
@@ -56,6 +59,7 @@ namespace Elaine
 		RenderSystem*							m_pRenderSystem = nullptr;
 		std::map<String, SceneManager*>			m_SceneMgrs;
 		SceneManager*							m_MainSceneMgr = nullptr;
+		RHITYPE									m_RHIType = Vulkan;
 	};
 
 }

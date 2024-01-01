@@ -15,9 +15,11 @@ namespace Elaine
 		return new DataStream(this, path, DSS_File);
 	}
 
-	ResourceBasePtr DataStreamMgr::getDataStreamFromFile(const std::string& path)
+	ResourceBasePtr DataStreamMgr::getDataStreamFromFile(const std::string& path, bool async)
 	{
-		return createResource(path);
+		ResourceBasePtr res = createResource(path);
+		res->load(async);
+		return res;
 	}
 
 	ResourceBasePtr DataStreamMgr::getDataStreamFromMemory(const std::string& name)

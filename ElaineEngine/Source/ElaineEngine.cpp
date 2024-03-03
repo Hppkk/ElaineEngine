@@ -23,6 +23,7 @@ namespace Elaine
 
 	void ElaineEngine::close()
 	{
+		delete Root::instance();
 		LOG_INFO("Engine Unload");
 	}
 }

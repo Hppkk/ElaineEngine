@@ -136,7 +136,6 @@ extern "C" {
 		//}
 		delete editor;
 		delete engine;
-		delete Root::instance();
 		return 0;
 	}
 #ifdef __cplusplus

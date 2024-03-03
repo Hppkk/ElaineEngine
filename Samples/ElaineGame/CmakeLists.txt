@@ -1,0 +1,16 @@
+include_directories("public")
+include_directories("${PROJECT_SOURCE_DIR}/ElaineCore/Include")
+include_directories("${PROJECT_SOURCE_DIR}/ElaineEngine/Include")
+
+set(lib 
+ ElaineCore
+ ElaineEngine
+
+)
+file(GLOB_RECURSE DIR_SRCS *.cpp)
+file(GLOB_RECURSE DIR_INC *.h)
+
+add_executable(ElaineGame ${DIR_SRCS})
+target_sources(ElaineGame PUBLIC ${DIR_INC})
+target_link_directories(ElaineGame PUBLIC ${LIB_PATH})
+target_link_libraries(ElaineGame ${lib})

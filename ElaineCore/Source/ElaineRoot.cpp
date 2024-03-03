@@ -32,11 +32,12 @@ namespace Elaine
 		m_sAppPath = szFilePath;
 		auto pos = m_sAppPath.find_last_of('/');
 		m_sAppPath = m_sAppPath.substr(0, pos);
-		m_sResourcePath = m_sAppPath + "/../../../../../Contents/";
+		m_sResourcePath = m_sAppPath + "/../../../Contents/";
 #endif 
 
 		new LogSystem();
 		new DataStreamMgr();
+		new GameObjectInfoMgr();
 		readConfig(m_sResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
 		new WindowSystem();
@@ -136,6 +137,7 @@ namespace Elaine
 		delete WindowSystem::instance();
 		SAFE_DELETE(m_timer);
 		delete InputSystem::instance();
+		delete GameObjectInfoMgr::instance();
 		delete DataStreamMgr::instance();
 
 		for (auto& iter : m_SceneMgrs)

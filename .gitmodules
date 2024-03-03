@@ -1,6 +1,6 @@
-[submodule "3rdParty/imgui"]
-	path = 3rdParty/imgui
+[submodule "ThirdParty/imgui"]
+	path = ThirdParty/imgui
 	url = https://github.com/ocornut/imgui.git
-[submodule "3rdParty/cJSON"]
-	path = 3rdParty/cJSON
+[submodule "ThirdParty/cJSON"]
+	path = ThirdParty/cJSON
 	url = https://github.com/DaveGamble/cJSON.git

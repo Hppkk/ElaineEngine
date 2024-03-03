@@ -18,6 +18,8 @@ Currently only the master branch is open.
 
 The steps below take you through cloning your own private fork, then compiling and running the editor yourself:
 
+Elanie Engine can be easily build by cmake. Make sure your cmake version is 3.26 or higher.
+
 ## Windows
 
 1. Download Git on your computer and use the following commond:
@@ -34,15 +36,19 @@ The steps below take you through cloning your own private fork, then compiling a
    git submodule update --recursive
    ```
 
-2. Install Visual Studio 2022 or Visual Studio 2019. Then you can run the solution in path: `ElaineEditor/Project/Windows/ElaineEditor.sln`.Now you can start creating your own.
+2. Install Visual Studio 2022 or Visual Studio 2019. 
 
-3.  Choose one config between EditorDebug or EditorRelease  to debug your Editor.
+3. Run the batch file `setup_windows.bat`. That will generate the VS solution in the path `build`. Open the `ElanieEngine.sln`with VS to run the project. Now you can start creating your own.
+
+4. Choose one config between EditorDebug or EditorRelease  to debug your Editor.
+
+5. Choose one config between RuntimeDebug or RuntimeRelease to debug your Game Client.
 
 # Features
 
 -----------------------------
 
-1. All the code in the Elaine Engine is written by C++20. 
+1. The code in the Elaine Engine is written by C++20. 
 
 2. Elaine Engine Core using the Vulkan and DX12 to rendering, you can see the source code in the core layer.
 

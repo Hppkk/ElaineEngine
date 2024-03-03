@@ -1,3 +1,4 @@
+#include "ElainePrecompiledHeader.h"
 #include "ElaineTimer.h"
 
 namespace Elaine

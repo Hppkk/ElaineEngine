@@ -24,7 +24,7 @@ file(GLOB_RECURSE DIR_INC *.h)
 set(allFiles ${DIR_SRCS} ${DIR_INC})
 
 
-add_compile_definitions(_HAS_EDITOR_)
+
 add_executable(ElaineEditor ${DIR_SRCS})
 target_sources(ElaineEditor PRIVATE ${DIR_INC})
 target_include_directories(ElaineEditor PRIVATE ${THIRD_PARTY_DIR})
@@ -34,7 +34,7 @@ target_include_directories(ElaineEditor PUBLIC "Include/imGui")
 target_include_directories(ElaineEditor PUBLIC "Include/imGui/backends")
 
 target_link_directories(ElaineEditor PRIVATE ${LIB_PATH})
-target_link_directories(ElaineEditor PRIVATE ${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64/$<IF:$<CONFIG:RELEASE>,Release,Debug>)
+target_link_directories(ElaineEditor PRIVATE ${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64/$<IF:$<CONFIG:EDITORRELEASE>,Release,$<IF:$<CONFIG:EDITORDEBUG>,Debug,$<IF:$<CONFIG:RUNTIMEDEBUG>,Debug,Release>>>)
 if(_Use_Volk_)
 
 else()

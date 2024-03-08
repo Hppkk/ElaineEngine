@@ -3,13 +3,14 @@
 set(lib 
  cjson
  glfw3
- spdlog$<$<CONFIG:DEBUG>:d>  
+ spdlog 
 )
+
 set(core_lib_path 
- ${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64/$<IF:$<CONFIG:RELEASE>,Release,Debug>
+ ${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64/$<IF:$<CONFIG:EDITORRELEASE>,Release,$<IF:$<CONFIG:EDITORDEBUG>,Debug,$<IF:$<CONFIG:RUNTIMEDEBUG>,Debug,Release>>>
 
 )
-
+message(${core_lib_path})
 #incldue group
 file(GLOB inc_ Include/*.h)
 source_group("Header Files" FILES ${inc_})

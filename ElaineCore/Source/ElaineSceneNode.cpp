@@ -1,4 +1,6 @@
 #include "ElainePrecompiledHeader.h"
+#include "ElaineSceneNode.h"
+#include "ElaineRenderQueue.h"
 
 
 namespace Elaine
@@ -12,6 +14,11 @@ namespace Elaine
 	SceneNode::~SceneNode()
 	{
 
+	}
+
+	const Matrix4x4& SceneNode::getWorldMatrix()
+	{
+		return m_WorldMat;
 	}
 
 	void SceneNode::setWorldPosition(const Vector3& pos)
@@ -48,14 +55,18 @@ namespace Elaine
 
 	}
 
-	void SceneNode::findVisibilityObject()
+	void SceneNode::UpdateRenderQueue(RenderQueueSet* InRenderQueueSet)
 	{
-		for (auto child : m_ChildSet)
+		for (auto&& CurrentRenderObj : m_RenderObjects)
 		{
-			if (!child->isVisible())
-				continue;
-
-			child->findVisibilityObject();
+			if (CurrentRenderObj->IsVisible())
+			{
+				CurrentRenderObj->NotifyCurrentCamera(m_Creater->getMainCamera());
+				if (!CurrentRenderObj->IsCulled())
+				{
+					CurrentRenderObj->UpdateRenderQueue(InRenderQueueSet);
+				}
+			}
 		}
 	}
 
@@ -68,7 +79,7 @@ namespace Elaine
 
 	void SceneNode::attachChildNode(SceneNode* node)
 	{
-		if (m_ChildSet.find(node) == m_ChildSet.end())
+		if (m_ChildSet.find(node) != m_ChildSet.end())
 			return;
 
 		m_ChildSet.insert(node);
@@ -82,5 +93,34 @@ namespace Elaine
 
 		m_ChildSet.erase(node);
 		updateBindingBox();
+	}
+	void SceneNode::addRenderObject(RenderableObject* InObject)
+	{
+		if (InObject->m_Index != -1)
+		{
+			assert(false);
+			return;
+		}
+		InObject->m_Index = m_RenderObjects.size();
+		m_RenderObjects.push_back(InObject);
+	}
+	void SceneNode::removeRenderObject(RenderableObject* InObject)
+	{
+		if (InObject->m_Index == -1)
+		{
+			assert(false);
+			return;
+		}
+		if (InObject->m_Index + 1 >= m_RenderObjects.size())
+		{
+			m_RenderObjects.resize(InObject->m_Index);
+		}
+		else
+		{
+			std::swap(m_RenderObjects[InObject->m_Index], m_RenderObjects.back());
+			m_RenderObjects.resize(m_RenderObjects.size() - 1);
+		}
+		
+		InObject->m_Index = -1;
 	}
 }

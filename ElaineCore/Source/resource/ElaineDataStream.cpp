@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "resource/ElaineDataStream.h"
+#include "ElaineMemory.h"
 
 namespace Elaine
 {
@@ -12,7 +13,11 @@ namespace Elaine
 
 		~DataStream_Private()
 		{
-			free(m_pData);
+			if (m_pData)
+			{
+				Memory::SystemFree(m_pData);
+				m_pData = nullptr;
+			}
 		}
 
 		void open(const std::string& path)
@@ -26,6 +31,7 @@ namespace Elaine
 			}
 			m_stream.seekg(0, m_stream.end);
 			m_uSize = m_stream.tellg();
+			m_uSize += 1;
 			m_stream.seekg(0, m_stream.beg);
 		}
 
@@ -36,7 +42,8 @@ namespace Elaine
 
 			std::filebuf* pbuf = nullptr;
 			pbuf = m_stream.rdbuf();
-			m_pData = (char*)malloc(m_uSize);
+			m_pData = (char*)Memory::SystemMalloc(m_uSize);
+			Memory::MemoryZero(m_pData, m_uSize);
 			pbuf->sgetn(m_pData, m_uSize);
 
 		}

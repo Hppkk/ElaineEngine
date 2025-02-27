@@ -113,27 +113,34 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
-		//initMainWindow();
+		initMainWindow();
 		
 		ElaineEngine* engine = new ElaineEngine();
-		EngineInitDesc desc{};
-		engine->initilize(desc);
+		//EngineInitDesc desc{};
+		RHI_PARAM_DESC INIT_DESC;
+		INIT_DESC.Height = g_height;
+		INIT_DESC.Width = g_width;
+		INIT_DESC.RHIType = Vulkan;
+		INIT_DESC.UseRHIThread = true;
+		INIT_DESC.WindowHandle = g_win_hwnd;
+		engine->Initilize(INIT_DESC);
 		ElaineEditor* editor = new ElaineEditor(engine);
 		editor->initialize();
-		editor->tick();
-		//MSG msg = { 0 };
-		//while (msg.message != WM_QUIT)
-		//{
-		//	if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
-		//	{
-		//		TranslateMessage(&msg);
-		//		DispatchMessage(&msg);
-		//	}
-		//	else
-		//	{
-		//		
-		//	}
-		//}
+		
+		MSG msg = { 0 };
+		while (msg.message != WM_QUIT)
+		{
+			if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
+			{
+				TranslateMessage(&msg);
+				DispatchMessage(&msg);
+				editor->tick();
+			}
+			else
+			{ 
+				
+			}
+		}
 		delete editor;
 		delete engine;
 		return 0;

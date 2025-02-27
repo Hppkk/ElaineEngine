@@ -6,22 +6,22 @@ namespace Elaine
 {
 #ifndef LOG_HELPER
 #define LOG_HELPER(LOG_LEVEL, ...) \
-	LogSystem::instance()->log(LOG_LEVEL, "[" + std::string(__FUNCTION__) + "] " + __VA_ARGS__);
+	Elaine::LogSystem::instance()->log(LOG_LEVEL, "[" + std::string(__FUNCTION__) + "] " + __VA_ARGS__);
 #endif // !LOG_HELPER
 #ifndef LOG_DEBUG
-#define LOG_DEBUG(...) LOG_HELPER(LogSystem::LogLevel::debug, __VA_ARGS__);
+#define LOG_DEBUG(...) LOG_HELPER(Elaine::LogSystem::LogLevel::debug, __VA_ARGS__);
 #endif
 #ifndef LOG_INFO
-#define LOG_INFO(...) LOG_HELPER(LogSystem::LogLevel::info, __VA_ARGS__);
+#define LOG_INFO(...) LOG_HELPER(Elaine::LogSystem::LogLevel::info, __VA_ARGS__);
 #endif
 #ifndef LOG_WARN
-#define LOG_WARN(...) LOG_HELPER(LogSystem::LogLevel::warn, __VA_ARGS__);
+#define LOG_WARN(...) LOG_HELPER(Elaine::LogSystem::LogLevel::warn, __VA_ARGS__);
 #endif // !LOG_WARN
 #ifndef LOG_ERROR
-#define LOG_ERROR(...) LOG_HELPER(LogSystem::LogLevel::error, __VA_ARGS__);
+#define LOG_ERROR(...) LOG_HELPER(Elaine::LogSystem::LogLevel::error, __VA_ARGS__);
 #endif // !LOG_ERROR
 #ifndef LOG_FATAL
-#define LOG_FATAL(...) LOG_HELPER(LogSystem::LogLevel::fatal, __VA_ARGS__);
+#define LOG_FATAL(...) LOG_HELPER(Elaine::LogSystem::LogLevel::fatal, __VA_ARGS__);
 #endif // !LOG_FATAL
 
 
@@ -43,6 +43,7 @@ namespace Elaine
 		void log(LogLevel level, TARGS&&... args)
 		{
 			std::string s;
+			std::lock_guard<std::mutex> Lock_Guard(mMtx);
 			switch (level)
 			{
 			case LogLevel::debug:
@@ -86,5 +87,6 @@ namespace Elaine
 	private:
 		std::shared_ptr<spdlog::logger> m_logger;
 		std::ofstream					m_logFile;
+		std::mutex mMtx;
 	};
 }

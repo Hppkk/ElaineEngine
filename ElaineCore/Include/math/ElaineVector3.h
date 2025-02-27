@@ -9,8 +9,16 @@ namespace Elaine
 	public:
 		Vector3() = default;
 		Vector3(float a, float b, float c) :x{ a }, y{ b }, z{ c } {}
+        Vector3(float a) :x(a), y(a), z(a) {}
 
-		explicit Vector3(const float coords[3]) : x{ coords[0] }, y{ coords[1] }, z{ coords[2] } {}
+        Vector3(const Vector3& InOther)
+        {
+            x = InOther.x;
+            y = InOther.y;
+            z = InOther.z;
+        }
+
+		//explicit Vector3(const float coords[3]) : x{ coords[0] }, y{ coords[1] }, z{ coords[2] } {}
 
 		float				operator[](size_t i) const
 		{

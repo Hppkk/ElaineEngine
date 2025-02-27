@@ -3,65 +3,81 @@
 
 namespace Elaine
 {
-	RenderableObject::RenderableObject()
+	RenderableObject::RenderableObject(SceneNode* InParent, SceneManager* InSceneMgr)
+		:m_SceneManager(InSceneMgr)
 	{
-
+		m_SceneNode = InParent->createChild();
+		m_SceneNode->addRenderObject(this);
 	}
 
 	RenderableObject::~RenderableObject()
 	{
-
+		m_SceneNode->removeRenderObject(this);
+		m_SceneNode->getParentNode()->detachChildNode(m_SceneNode);
+		m_SceneManager->destroySceneNode(m_SceneNode);
+		m_SceneNode = nullptr;
 	}
 
-	AxisAlignedBox RenderableObject::getWorldAABB()
+	const AxisAlignedBox& RenderableObject::GetWorldAABB()
 	{
-		return m_WorldBox;
+		return m_SceneNode->getWorldAABB();
 	}
 
-	AxisAlignedBox RenderableObject::getLocalAABB()
+	const AxisAlignedBox& RenderableObject::GetLocalAABB()
 	{
-		return m_BoundingBox;
+		return m_SceneNode->getLocalAABB();
 	}
 
-	void RenderableObject::setWorldPosition(const Vector3& pos)
+	const Vector3& RenderableObject::GetWorldPosition() const
 	{
-		m_WorldPosition = pos;
-		m_needUpdate = true;
-		updateBound();
+		return m_SceneNode->getWorldPosition();
 	}
 
-	void RenderableObject::setWorldScale(const Vector3& scale)
+	const Vector3& RenderableObject::GetWorldScale() const
 	{
-		m_WorldScale = scale;
-		m_needUpdate = true;
-		updateBound();
+		return m_SceneNode->getWorldScale();
 	}
 
-	void RenderableObject::setWorldRotation(const Quaternion& rotation)
+	const Quaternion& RenderableObject::GetWorldRotation() const
 	{
-		m_WorldRotation = rotation;
-		m_needUpdate = true;
-		updateBound();
+		return m_SceneNode->getWorldQuaternion();
 	}
 
-	Matrix4x4 RenderableObject::getWorldMatrix()
+	void RenderableObject::SetWorldPosition(const Vector3& pos)
 	{
-		return m_WorldMatrix;
+		m_SceneNode->setWorldPosition(pos);
 	}
 
-	void RenderableObject::updateWorldMatrix()
+	void RenderableObject::SetWorldScale(const Vector3& scale)
 	{
-		if (!m_needUpdate)
+		m_SceneNode->setWorldScale(scale);
+	}
+
+	void RenderableObject::SetWorldRotation(const Quaternion& rotation)
+	{
+		m_SceneNode->setWorldQuaternion(rotation);
+	}
+
+	void RenderableObject::SetVisible(bool InVal)
+	{
+		if (InVal == m_bVisible)
 			return;
-
-		m_WorldMatrix.makeTransform(m_WorldPosition, m_WorldScale, m_WorldRotation);
-		m_needUpdate = false;
+		m_bVisible = InVal;
+		m_SceneNode->setVisible(InVal);
 	}
 
-	void RenderableObject::updateBound()
+	const Matrix4x4& RenderableObject::GetWorldMatrix()
 	{
-		updateWorldMatrix();
-		m_WorldBox = m_BoundingBox;
-		m_WorldBox.transformAffine(m_WorldMatrix);
+		return m_SceneNode->getWorldMatrix();
+	}
+
+	void RenderableObject::UpdateWorldMatrix()
+	{
+
+	}
+
+	void RenderableObject::UpdateBound()
+	{
+
 	}
 }

@@ -29,10 +29,10 @@ namespace Elaine
 
 	void ElaineEditor::tick()
 	{
-		while (!WindowSystem::instance()->shouldClose(WindowSystem::instance()->getMainWindow()))
+
 		{
 			InputSystem::instance()->PollEvent();
-			m_pEngine->tickOneFrame();
+			m_pEngine->RenderOneFrame();
 		}
 	}
 }

@@ -1,5 +1,6 @@
 #pragma once
 
+
 #define ELAINE_PLATFORM_WINDOWS		1
 #define ELAINE_PLATFORM_APPLE		2
 #define ELAINE_PLATFORM_ANDROID		3
@@ -31,3 +32,12 @@
 #else
 	#define ELAINE_RENDER_API ELAINE_RENDER_API_VULKAN
 #endif
+
+typedef unsigned char		uint8;
+typedef unsigned short int	uint16;
+typedef unsigned int		uint32;
+typedef unsigned long long	uint64;
+typedef	signed char			int8;
+typedef signed short int	int16;
+typedef signed int	 		int32;
+typedef signed long long	int64;

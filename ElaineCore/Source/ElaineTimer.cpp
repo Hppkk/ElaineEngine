@@ -33,6 +33,11 @@ namespace Elaine
 		return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now() - m_time).count();
 	}
 
+	double Timer::getSeconds()
+	{
+		return getMilliSeconds() / 1000.0;
+	}
+
 	Timer::~Timer()
 	{
 		

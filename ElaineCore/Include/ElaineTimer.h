@@ -12,6 +12,7 @@ namespace Elaine
 		long long	getMilliSeconds();
 		long long	getMicroSeconds();
 		long long	getNanoSeconds();
+		double		getSeconds();
 		long long	getNow();
 		void		reset();
 

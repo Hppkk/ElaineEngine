@@ -20,8 +20,8 @@ namespace Elaine
 	class Vector2;
 	class Vector3;
 	class WindowSystem;
-	class VulkanRHI;
-	class RHI;
-	class DX12RHI;
+	//class VulkanRHI;
+	//class RHI;
+	//class DX12RHI;
 	class Camera;
 }

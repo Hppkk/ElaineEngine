@@ -35,6 +35,7 @@ if(WIN32)
     add_compile_options(/W3 /WX /MP)
     add_compile_definitions(_SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
     add_definitions(-D_UNICODE)
+    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT  "EditAndContinue")
 elseif(UNIX)
     set(CMAKE_CXX_COMPILER "g++")
     set(PlatformTarget Linux)
@@ -79,7 +80,8 @@ set(ENGINE_INCLUDE_DIR
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/JobSystem
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/math
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/render 
- ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/resource 
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/resource
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/platform 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/common 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/component 

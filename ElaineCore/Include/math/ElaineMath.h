@@ -1,6 +1,9 @@
 #pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineStdRequirements.h"
+#undef min
+#undef max
+
 #ifndef CMP
 #define CMP(x, y) (fabsf(x -y) < FLT_EPSILON * fmaxf(1.0f, fmaxf(fabsf(x), fabsf(y)))
 #endif // !CMP
@@ -201,6 +204,7 @@ namespace Elaine
 		static Radian				asin(float value);
 		static Radian				atan(float value) { return Radian(std::atan(value)); }
 		static Radian				atan2(float y_v, float x_v) { return Radian(std::atan2(y_v, x_v)); }
+		static uint32				CountTrailingZeros(uint32 Value);
 
 		template<class T>
 		static constexpr T			max(const T A, const T B)

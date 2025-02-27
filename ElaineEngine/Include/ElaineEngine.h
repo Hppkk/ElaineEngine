@@ -1,5 +1,6 @@
 #pragma once
 #include "common/ElaineEnginePrerequirements.h"
+#include "ElaineRoot.h"
 #include <string>
 
 
@@ -17,8 +18,9 @@ namespace Elaine
 		ElaineEngine() = default;
 		virtual ~ElaineEngine();
 
-		void		initilize(const EngineInitDesc& desc);
-		void		tickOneFrame();
-		void		close();
+		void		Initilize(const RHI_PARAM_DESC& InRendererDesc);
+		void		RenderOneFrame();
+		void		RenderOneFrame(float InDeltaTime);
+		void		DestroyEngine();
 	};
 }

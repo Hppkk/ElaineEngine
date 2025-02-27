@@ -1,26 +1,32 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineThread.h"
+#ifdef WIN32
+#include <Windows.h>
+#include <processthreadsapi.h>
+#else
+#include <pthread.h>
+#endif
 
 namespace Elaine
 {
-	ElaineThread::ElaineThread(const std::string& name /*= ""*/)
-		: m_sThreadName(name)
-		, m_bIsExit(false)
+
+	const std::thread& ThreadWrap::GetThread()
 	{
-		auto func = std::bind(&ElaineThread::ThreadMainFunc, this);
-		m_thread = std::async(std::launch::async, func);
+		return m_thread;
 	}
 
-	ElaineThread::~ElaineThread()
+	void ThreadWrap::Initilize()
 	{
-		m_bIsExit = true;
+#ifdef WIN32
+		SetThreadDescription(m_thread.native_handle(), ThreadManager::instance()->GetWStringName(m_eNamedThread).c_str());
+#else
+		pthread_setname_np(m_thread.native_handle(), m_sThreadName.c_str());
+#endif
 	}
 
-	void ElaineThread::ThreadMainFunc()
+	ThreadWrap::~ThreadWrap()
 	{
-		while (!m_bIsExit)
-		{
-			
-		}
+		
 	}
+
 }

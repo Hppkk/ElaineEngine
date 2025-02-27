@@ -37,6 +37,8 @@
 #include "render/vulkan/ElaineVulkanRHI.h"
 #include "ElaineCamera.h"
 #include "render/ElaineEntity.h"
+#include "ElaineMemory.h"
+#include "ElaineTimer.h"
 
 namespace Elaine
 {

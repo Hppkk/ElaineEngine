@@ -3,12 +3,12 @@
 #include "render/ElaineWindowSystem.h"
 #include "ElaineInputSystem.h"
 #include "resource/ElaineDataStreamMgr.h"
+#include "ElaineThreadManager.h"
+#include "ElaineFileManager.h"
 
 namespace Elaine
 {
-	Root::Root(EngineMode runtimeMode, ThreadMode threadMode)
-		: m_RuntimeMode(runtimeMode)
-		, m_ThreadMode(threadMode)
+	Root::Root()
 	{
 
 	}
@@ -18,8 +18,9 @@ namespace Elaine
 		terminate();
 	}
 
-	void Root::Init()
+	void Root::initilize(const RHI_PARAM_DESC& InDesc)
 	{
+		new FileManager();
 		m_timer = new Timer();
 #if  ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 		char szFilePath[MAX_PATH + 1] = { 0 };
@@ -40,9 +41,9 @@ namespace Elaine
 		new GameObjectInfoMgr();
 		readConfig(m_sResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
-		new WindowSystem();
+		//new WindowSystem();
 		m_pRenderSystem = new RenderSystem();
-		m_pRenderSystem->initilize(m_RHIType);
+		m_pRenderSystem->Initilize(InDesc);
 		new InputSystem();
 		m_MainSceneMgr = new SceneManager("Main SceneManager");
 		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);
@@ -134,12 +135,12 @@ namespace Elaine
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();
-		delete WindowSystem::instance();
+		//delete WindowSystem::instance();
 		SAFE_DELETE(m_timer);
 		delete InputSystem::instance();
 		delete GameObjectInfoMgr::instance();
 		delete DataStreamMgr::instance();
-
+		delete FileManager::instance();
 		for (auto& iter : m_SceneMgrs)
 		{
 			SAFE_DELETE(iter.second);

@@ -73,6 +73,13 @@ namespace Elaine
         return Radian(-Half_PI);
     }
 
+    uint32 Math::CountTrailingZeros(uint32 Value)
+    {
+        // return 32 if value was 0
+        unsigned long BitIndex;	// 0-based, where the LSB is 0 and MSB is 31
+        return _BitScanForward(&BitIndex, Value) ? BitIndex : 32;
+    }
+
     Matrix4x4
         Math::MakeViewMatrix(const Vector3& position, const Quaternion& orientation, const Matrix4x4* reflect_matrix)
     {

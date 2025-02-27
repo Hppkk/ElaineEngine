@@ -1,4 +1,6 @@
 #pragma once
+#include "ElaineCorePrerequirements.h"
+#include "ElaineThreadManager.h"
 
 namespace Elaine
 {
@@ -8,7 +10,7 @@ namespace Elaine
 
 	struct ThreadEventDesc
 	{
-		friend class ElaineThread;
+		friend class ThreadWrap;
 
 		template<class Func, class... Args>
 		void init(Func func, Args&&... args)
@@ -29,18 +31,26 @@ namespace Elaine
 		std::function<void()>		m_func;
 	};
 
-	class ElaineCoreExport ElaineThread
+	class ElaineCoreExport ThreadWrap
 	{
 		friend class ThreadManager;
 	public:
-		ElaineThread(const std::string& name = "");
-		~ElaineThread();
-		void			ThreadMainFunc();
+		template <class Func, class... Args>
+		ThreadWrap(NamedThread InName, Func&& _Fx, Args&&... _Ax) 
+			: m_eNamedThread(InName)
+		{
+			m_sThreadName = ThreadManager::instance()->GetStringName(InName);
+			m_thread = std::thread(std::forward<Func>(_Fx), std::forward<Args>(_Ax)...);
+
+		}
+
+		void Initilize();
+
+		~ThreadWrap();
+		const std::thread& GetThread();
 	private:
-		std::future<void>				m_thread;
+		std::thread						m_thread;
 		std::string						m_sThreadName;
-		bool							m_bIsExit;
-		std::mutex						m_mutex;
-		bool							m_bPause;
+		NamedThread						m_eNamedThread;
 	};
 }

@@ -32,6 +32,8 @@ file(GLOB_RECURSE inc_render_dx12 Include/render/dx12/*.h)
 source_group(render/dx12 FILES ${inc_render_dx12})
 file(GLOB_RECURSE inc_resource Include/resource/*.h)
 source_group(resource FILES ${inc_resource})
+file(GLOB_RECURSE inc_platform_win Include/platform/Windows/*.h)
+source_group(platform/Windows FILES ${inc_platform_win})
 
 #source group
 file(GLOB src_ Source/*.cpp)
@@ -54,6 +56,8 @@ file(GLOB_RECURSE src_render_dx12 Source/render/dx12/*.cpp)
 source_group(render/dx12 FILES ${src_render_dx12})
 file(GLOB_RECURSE src_resource Source/resource/*.cpp)
 source_group(resource FILES ${src_resource})
+file(GLOB_RECURSE src_platform_win Source/platform/Windows/*.cpp)
+source_group(platform/Windows FILES ${src_platform_win})
 
 
 file(GLOB_RECURSE DIR_SRCS *.cpp)
@@ -98,6 +102,7 @@ target_include_directories(ElaineCore PUBLIC "Include/JobSystem")
 target_include_directories(ElaineCore PUBLIC "Include/math")
 target_include_directories(ElaineCore PUBLIC "Include/render")
 target_include_directories(ElaineCore PUBLIC "Include/resource")
+target_include_directories(ElaineCore PUBLIC "Include/platform")
 
 if(_Use_Volk_)
 

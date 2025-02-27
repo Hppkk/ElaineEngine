@@ -1,29 +1,33 @@
 #include "ElaineEngine.h"
 #include "ElaineLogSystem.h"
-#include "ElaineRoot.h"
 
 namespace Elaine
 {
 	ElaineEngine::~ElaineEngine()
 	{
-		close();
+		DestroyEngine();
 	}
 
-	void ElaineEngine::initilize(const EngineInitDesc& desc)
+	void ElaineEngine::Initilize(const RHI_PARAM_DESC& InRendererDesc)
 	{
-		new Root(em_Editor, tm_Thread0);
-		Root::instance()->Init();
-		LOG_INFO("Engine Init");
+		new Root();
+		Root::instance()->initilize(InRendererDesc);
+		LOG_INFO("Elaine Engine Initilize...");
 	}
 
-	void ElaineEngine::tickOneFrame()
+	void ElaineEngine::RenderOneFrame()
 	{
 		Root::instance()->tickOnceFrame();
 	}
 
-	void ElaineEngine::close()
+	void ElaineEngine::RenderOneFrame(float InDeltaTime)
 	{
+
+	}
+
+	void ElaineEngine::DestroyEngine()
+	{
+		LOG_INFO("Elaine Engine Unload");
 		delete Root::instance();
-		LOG_INFO("Engine Unload");
 	}
 }

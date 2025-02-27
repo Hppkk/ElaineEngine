@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/ElaineRenderSystem.h"
+#include "render/common/ElaineRHICommandContext.h"
 
 namespace Elaine
 {
@@ -8,53 +9,23 @@ namespace Elaine
 
 	}
 
-	void RenderSystem::initilize(RHITYPE type)
+	void RenderSystem::Initilize(const RHI_PARAM_DESC& InDesc)
 	{
-		switch (type)
-		{
-		case Elaine::Vulkan:
-		{
-			m_pRHI = new VulkanRHI();
-			RHIInitInfo info;
-			if (Root::instance()->GetEngineMode() == em_Editor)
-				info.windowname = "ElaineEditor";
-			else
-				info.windowname = "Runtime";
-			m_pRHI->initialize(&info);
-		}
-			break;
-		case Elaine::Dx11:
-			break;
-		case Elaine::Dx12:
-			break;
-		case Elaine::Metal:
-			break;
-		case Elaine::OpenGl:
-			break;
-		default:
-			break;
-		}
+		mWindowHandle = InDesc.WindowHandle;
+		InitEngineRHI(InDesc);
+		mImmedCommandCtx = GetDynamicRHI()->CreateCommandContex();
+	}
 
-
+	RHIBuffer* RenderSystem::CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize)
+	{
+		return mImmedCommandCtx->RHICreateVertexBuffer(InSize, InUsage, InResourceState, InData);
 	}
 
 	RenderSystem::~RenderSystem()
 	{
-		SAFE_DELETE(m_pRHI)
-	}
-
-	void RenderSystem::tick(float dt)
-	{
-
-	}
-
-	void RenderSystem::clear()
-	{
-
-	}
-	void RenderSystem::swapLogicRenderData()
-	{
-
+		GetDynamicRHI()->DestroyCommandContext(mImmedCommandCtx);
+		mImmedCommandCtx = nullptr;
+		DestroyEngineRHI();
 	}
 
 }

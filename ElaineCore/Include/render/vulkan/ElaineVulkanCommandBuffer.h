@@ -152,7 +152,7 @@ namespace VulkanRHI
 		void Initilize();
 		void WaitForCmdBuffer(VulkanCommandBuffer* CmdBuffer, float TimeInSecondsToWait);
 		void SubmitUploadCmdBuffer(uint32 NumSignalSemaphores = 0, VkSemaphore* SignalSemaphores = nullptr);
-		void SubmitActiveCmdBuffer(const std::vector<VulkanSemaphore*> SignalSemaphores);
+		void SubmitActiveCmdBuffer(const std::vector<VulkanSemaphore*>& SignalSemaphores);
 		void PrepareForNewActiveCommandBuffer();
 		VulkanCommandBuffer* GetUploadCmdBuffer();
 		VulkanCommandBuffer* GetActiveCmdBuffer()

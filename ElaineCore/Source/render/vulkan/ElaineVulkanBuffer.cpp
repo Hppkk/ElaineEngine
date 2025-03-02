@@ -80,7 +80,7 @@ namespace VulkanRHI
 			Memory::MemoryCopy(StageBuffer->GetMappingPointer(), InData, InSize);
 			StageBuffer->UnMap();
 			VulkanCommandBufferManager* CmdBufferManager = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultTransferContext())->GetCommandBufferManager();
-			VulkanCommandBuffer* CmdBuffer = CmdBufferManager->GetActiveCmdBuffer();
+			VulkanCommandBuffer* CmdBuffer = CmdBufferManager->GetUploadCmdBuffer();
 			if (CmdBuffer)
 			{
 				CmdBuffer->CopyBuffer(StageBuffer->GetHandle(), mBufferHandle, InSize, StageBuffer->GetBufferOffset(), mBufferOffset);

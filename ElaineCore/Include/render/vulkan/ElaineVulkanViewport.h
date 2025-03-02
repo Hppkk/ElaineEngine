@@ -21,6 +21,7 @@ namespace VulkanRHI
 		void CreateFrameBuffer();
 		void RecreateFrameBuffer();
 		const VkSemaphore& GetIndexVkSemaphore(size_t InIndex);
+		VulkanSemaphore* GetIndexSemaphore(size_t InIndex);
 		void RecreateSwapchain();
 		void RecreateSwapchainFromRT(PixelFormat InPixelFormat);
 		void Resize(uint32 InSizeX, uint32 InSizeY, bool bIsFullscreen, PixelFormat InPixelFormat);

@@ -64,21 +64,21 @@ namespace Elaine
 	void RHICommandList::EndRenderPass()
 	{
 		ALLOC_COMMAND(RHI_COMMAND_TYPE(EndRenderPass))();
-		{
-			auto Iter = std::upper_bound(mOwner->mLogicCmdList.rbegin(), mOwner->mLogicCmdList.rend(), this);
-			if (Iter == mOwner->mLogicCmdList.rend())
-			{
-				mOwner->mLogicCmdList.insert(mOwner->mLogicCmdList.begin(), this);
-				mUploadIndex = 0u;
-			}
-			else
-			{
-				size_t FindIndex = mOwner->mLogicCmdList.rbegin() - Iter;
+		//{
+		//	auto Iter = std::upper_bound(mOwner->mLogicCmdList.rbegin(), mOwner->mLogicCmdList.rend(), this);
+		//	if (Iter == mOwner->mLogicCmdList.rend())
+		//	{
+		//		mOwner->mLogicCmdList.insert(mOwner->mLogicCmdList.begin(), this);
+		//		mUploadIndex = 0u;
+		//	}
+		//	else
+		//	{
+		//		size_t FindIndex = mOwner->mLogicCmdList.rbegin() - Iter;
 
-				mOwner->mLogicCmdList.insert(mOwner->mLogicCmdList.begin() + FindIndex + 1, this);
-				mUploadIndex = FindIndex + 1;
-			}
-		}
+		//		mOwner->mLogicCmdList.insert(mOwner->mLogicCmdList.begin() + FindIndex + 1, this);
+		//		mUploadIndex = FindIndex + 1;
+		//	}
+		//}
 	}
 
 	void RHICommandList::BindGfxPipeline(RHIPipeline* InPipeline)

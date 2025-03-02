@@ -10,7 +10,7 @@ namespace Elaine
 {
 	Root::Root()
 	{
-
+		new LogSystem();
 	}
 
 	Root::~Root()
@@ -36,7 +36,7 @@ namespace Elaine
 		m_sResourcePath = m_sAppPath + "/../../../Contents/";
 #endif 
 
-		new LogSystem();
+		
 		new DataStreamMgr();
 		new GameObjectInfoMgr();
 		readConfig(m_sResourcePath + "config/EngineConfig.cfg");

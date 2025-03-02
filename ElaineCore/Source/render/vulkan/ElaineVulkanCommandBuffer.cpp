@@ -395,7 +395,7 @@ namespace VulkanRHI
 		mUploadCmdBuffer = nullptr;
 	}
 
-	void VulkanCommandBufferManager::SubmitActiveCmdBuffer(const std::vector<VulkanSemaphore*> SignalSemaphores)
+	void VulkanCommandBufferManager::SubmitActiveCmdBuffer(const std::vector<VulkanSemaphore*>& SignalSemaphores)
 	{
 		std::lock_guard<std::recursive_mutex> lock(mPool->mMtx);
 		std::vector<VkSemaphore> VkSemaphores;
@@ -429,10 +429,15 @@ namespace VulkanRHI
 				mQueue->Submit(mActiveCmdBuffer, VkSemaphores.size(), VkSemaphores.data());
 			}
 		}
+		else
+		{
+			mQueue->Submit(mActiveCmdBuffer, VkSemaphores.size(), VkSemaphores.data());
+		}
 		mActiveCmdBuffer = nullptr;
 		if (GVulkanUploadCmdBufferSemaphore && mActiveCmdBufferSemaphore != nullptr)
 		{
 			SAFE_DELETE(mActiveCmdBufferSemaphore);
 		}
+		PrepareForNewActiveCommandBuffer();
 	}
 }

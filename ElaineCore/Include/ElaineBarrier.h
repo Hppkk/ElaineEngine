@@ -9,7 +9,7 @@ namespace Elaine
 		EBarrier();
 		~EBarrier();
 		void Wait();
-		void Notify();
+		void Signal();
 	private:
 		std::mutex mMtx;
 		std::condition_variable mConditionVariable;

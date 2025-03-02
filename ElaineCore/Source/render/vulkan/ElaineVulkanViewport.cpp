@@ -92,6 +92,7 @@ namespace VulkanRHI
 			vkCmdClearColorImage(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &ClearColor, 1, &Range);
 			VulkanSetImageLayout(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, Range);
 		}
+		CurrentCmdBuffer->End();
 		CurrentCmdCtx->GetCommandBufferManager()->SubmitUploadCmdBuffer();
 
 	}
@@ -156,6 +157,14 @@ namespace VulkanRHI
 			return G_NULL_SEMAPHORE;
 
 		return mSemaphores[InIndex]->GetHandle();
+	}
+
+	VulkanSemaphore* VulkanViewport::GetIndexSemaphore(size_t InIndex)
+	{
+		if (InIndex >= mSemaphores.size())
+			return nullptr;
+
+		return mSemaphores[InIndex];
 	}
 
 	void VulkanViewport::RecreateSwapchain()

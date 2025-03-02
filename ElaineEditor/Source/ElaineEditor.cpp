@@ -19,12 +19,13 @@ namespace Elaine
 
 	void ElaineEditor::initialize()
 	{
-		LOG_INFO("Editor Init");
+		LOG_INFO("Elaine Engine Editor Initilize...");
+		LOG_INFO("Elaine Engine Editor Initilize Complete!");
 	}
 
 	void ElaineEditor::close()
 	{
-		LOG_INFO("Editor Close");
+		LOG_INFO("Elaine Engine Editor Destroy!");
 	}
 
 	void ElaineEditor::tick()

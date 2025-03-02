@@ -18,7 +18,7 @@ namespace Elaine
 		std::unique_lock<std::mutex> UniqueLocker(mMtx);
 		mConditionVariable.wait(UniqueLocker);
 	}
-	void EBarrier::Notify()
+	void EBarrier::Signal()
 	{
 		std::unique_lock<std::mutex> UniqueLocker(mMtx);
 		mConditionVariable.notify_one();

@@ -80,7 +80,7 @@ namespace Elaine
 		{
 			RHICommandListManager* RHICmdListMgr = GfxCommandCtx->GetRHICommandListMgr();
 			RHICmdListMgr->SwapCommands();
-			G_RenderBarrier->Notify();
+			G_RenderBarrier->Signal();
 			GfxCommandCtx->RHIBeginFrame();
 			RHICmdListMgr->ExecuteCommands();
 			GfxCommandCtx->RHIEndFrame();
@@ -119,7 +119,7 @@ namespace Elaine
 
 	void ElaineCoreExport NotifyForRHIThread_Gfx()
 	{
-		G_GfxBarrier->Notify();
+		G_GfxBarrier->Signal();
 	}
 
 	void ElaineCoreExport WaitForRenderThread_Gfx()
@@ -129,7 +129,7 @@ namespace Elaine
 
 	void ElaineCoreExport NotifyForRenderThread_Gfx()
 	{
-		G_RenderBarrier->Notify();
+		G_RenderBarrier->Signal();
 	}
 
 	DynamicRHI* GetDynamicRHI()

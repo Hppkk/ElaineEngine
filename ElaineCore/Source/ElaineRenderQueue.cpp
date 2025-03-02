@@ -41,11 +41,11 @@ namespace Elaine
 			for (auto&& CurrElement : CurrRenderableObjects.second)
 			{
 				GRAPHICS_PIPELINE_STATE_DESC& RenderGfxState = CurrElement.mRenderPass->GetGfxState();
-				InRHICommandList->BeginRenderPass(RenderGfxState);
+				//InRHICommandList->BeginRenderPass(RenderGfxState);
 				InRHICommandList->BindGfxPipeline(CurrElement.mRenderPass->GetRHIPipeline());
 				InRHICommandList->BindDrawData(&RenderGfxState);
 				InRHICommandList->DrawPrimitive(0, 1, 1);
-				InRHICommandList->EndRenderPass();
+				//InRHICommandList->EndRenderPass();
 			}
 		}
 	}

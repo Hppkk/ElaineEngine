@@ -11,8 +11,9 @@ namespace Elaine
 	void ElaineEngine::Initilize(const RHI_PARAM_DESC& InRendererDesc)
 	{
 		new Root();
-		Root::instance()->initilize(InRendererDesc);
 		LOG_INFO("Elaine Engine Initilize...");
+		Root::instance()->initilize(InRendererDesc);
+		LOG_INFO("Elaine Engine Initilize Complete!");
 	}
 
 	void ElaineEngine::RenderOneFrame()

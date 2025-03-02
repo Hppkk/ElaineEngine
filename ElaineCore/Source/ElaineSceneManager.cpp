@@ -86,10 +86,9 @@ namespace Elaine
 		mVisibleNodes.clear();
 
 		//record render commands
-
+		RHICommandList* NewCmdList = GetDynamicRHI()->GetDefaultCommandContext()->GetRHICommandListMgr()->CreateCommandList();
 		for (size_t Index = RenderQueue_Normal; Index < RenderQueue_Count; ++Index)
 		{
-			RHICommandList* NewCmdList = GetDynamicRHI()->GetDefaultCommandContext()->GetRHICommandListMgr()->CreateCommandList();
 			RenderQueue* CurrentRenderQueue = mRenderQueueSet->GetRenderQueue((NamedRenderQueue)Index);
 			CurrentRenderQueue->Render(NewCmdList);
 		}

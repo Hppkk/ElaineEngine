@@ -30,6 +30,7 @@ namespace VulkanRHI
 	void VulkanCommandContext::Initilize()
 	{
 		mCmdBufferManager = new VulkanCommandBufferManager(mDevice, mQueue);
+		mCmdBufferManager->Initilize();
 	}
 
 	void VulkanCommandContext::Deinitilize()
@@ -75,18 +76,49 @@ namespace VulkanRHI
 
 	void VulkanCommandContext::RHIBeginFrame()
 	{
+		VkRenderPassBeginInfo RenderPassBeginInfo;
+		Memory::MemoryZero(RenderPassBeginInfo);
+		RenderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		RenderPassBeginInfo.renderPass = GetVulkanDynamicRHI()->GetDefaultRenderPass()->GetHandle();
+		RenderPassBeginInfo.framebuffer = GetVulkanDynamicRHI()->GetViewport()->
+			GetIndexFrameBuffer(GetVulkanDynamicRHI()->GetViewport()->GetSwapChain()->GetCurrentImageIndex());
+		RenderPassBeginInfo.renderArea = GetVulkanDynamicRHI()->GetViewport()->GetDefaultScissor();
+		RenderPassBeginInfo.clearValueCount = 2;
+		VkClearValue ClearColorVal = { 0.0f,0.0f,0.0f,1.0f };
+		VkClearValue ClearDepthVal = { 1.0f,0.0f };
+		std::vector<VkClearValue> TempClearVals = { ClearColorVal,ClearDepthVal };
+		RenderPassBeginInfo.pClearValues = TempClearVals.data();
 
+		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
+		vkCmdBeginRenderPass(CurrentCmdBuffer->GetHandle(), &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+		vkCmdSetViewport(CurrentCmdBuffer->GetHandle(), 0, 1, &GetVulkanDynamicRHI()->GetViewport()->GetDefaultViewPort());
+		vkCmdSetScissor(CurrentCmdBuffer->GetHandle(), 0, 1, &GetVulkanDynamicRHI()->GetViewport()->GetDefaultScissor());
 	}
 
 	void VulkanCommandContext::RHIEndFrame()
 	{
+		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
+		vkCmdEndRenderPass(CurrentCmdBuffer->GetHandle());
+		CurrentCmdBuffer->End();
+
 		VulkanSwapChain* VKSwapChain = GetVulkanDynamicRHI()->GetViewport()->GetSwapChain();
+		VulkanSemaphore* CurrentSemaphore = nullptr;
+		VKSwapChain->AcquireImageIndex(&CurrentSemaphore);
+		uint32_t ImageIndex = VKSwapChain->GetCurrentImageIndex();
+		std::vector<VulkanSemaphore*> Temp = { GetVulkanDynamicRHI()->GetViewport()->GetIndexSemaphore(ImageIndex) };
+		mCmdBufferManager->SubmitActiveCmdBuffer(Temp);
+		
+
 		VkPresentInfoKHR PresentInfo;
+		Memory::MemoryZero(PresentInfo);
 		PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+		PresentInfo.waitSemaphoreCount = 1;
+		PresentInfo.pWaitSemaphores = &CurrentSemaphore->GetHandle();// &VKSwapChain->GetIndexVkSemaphore(VKSwapChain->GetCurrentImageIndex());
+		
 		PresentInfo.swapchainCount = 1;
 		PresentInfo.pSwapchains = &VKSwapChain->GetSwapChain();
-		PresentInfo.waitSemaphoreCount = 1;
-		PresentInfo.pWaitSemaphores = &VKSwapChain->GetIndexVkSemaphore(VKSwapChain->GetCurrentImageIndex());
+		PresentInfo.pImageIndices = &ImageIndex;
 		vkQueuePresentKHR(mQueue->GetHandle(), &PresentInfo);
 	}
 
@@ -148,6 +180,7 @@ namespace VulkanRHI
 	RHIBuffer* VulkanCommandContext::RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData)
 	{
 		VulkanBuffer* NewBuffer = new VulkanBuffer(mDevice, InSize, Usage, ResourceState, Stride);
+		NewBuffer->MapMemoryDataToBuffer(InData, InSize);
 		return NewBuffer;
 	}
 
@@ -280,14 +313,15 @@ namespace VulkanRHI
 		{
 			if (InDrawData->mRHIDrawData->mStreamInput.mIStreamBuffer[Index] == nullptr)
 				continue;
-			VkBuffer pVKBuffer = static_cast<VulkanBuffer*>(InDrawData->mRHIDrawData->mStreamInput.mIStreamBuffer[Index])->GetHandle();
+			VulkanBuffer* VkVertexBuffer = static_cast<VulkanBuffer*>(InDrawData->mRHIDrawData->mStreamInput.mIStreamBuffer[Index]);
+			VkBuffer pVKBuffer = VkVertexBuffer->GetHandle();
 			if (Index == STREAM_INDEXBUFFER)
 			{
 				vkCmdBindIndexBuffer(CurrentCmdBuffer->GetHandle(), pVKBuffer, 0, EngineToVkIndexType(InDrawData->mIndexType));
 				continue;
 			}
-			
-			vkCmdBindVertexBuffers(CurrentCmdBuffer->GetHandle(), Index, 1, &pVKBuffer, 0);
+			size_t VertexOffset = VkVertexBuffer->GetOffset();
+			vkCmdBindVertexBuffers(CurrentCmdBuffer->GetHandle(), Index, 1, &pVKBuffer, &VertexOffset);
 		}
 
 		//todo

@@ -2,6 +2,8 @@
 
 -----------------
 
+![ElaineEngine](D:\C++Project\ElaineEngine\ElaineEngine\ElaineEngine.png)
+
 Welcome to the Elaine Engine source code!
 
 You can build the Elaine Editor for Windows(Other platforms will be gradually opened in the future); compile Elaine Engine games for target platforms. Modify the code in any way you can imagine, and share your changes with others.
@@ -9,8 +11,10 @@ You can build the Elaine Editor for Windows(Other platforms will be gradually op
 # Branch
 
 -----------------------
-
-Currently only the master branch is open.
+The `master` is our Main Branch. For your own development,  you can run
+```
+git checkout -b <your-branch> origin/master
+```
 
 # Getting  and running
 

@@ -6,14 +6,14 @@ namespace VulkanRHI
 {
 	class VulkanDevice;
 
-	VkBufferUsageFlags RHIToVKBufferUsageFlags(VulkanDevice* InDevice, BufferUsageFlags InUEUsage, bool bZeroSize);
+	VkBufferUsageFlags RHIToVKBufferUsageFlags(VulkanDevice* InDevice, BufferUsageFlags InUsage, bool bZeroSize);
 
 
 	class ElaineCoreExport VulkanBuffer : public RHIBuffer
 	{
 	public:
 		VulkanBuffer(VulkanDevice* InDevice, size_t InSize, BufferUsageFlags InUsage, ERHIAccess InResourceState, size_t InStride);
-		~VulkanBuffer();
+		virtual ~VulkanBuffer();
 		void MapMemoryDataToBuffer(void* InData,size_t InSize);
 		inline VkBuffer GetHandle() const
 		{
@@ -42,7 +42,7 @@ namespace VulkanRHI
 
 		VulkanAllocation& GetBufferAllocation() { return mBuffer; }
 
-	private:
+	protected:
 		VkBuffer			mBufferHandle = VK_NULL_HANDLE;
 		VkBufferUsageFlags	mBufferUsageFlags;
 		VulkanAllocation	mBuffer;

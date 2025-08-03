@@ -61,7 +61,7 @@ namespace Elaine
 		~ComponentTickManager();
 		void			registerTickComponent(EComponent*);
 		void			unRegisterTickComponent(EComponent*);
-		void			tick(float dt);
+		void			Tick(float dt);
 	private:
 		std::set<EComponent*>		m_components;
 	};

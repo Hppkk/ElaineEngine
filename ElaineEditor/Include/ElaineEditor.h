@@ -1,18 +1,19 @@
 #pragma once
 #include "ElaineEditorPrerequirements.h"
+#include "ElaineEditorGlobalContext.h"
 #include "ElaineEngine.h"
 
-namespace Elaine
+namespace ElaineEditor
 {
 	class ElaineEditor
 	{
 	public:
-		ElaineEditor(ElaineEngine* engine);
+		ElaineEditor(Elaine::ElaineEngine* InEngine);
 		virtual ~ElaineEditor();
-		void			initialize();
-		void			close();
-		void			tick();
+		void			Initilize();
+		void			Destroy();
+		void			Tick();
 	private:
-		ElaineEngine*	m_pEngine = nullptr;
+		Elaine::ElaineEngine* mEngineImpl = nullptr;
 	};
 }

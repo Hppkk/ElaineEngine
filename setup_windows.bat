@@ -1,3 +1,3 @@
 @echo off
-cmake . -B build
+cmake . -B Build
 pause

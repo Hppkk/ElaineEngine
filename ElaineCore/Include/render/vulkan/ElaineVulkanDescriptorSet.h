@@ -1,6 +1,9 @@
 #pragma once
 namespace VulkanRHI
 {
+
+	class VulkanUniformBuffer;
+
 	class ElaineCoreExport VulkanDescriptorSetLayout
 	{
 	public:
@@ -11,8 +14,13 @@ namespace VulkanRHI
 	class ElaineCoreExport VulkanDescriptorSet
 	{
 	public:
+		VulkanDescriptorSet(int32 InSet, bool InEmpty = false);
+		VkDescriptorSet& GetHandle() { return mHandle; }
+		int32 GetSet() const { return mSet; }
 	private:
 		VkDescriptorSet mHandle = nullptr;
+		int32 mSet;
+		bool mbEmpty;
 		friend class VulkanDescriptorSetManager;
 	};
 
@@ -41,10 +49,14 @@ namespace VulkanRHI
 		VkDescriptorSetLayout CreateDescriptorSetLayout(const  VkDescriptorSetLayoutCreateInfo& InCreateInfo);
 		bool AllocateDescriptorSets(const VkDescriptorSetAllocateInfo& InDescriptorSetAllocateInfo, VulkanDescriptorSet** OutSets);
 
+		void WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet);
+		void WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet);
+
 	private:
 		std::vector<VulkanDescriptorPool*> mPools;
 		VulkanDescriptorPool* mFreePool = nullptr;
 		VulkanDevice* mDevice = nullptr;
 		std::set<VkDescriptorSetLayout> mDescriptorSetLayouts;
+		std::vector<VulkanDescriptorSet*> mVulkanDescriptorSets;
 	};
 }

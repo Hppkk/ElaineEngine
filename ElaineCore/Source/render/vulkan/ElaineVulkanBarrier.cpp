@@ -210,4 +210,9 @@ namespace VulkanRHI
 		Barrier.AddImageLayoutTransition(InImage, InOldLayout, InNewLayout, InSubresourceRange);
 		Barrier.Execute(InCmdBuffer);
 	}
+	void VulkanSetImageLayout(VkCommandBuffer InCmdBuffer, VulkanTexture* InTexture, VkImageLayout InNewLayout, const VkImageSubresourceRange& InSubresourceRange)
+	{
+		VulkanSetImageLayout(InCmdBuffer, InTexture->getHandle(), InTexture->GetImageLayout(), InNewLayout, InSubresourceRange);
+		InTexture->SetImageLayout(InNewLayout);
+	}
 }

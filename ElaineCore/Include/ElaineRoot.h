@@ -35,7 +35,7 @@ namespace Elaine
 		void					beginFrame(float dt);
 		void					fixedUpdate(float dt);
 		void					endFrame(float dt);
-		void					tickOnceFrame();
+		void					RenderOneFrame();
 		RenderSystem*			getRenderSystem() { return m_pRenderSystem; }
 		SceneManager*			getSceneManager(const String& name);
 		SceneManager*			getMainSceneManager();

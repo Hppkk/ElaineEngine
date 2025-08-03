@@ -6,14 +6,14 @@
 
 namespace VulkanRHI
 {
-	VkBufferUsageFlags RHIToVKBufferUsageFlags(VulkanDevice* InDevice, BufferUsageFlags InUEUsage, bool bZeroSize)
+	VkBufferUsageFlags RHIToVKBufferUsageFlags(VulkanDevice* InDevice, BufferUsageFlags InUsage, bool bZeroSize)
 	{
 		// Always include TRANSFER_SRC since hardware vendors confirmed it wouldn't have any performance cost and we need it for some debug functionalities.
 		VkBufferUsageFlags OutVkUsage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-		auto TranslateFlag = [&OutVkUsage, &InUEUsage](BufferUsageFlags SearchUEFlag, VkBufferUsageFlags AddedIfFound, VkBufferUsageFlags AddedIfNotFound = 0)
+		auto TranslateFlag = [&OutVkUsage, &InUsage](BufferUsageFlags SearchUEFlag, VkBufferUsageFlags AddedIfFound, VkBufferUsageFlags AddedIfNotFound = 0)
 			{
-				const bool HasFlag = EnumHasAnyFlags(InUEUsage, SearchUEFlag);
+				const bool HasFlag = EnumHasAnyFlags(InUsage, SearchUEFlag);
 				OutVkUsage |= HasFlag ? AddedIfFound : AddedIfNotFound;
 			};
 
@@ -21,7 +21,7 @@ namespace VulkanRHI
 		TranslateFlag(BufferUsageFlags::IndexBuffer, VK_BUFFER_USAGE_INDEX_BUFFER_BIT);
 		TranslateFlag(BufferUsageFlags::StructuredBuffer, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT);
 		TranslateFlag(BufferUsageFlags::AccelerationStructure, VK_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR);
-
+		TranslateFlag(BufferUsageFlags::UniformBuffer, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT);
 
 		if (!bZeroSize)
 		{
@@ -56,9 +56,19 @@ namespace VulkanRHI
 			const bool BufferAlignment = VulkanMemoryManager::CalculateBufferAlignment(*InDevice, InUsage, InSize == 0);
 			VkMemoryPropertyFlags BufferMemFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			BufferMemFlags |= (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-			if (!InDevice->GetMemoryManager()->AllocateBufferPooled(mBuffer, nullptr, InSize, BufferAlignment, mBufferUsageFlags, BufferMemFlags, VulkanAllocationMetaMultiBuffer, __FILE__, __LINE__))
+			if (EnumHasAnyFlags(InUsage , BufferUsageFlags::UniformBuffer))
 			{
-				LOG_FATAL("VulkanRHI: Out of Memory");
+				if (!InDevice->GetMemoryManager()->AllocUniformBuffer(mBuffer, InSize, nullptr))
+				{
+					LOG_FATAL("VulkanRHI: Allocate Uniform Buffer Failed.");
+				}
+			}
+			else
+			{
+				if (!InDevice->GetMemoryManager()->AllocateBufferPooled(mBuffer, nullptr, InSize, BufferAlignment, mBufferUsageFlags, BufferMemFlags, VulkanAllocationMetaMultiBuffer, __FILE__, __LINE__))
+				{
+					LOG_FATAL("VulkanRHI: Out of Memory.");
+				}
 			}
 
 			mBufferHandle = (VkBuffer)mBuffer.mVulkanHandle;

@@ -29,6 +29,8 @@ namespace Elaine
         CreateTexture,
         CopyBuffer,
         CreateRenderPipeline,
+        UpdateUniformBuffer,
+        UpdateCommonUniformBuffer,
         BeginRenderPass,
         EndRenderPass,
         BindGfxPipeline,

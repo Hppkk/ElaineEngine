@@ -15,7 +15,7 @@ namespace Elaine
 	class ElaineEngineExport ElaineEngine
 	{
 	public:
-		ElaineEngine() = default;
+		ElaineEngine();
 		virtual ~ElaineEngine();
 
 		void		Initilize(const RHI_PARAM_DESC& InRendererDesc);
@@ -23,4 +23,6 @@ namespace Elaine
 		void		RenderOneFrame(float InDeltaTime);
 		void		DestroyEngine();
 	};
+
+	extern ElaineEngineExport ElaineEngine* GetElaineEngine();
 }

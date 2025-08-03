@@ -11,6 +11,10 @@
 #include "render/vulkan/ElaineVulkanQueue.h"
 #include "render/vulkan/ElaineVulkanPipeline.h"
 #include "render/vulkan/ElaineVulkanRenderPass.h"
+#include "render/vulkan/ElaineVulkanMemory.h"
+#include "render/vulkan/ElaineVulkanUniformBuffer.h"
+#include "render/vulkan/ElaineVulkanDescriptorSet.h"
+#include "render/vulkan/ElaineVulkanBarrier.h"
 
 namespace VulkanRHI
 {
@@ -31,6 +35,12 @@ namespace VulkanRHI
 	{
 		mCmdBufferManager = new VulkanCommandBufferManager(mDevice, mQueue);
 		mCmdBufferManager->Initilize();
+		mDescriptorSetManager = new VulkanDescriptorSetManager(mDevice);
+		for (int Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
+		{
+			mImageAvailableSemaphores[Index] = new VulkanSemaphore(mDevice);
+			mRenderFinishedSemaphores[Index] = new VulkanSemaphore(mDevice);
+		}
 	}
 
 	void VulkanCommandContext::Deinitilize()
@@ -76,6 +86,18 @@ namespace VulkanRHI
 
 	void VulkanCommandContext::RHIBeginFrame()
 	{
+		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
+		mCmdBufferManager->WaitForCmdBuffer(CurrentCmdBuffer, UINT64_MAX);
+
+
+		VulkanSwapChain* VKSwapChain = GetVulkanDynamicRHI()->GetViewport()->GetSwapChain();
+		bool AcquireSucceed = VKSwapChain->AcquireImage(mImageAvailableSemaphores[mCurrentFrameIndex], mCurrentImageIndex);
+		if (!AcquireSucceed)
+		{
+			GetVulkanDynamicRHI()->GetViewport()->RecreateSwapchain();
+			return;
+		}
+		
 		VkRenderPassBeginInfo RenderPassBeginInfo;
 		Memory::MemoryZero(RenderPassBeginInfo);
 		RenderPassBeginInfo.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
@@ -84,12 +106,14 @@ namespace VulkanRHI
 			GetIndexFrameBuffer(GetVulkanDynamicRHI()->GetViewport()->GetSwapChain()->GetCurrentImageIndex());
 		RenderPassBeginInfo.renderArea = GetVulkanDynamicRHI()->GetViewport()->GetDefaultScissor();
 		RenderPassBeginInfo.clearValueCount = 2;
-		VkClearValue ClearColorVal = { 0.0f,0.0f,0.0f,1.0f };
-		VkClearValue ClearDepthVal = { 1.0f,0.0f };
-		std::vector<VkClearValue> TempClearVals = { ClearColorVal,ClearDepthVal };
+		VkClearValue ClearVal1;
+		ClearVal1.color = { 0.0f, 0.0f, 0.0f, 1.0f };
+		VkClearValue ClearVal2;
+		ClearVal2.depthStencil = { 1.0f, 0 };
+		std::vector<VkClearValue> TempClearVals = { ClearVal1, ClearVal2 };
 		RenderPassBeginInfo.pClearValues = TempClearVals.data();
 
-		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
+		
 		vkCmdBeginRenderPass(CurrentCmdBuffer->GetHandle(), &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		vkCmdSetViewport(CurrentCmdBuffer->GetHandle(), 0, 1, &GetVulkanDynamicRHI()->GetViewport()->GetDefaultViewPort());
@@ -101,25 +125,21 @@ namespace VulkanRHI
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
 		vkCmdEndRenderPass(CurrentCmdBuffer->GetHandle());
 		CurrentCmdBuffer->End();
-
+		CurrentCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, mImageAvailableSemaphores[mCurrentFrameIndex]);
+		mCmdBufferManager->SubmitActiveCmdBuffer(std::vector<VulkanSemaphore*>{mRenderFinishedSemaphores[mCurrentFrameIndex]});
 		VulkanSwapChain* VKSwapChain = GetVulkanDynamicRHI()->GetViewport()->GetSwapChain();
-		VulkanSemaphore* CurrentSemaphore = nullptr;
-		VKSwapChain->AcquireImageIndex(&CurrentSemaphore);
-		uint32_t ImageIndex = VKSwapChain->GetCurrentImageIndex();
-		std::vector<VulkanSemaphore*> Temp = { GetVulkanDynamicRHI()->GetViewport()->GetIndexSemaphore(ImageIndex) };
-		mCmdBufferManager->SubmitActiveCmdBuffer(Temp);
-		
-
 		VkPresentInfoKHR PresentInfo;
 		Memory::MemoryZero(PresentInfo);
 		PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 		PresentInfo.waitSemaphoreCount = 1;
-		PresentInfo.pWaitSemaphores = &CurrentSemaphore->GetHandle();// &VKSwapChain->GetIndexVkSemaphore(VKSwapChain->GetCurrentImageIndex());
-		
+		PresentInfo.pWaitSemaphores = &mRenderFinishedSemaphores[mCurrentFrameIndex]->GetHandle();
 		PresentInfo.swapchainCount = 1;
 		PresentInfo.pSwapchains = &VKSwapChain->GetSwapChain();
-		PresentInfo.pImageIndices = &ImageIndex;
+		PresentInfo.pImageIndices = &mCurrentImageIndex;
 		vkQueuePresentKHR(mQueue->GetHandle(), &PresentInfo);
+		mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+
+		mCmdBufferManager->RefreshCommandBufferState();
 	}
 
 	void VulkanCommandContext::RHIBeginScene()
@@ -174,6 +194,7 @@ namespace VulkanRHI
 	{
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
 		VulkanGfxPipeline* VkGfxPipeline = static_cast<VulkanGfxPipeline*>(InPipeline);
+		mCurrentGfxPipeline = VkGfxPipeline;
 		vkCmdBindPipeline(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, VkGfxPipeline->GetHandle());
 	}
 
@@ -189,12 +210,13 @@ namespace VulkanRHI
 		return RHICreateBuffer(Size, Usage, Stride, ResourceState, InData);
 	}
 
-	void VulkanCommandContext::RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents)
+	void VulkanCommandContext::RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* InContents)
 	{
 		if (UniformBufferRHI == nullptr)
 			return;
 
-		
+		VulkanUniformBuffer* VkUniformBuffer = static_cast<VulkanUniformBuffer*>(UniformBufferRHI);
+		VkUniformBuffer->UpdateBuffer(InContents);
 	}
 
 	RHIBuffer* VulkanCommandContext::RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
@@ -202,16 +224,84 @@ namespace VulkanRHI
 		return RHICreateBuffer(Size, Usage, 0, ResourceState, InData);
 	}
 
-	RHITexture* VulkanCommandContext::RHICreateTexture(const RHITextureDesc& InDesc)
+	RHITexture* VulkanCommandContext::RHICreateTexture(const RHITextureDesc& InDesc, void* InContent)
 	{
 		//todo managing the life cycle
-		RHITexture* Result = new VulkanTexture(mDevice, InDesc);
+		VulkanTexture* Result = new VulkanTexture(mDevice, InDesc);
+		size_t ImageLayerCount = 1;
+		if (InDesc.mDimension == TextureDimension::Texture2DArray)
+		{
+			ImageLayerCount = InDesc.mArraySize;
+		}
+		else if (InDesc.mDimension == TextureDimension::TextureCube)
+		{
+			ImageLayerCount = 6;
+		}
+		else if (InDesc.mDimension == TextureDimension::TextureCubeArray)
+		{
+			ImageLayerCount = InDesc.mArraySize * 6;
+		}
+		size_t LayerSize = InDesc.mExtent.x * InDesc.mExtent.y * GPixelFormats[InDesc.mFormat].BlockBytes;
+		size_t AllocSize = LayerSize * ImageLayerCount;
+		VulkanStagingBuffer* VkStagingBuffer = mDevice->GetStagingManager()->AcquireBuffer(AllocSize);
+		Memory::MemoryCopy(VkStagingBuffer->GetMappingPointer(), InContent, AllocSize);
+		VulkanCommandBuffer* PUploadCommandBuffer = mCmdBufferManager->GetUploadCmdBuffer();
+		
+		//todo
+		//VkBufferImageCopy Regions[6] = { };
+		//for (uint32_t i = 0; i < 6; ++i)
+		{
+			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6);
+			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, SubRange);
+			VkBufferImageCopy Region;
+			Memory::MemoryZero(Region);
+			Region.bufferOffset = VkStagingBuffer->GetBufferOffset();// +i * LayerSize;
+			Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+			Region.imageSubresource.mipLevel = 0;
+			Region.imageSubresource.baseArrayLayer = 0;  // 当前面索引
+			Region.imageSubresource.layerCount = 6;
+			//Region.imageOffset = {}
+			Region.imageExtent = { static_cast<uint32_t>(InDesc.mExtent.x), static_cast<uint32_t>(InDesc.mExtent.y), 1 };
+			vkCmdCopyBufferToImage(PUploadCommandBuffer->GetHandle(), VkStagingBuffer->GetHandle(), Result->getHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &Region);
+			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, SubRange);
+		}
+		
+		
+		mDevice->GetStagingManager()->ReleaseBuffer(PUploadCommandBuffer, VkStagingBuffer);
+		mCmdBufferManager->SubmitUploadCmdBuffer();
+		VkSamplerCreateInfo samplerInfo = {};
+		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+		samplerInfo.magFilter = VK_FILTER_LINEAR;
+		samplerInfo.minFilter = VK_FILTER_LINEAR;
+		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; 
+		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+		samplerInfo.anisotropyEnable = VK_FALSE;
+		samplerInfo.maxAnisotropy = 1.0f;
+		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+		samplerInfo.unnormalizedCoordinates = VK_FALSE;
+		samplerInfo.compareEnable = VK_FALSE;
+		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
+		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+
+		vkCreateSampler(mDevice->GetDevice(), &samplerInfo, nullptr, &skyboxSampler);
 		return Result;
 	}
 
 	RHITexture* VulkanCommandContext::RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData)
 	{
-		return nullptr;
+		RHITextureDesc TexDescRHI;
+		TexDescRHI.mExtent.x = SizeX;
+		TexDescRHI.mExtent.y = SizeY;
+		TexDescRHI.mFormat = (PixelFormat)Format;
+		TexDescRHI.mNumMips = NumMips;
+		TexDescRHI.mNumSamples = NumSamples;
+		TexDescRHI.mFlags = Flags;
+		VulkanTexture* Result = new VulkanTexture(mDevice, TexDescRHI);
+		size_t AllocSize = SizeX * SizeY * GPixelFormats[(PixelFormat)Format].BlockBytes;
+		VulkanStagingBuffer* VkStagingBuffer = mDevice->GetStagingManager()->AcquireBuffer(AllocSize);
+		//Result->
+		return Result;
 	}
 
 	RHITexture* VulkanCommandContext::RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData)
@@ -229,11 +319,34 @@ namespace VulkanRHI
 		return nullptr;
 	}
 
+	RHIUniformBuffer* VulkanCommandContext::RHICreateUniformBuffer(size_t InSize, void* InContents)
+	{
+		RHIUniformBuffer* NewUniformBuffer = new  VulkanUniformBuffer(mDevice, InSize, WritableMask, InContents);
+		return NewUniformBuffer;
+	}
+
+	void VulkanCommandContext::RHIUpdateCommonUniformBuffer(size_t InSize, void* InContents)
+	{
+		if (mCommonUniformBuffer[mCurrentFrameIndex] == nullptr)
+		{
+			mCommonUniformBuffer[mCurrentFrameIndex] = (VulkanUniformBuffer*)RHICreateUniformBuffer(InSize, InContents);
+			mDescriptorSetManager->WriteUniformBufferToDescriptorSet(mCommonUniformBuffer[mCurrentFrameIndex], mCommonDescriptorSets[mCurrentFrameIndex]);
+		}
+
+		mCommonUniformBuffer[mCurrentFrameIndex]->UpdateBuffer(InContents);
+	}
+
 	void VulkanCommandContext::RHIWriteGPUFence(RHIGPUFence* InFenceRHI)
 	{
 		VulkanCommandBuffer* CurrentCommandBuffer = mCmdBufferManager->GetActiveCmdBuffer();
 		VulkanFence* CurrentFence = static_cast<VulkanFence*>(InFenceRHI);
 		//CurrentFence-
+	}
+
+	void VulkanCommandContext::SetCommonDescriptorSets(VulkanDescriptorSet* InDescroptorSet, size_t InIndex)
+	{
+		mCommonDescriptorSets[InIndex] = InDescroptorSet;
+		mIsCreateCommonDescriptorSets = true;
 	}
 
 	void VulkanCommandContext::RHIBeginUpdateMultiFrameResource(RHITexture* Texture)
@@ -325,9 +438,33 @@ namespace VulkanRHI
 		}
 
 		//todo
-		//vkCmdBindDescriptorSets()
-		//vkCmdSetScissor(CurrentCmdBuffer->GetHandle(),)
+		std::vector<VkDescriptorSet> DescriptorSets;
+		size_t BindCount = 1;
+		static bool isWrite = false;
+		DescriptorSets.push_back(mCommonDescriptorSets[mCurrentFrameIndex]->GetHandle());
+		for (auto&& CurrentDescriptorSet : mCurrentGfxPipeline->GetDescriptorSets())
+		{
+			if (CurrentDescriptorSet != nullptr)
+			{
+				DescriptorSets.push_back(CurrentDescriptorSet->GetHandle());
+				if (CurrentDescriptorSet->GetSet() == 2 && !isWrite)
+				{
+					VulkanTexture* VkTexture = static_cast<VulkanTexture*>(InDrawData->mTextures[0]);
+					mDescriptorSetManager->WriteImageToDescriptorSet(VkTexture, skyboxSampler, CurrentDescriptorSet);
+					isWrite = true;
+				}
+				++BindCount;
+			}
+			else
+			{
+				DescriptorSets.push_back(nullptr);
+			}
 
+		}
+
+		vkCmdBindDescriptorSets(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, 
+			mCurrentGfxPipeline->GetLayout().GetPipelineLayoutHandle(), 0, BindCount,
+			DescriptorSets.data(), 0, RHI_NULL_HANDLE);
 	}
 
 	void VulkanCommandContext::RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances)

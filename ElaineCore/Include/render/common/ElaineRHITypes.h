@@ -1,5 +1,6 @@
 #pragma once
 #include "ElaineMemory.h"
+#include "render/common/ElaineRHISmartPtr.h"
 
 namespace Elaine
 {
@@ -43,13 +44,6 @@ namespace Elaine
         RRT_UniformBuffer,
         RRT_Buffer,
         RRT_Texture,
-        // @todo: texture type unification - remove these
-        RRT_Texture2D,
-        RRT_Texture2DArray,
-        RRT_Texture3D,
-        RRT_TextureCube,
-        // @todo: texture type unification - remove these
-        RRT_TextureReference,
         RRT_TimestampCalibrationQuery,
         RRT_GPUFence,
         RRT_RenderQuery,
@@ -695,11 +689,10 @@ namespace Elaine
     //-----------------------------------------------
     //class
     //-----------------------------------------------
-    class RHIResource
+    class RHIResource : public RHIResourceRef<RHIResource>
     {
     public:
         RHIResource(RHIResourceType InType = RRT_None) :mType(InType) {}
-        void* mDevice = nullptr; /// RHI Type Pointer
         RHIResourceType mType = RRT_None;
     };
 
@@ -708,15 +701,12 @@ namespace Elaine
     public:
         RHIBuffer() :RHIResource(RRT_Buffer) {}
     };
+
     class RHIBufferView : public RHIResource
     {
     
     };
-    class RHICommandBuffer : public RHIResource {};
-    class RHICommandPool : public RHIResource {};
-    class RHIDescriptorPool : public RHIResource {};
-    class RHIDescriptorSet : public RHIResource {};
-    class RHIDescriptorSetLayout : public RHIResource {};
+
     //class RHIDeviceMemory {};
     //class RHIEvent {};
     //class RHIFence {};
@@ -746,6 +736,7 @@ namespace Elaine
         const std::string& GetShaderString() { return mShaderString; }
     protected:
         std::string mShaderString;
+        std::string mShaderPath;
     };
     class RHIRenderQuery :public RHIResource {};
     class RHIGPUFence :public RHIResource
@@ -767,6 +758,7 @@ namespace Elaine
 
     class RHIUniformBuffer :public RHIResource
     {
+    public:
         RHIUniformBuffer() :RHIResource(RRT_UniformBuffer) {}
     };
 
@@ -883,6 +875,12 @@ namespace Elaine
     struct RHIClearDepthStencilValue;
 
 
+    //RHI Resource Ptr
 
-
+    using RHIBufferPtr = RHISmartPtr<RHIBuffer>;
+    using RHITexturePtr = RHISmartPtr<RHITexture>;
+    using RHIPipelinePtr = RHISmartPtr<RHIPipeline>;
+    using RHIShaderPtr = RHISmartPtr<RHIShader>;
+    using RHIUniformBufferPtr = RHISmartPtr<RHIUniformBuffer>;
+    using RHIViewportPtr = RHISmartPtr<RHIViewport>;
 }

@@ -31,6 +31,7 @@ namespace Elaine
 	{
 	public:
 		virtual void Execute(RHICommandList* InCmdList) { }
+		virtual ~RHICommand() { }
 		RHICommand* mNext = nullptr;
 		EM_RHICommand mCmd;
 	};
@@ -62,6 +63,8 @@ namespace Elaine
 		void BindGfxPipeline(RHIPipeline* InPipeline);
 		void DrawPrimitive(uint32 InBaseVertexIndex, uint32 InNumPrimitives, uint32 InNumInstances);
 		void BindDrawData(GRAPHICS_PIPELINE_STATE_DESC* InDrawData);
+		void UpdateCommonUniformBuffer(size_t InSize, void* InContents);
+		void UpdateUniformBuffer();
 		bool HasCommand();
 
 		void SetPriority(uint32 InPriority);
@@ -112,6 +115,9 @@ namespace Elaine
 		RHICommandContext* mRHICommandCtx = nullptr;
 		friend class RHICommandList;
 	};
+
+
+	//------------------------RHI Commands Define--------------------------------
 
 	RHI_COMMAND_DEFINE(DrawPrimitive)
 	{
@@ -167,6 +173,42 @@ namespace Elaine
 		void Execute(RHICommandList* InCmdList);
 
 		GRAPHICS_PIPELINE_STATE_DESC* mRenderData = nullptr;
+	};
+
+	RHI_COMMAND_DEFINE(UpdateUniformBuffer)
+	{
+		RHI_COMMAND_TYPE(UpdateUniformBuffer)(RHIUniformBuffer* InUniformBufferRHI, void* InContents)
+			: mUniformBufferRHI(InUniformBufferRHI)
+			, mContents(InContents)
+		{
+
+		}
+
+		void Execute(RHICommandList * InCmdList);
+
+		void* mContents = nullptr;
+		RHIUniformBuffer* mUniformBufferRHI = nullptr;
+	};
+
+	RHI_COMMAND_DEFINE(UpdateCommonUniformBuffer)
+	{
+		RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)(size_t InSize, void* InContents)
+			: mSize(InSize)
+			, mContents(InContents)
+		{
+			mContents = Memory::SystemMalloc(InSize);
+			Memory::MemoryCopy(mContents, InContents, InSize);
+		}
+
+		~RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)()
+		{
+			Memory::SystemFree(mContents);
+		}
+
+		void Execute(RHICommandList * InCmdList);
+
+		size_t mSize;
+		void* mContents;
 	};
 
 }

@@ -5,6 +5,7 @@ namespace VulkanRHI
 {
 	class VulkanDevice;
 	class VulkanCommandBuffer;
+	class VulkanFence;
 
 	class ElaineCoreExport VulkanQueue
 	{

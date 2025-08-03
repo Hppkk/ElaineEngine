@@ -8,11 +8,15 @@ namespace Elaine
 	class SkyObject;
 	class RenderQueueSet;
 	class RHICommandContext;
+	struct CommonUniformBufferCPU;
+
 	class ElaineCoreExport SceneManager
 	{
 	public:
 		SceneManager(const String& name);
 		~SceneManager();
+
+		void initilize();
 
 		Camera* getMainCamera();
 		void findVisibleObject();
@@ -21,6 +25,7 @@ namespace Elaine
 		void destroySceneNode(SceneNode* InSceneNode);
 		void RenderScene();
 		void RenderThreadMain();
+		void UpdateCommonUniformBuffer(RHICommandList* InRHICmdList);
 	private:
 		String mName;
 		Camera* mMainCamera = nullptr;
@@ -32,8 +37,12 @@ namespace Elaine
 		std::vector<SceneNode*> mVisibleNodes;
 		//test code todo
 		SkyObject* mSky = nullptr;
+		CommonUniformBufferCPU* mCommonUniformBuffer = nullptr;
+		//--------------------------
 		RenderQueueSet* mRenderQueueSet = nullptr;
 		RHICommandContext* mRHICommandCtx = nullptr;
+
 		bool mbExit = false;
+		bool mbInit = false;
 	};
 }

@@ -16,26 +16,31 @@ set(CMAKE_EXE_LINKER_FLAGS_RUNTIMEDEBUG ${CMAKE_EXE_LINKER_FLAGS_DEBUG})
 set(CMAKE_EXE_LINKER_FLAGS_RUNTIMERELEASE ${CMAKE_EXE_LINKER_FLAGS_RELEASE})
 
 
-set(CMAKE_CXX_FLAGS_EDITORDEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_HAS_EDITOR_")
-set(CMAKE_CXX_FLAGS_EDITORRELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_HAS_EDITOR_")
-set(CMAKE_CXX_FLAGS_RUNTIMEDEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-set(CMAKE_CXX_FLAGS_RUNTIMERELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+# set(CMAKE_CXX_FLAGS_EDITORDEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_HAS_EDITOR_ -D_DEBUG")
+# set(CMAKE_CXX_FLAGS_EDITORRELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_HAS_EDITOR_ -D_NODEBUG")
+# set(CMAKE_CXX_FLAGS_RUNTIMEDEBUG "${CMAKE_CXX_FLAGS_DEBUG} -D_DEBUG")
+# set(CMAKE_CXX_FLAGS_RUNTIMERELEASE "${CMAKE_CXX_FLAGS_RELEASE} -D_NODEBUG")
 
 
 
 
 
 # set compiler
-if(WIN32)
+if(MSVC)
     set(CMAKE_CXX_COMPILER "MSVC")
     add_compile_options(/wd4251)
-
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "" CACHE STRING "Override default runtime library")
     set_property(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY VS_STARTUP_PROJECT ElaineEditor)
     set(PlatformTarget Win64)
     add_compile_options(/W3 /WX /MP)
     add_compile_definitions(_SILENCE_STDEXT_ARR_ITERS_DEPRECATION_WARNING)
     add_definitions(-D_UNICODE)
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT  "EditAndContinue")
+    # set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT  "EditAndContinue")
+
+    set(CMAKE_CXX_FLAGS_EDITORDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /ZI -D_HAS_EDITOR_ -D_DEBUG")
+    set(CMAKE_CXX_FLAGS_EDITORRELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /Zi -D_HAS_EDITOR_ -D_NODEBUG")
+    set(CMAKE_CXX_FLAGS_RUNTIMEDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /ZI -D_DEBUG")
+    set(CMAKE_CXX_FLAGS_RUNTIMERELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /Zi -D_NODEBUG")
 elseif(UNIX)
     set(CMAKE_CXX_COMPILER "g++")
     set(PlatformTarget Linux)
@@ -70,7 +75,7 @@ set(THIRD_PARTY_DIR
  ${ThirdPartyDir}/VulkanMemoryAllocator/include 
  ${ThirdPartyDir}/VulkanSDK/include/vulkan 
  ${ThirdPartyDir}/VulkanSDK/include 
-
+ ${ThirdPartyDir}
 )
 
 set(ENGINE_INCLUDE_DIR 
@@ -85,9 +90,10 @@ set(ENGINE_INCLUDE_DIR
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/common 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/component 
-
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineReflection/Public
 )
 
+add_subdirectory(ElaineReflection)
 add_subdirectory(ElaineCore)
 add_subdirectory(ElaineEditor)
 add_subdirectory(ElaineEngine)

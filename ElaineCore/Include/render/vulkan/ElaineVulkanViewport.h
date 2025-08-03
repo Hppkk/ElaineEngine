@@ -43,10 +43,10 @@ namespace VulkanRHI
 		std::vector<VulkanSemaphore*> mSemaphores;
 		std::vector<VulkanTextureView*> mTextureViews;
 		VkViewport mVkViewPort;
-		std::vector <VkFramebuffer> mFrameBuffers;
+		std::vector<VkFramebuffer> mFrameBuffers;
 		//todo 
-		VulkanTexture* mDepthBuffer = nullptr;
-		VulkanTextureView* mDepthBufferView = nullptr;
+		std::vector<VulkanTexture*> mDepthBuffers;
+		std::vector<VulkanTextureView*> mDepthBufferViews;
 		VkRect2D mScissor;
 	};
 }

@@ -5,6 +5,8 @@
 #include "resource/ElaineDataStreamMgr.h"
 #include "ElaineThreadManager.h"
 #include "ElaineFileManager.h"
+#include "ElaineMemoryMap.h"
+#include "ElaineTextureUtils.h"
 
 namespace Elaine
 {
@@ -20,6 +22,7 @@ namespace Elaine
 
 	void Root::initilize(const RHI_PARAM_DESC& InDesc)
 	{
+		TextureUtils::Initilize();
 		new FileManager();
 		m_timer = new Timer();
 #if  ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
@@ -88,7 +91,7 @@ namespace Elaine
 
 	}
 
-	void Root::tickOnceFrame()
+	void Root::RenderOneFrame()
 	{
 		float dt = calculateDeltaTime();
 		calculateFPS(dt);
@@ -121,9 +124,12 @@ namespace Elaine
 
 	void Root::readConfig(const std::string& file)
 	{
-		 ResourceBasePtr res = DataStreamMgr::instance()->getDataStreamFromFile(file);
-		 DataStream* ds = static_cast<DataStream*>(res.get());
-		 auto stream = ds->getDataStream();
+		//todo
+		 //ResourceBasePtr res = DataStreamMgr::instance()->getDataStreamFromFile(file);
+		 //DataStream* ds = static_cast<DataStream*>(res.get());
+		 //auto stream = ds->getDataStream();
+		 MemoryMapFile mapFile(file);
+		 char* stream = static_cast<char*>(mapFile.MapPointer());
 		 cJSON* pNode = cJSON_Parse(stream);
 		 cJSON* pWindows = cJSON_GetObjectItem(pNode, "Windows");
 		 cJSON* pRHI = cJSON_GetObjectItem(pWindows, "RenderRHI");

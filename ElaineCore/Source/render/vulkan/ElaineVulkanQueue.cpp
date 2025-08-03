@@ -16,6 +16,7 @@ namespace VulkanRHI
 		, mQueueIndex(0u)
 		, mLastSubmittedCmdBuffer(nullptr)
 		, mLastSubmittedCmdBufferFenceCounter(0u)
+		, mSupportedStages(VK_PIPELINE_STAGE_NONE)
 		, mSubmitCounter(0u)
 
 	{
@@ -59,7 +60,7 @@ namespace VulkanRHI
 		std::vector<VkSemaphore> WaitSemaphores;
 		if (CmdBuffer->mWaitSemaphores.size() > 0)
 		{
-			WaitSemaphores.resize(CmdBuffer->mWaitSemaphores.size());
+			WaitSemaphores.reserve(CmdBuffer->mWaitSemaphores.size());
 			for (VulkanSemaphore* Semaphore : CmdBuffer->mWaitSemaphores)
 			{
 				WaitSemaphores.push_back(Semaphore->GetHandle());

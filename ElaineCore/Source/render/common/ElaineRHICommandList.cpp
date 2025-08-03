@@ -96,6 +96,16 @@ namespace Elaine
 		ALLOC_COMMAND(RHI_COMMAND_TYPE(BindDrawData))(InDrawData);
 	}
 
+	void RHICommandList::UpdateCommonUniformBuffer(size_t InSize, void* InContents)
+	{
+		ALLOC_COMMAND(RHI_COMMAND_TYPE(UpdateCommonUniformBuffer))(InSize, InContents);
+	}
+
+	void RHICommandList::UpdateUniformBuffer()
+	{
+		//ALLOC_COMMAND(RHICOMMANDTYPE(UpdateUniformBuffer))()
+	}
+
 	bool RHICommandList::HasCommand()
 	{
 		return mCommandNum != 0;
@@ -211,5 +221,15 @@ namespace Elaine
 	void RHI_COMMAND_TYPE(BindDrawData)::Execute(RHICommandList* InCmdList)
 	{
 		InCmdList->GetCmdContext()->RHIBindDrawData(mRenderData);
+	}
+
+	void RHI_COMMAND_TYPE(UpdateUniformBuffer)::Execute(RHICommandList* InCmdList)
+	{
+		InCmdList->GetCmdContext()->RHIUpdateUniformBuffer(mUniformBufferRHI, mContents);
+	}
+
+	void RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)::Execute(RHICommandList* InCmdList)
+	{
+		InCmdList->GetCmdContext()->RHIUpdateCommonUniformBuffer(mSize, mContents);
 	}
 }

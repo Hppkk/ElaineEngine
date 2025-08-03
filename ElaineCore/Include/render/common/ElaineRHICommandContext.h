@@ -188,7 +188,7 @@ namespace Elaine
 		
 		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc) = 0;
+		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) = 0;
 
 		virtual RHITexture* RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) = 0;
 
@@ -198,6 +198,9 @@ namespace Elaine
 		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) = 0;
 
 		virtual void RHIWriteGPUFence(RHIGPUFence* FenceRHI) { }
+
+		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) = 0;
+		virtual void RHIUpdateCommonUniformBuffer(size_t InSize, void* InContents) = 0;
 
 		//virtual void RHIBeginUpdateMultiFrameResource(RHIUnorderedAccessView* UAV)
 		//{

@@ -74,17 +74,17 @@ namespace Elaine
 
 	static void GraphicThreadMain()
 	{
-		G_GfxBarrier->Wait();
+		G_RenderBarrier->Signal();
 		RHICommandContext* GfxCommandCtx = GetDynamicRHI()->GetDefaultCommandContext();
 		while (true)
 		{
+			G_GfxBarrier->Wait();
 			RHICommandListManager* RHICmdListMgr = GfxCommandCtx->GetRHICommandListMgr();
 			RHICmdListMgr->SwapCommands();
-			G_RenderBarrier->Signal();
 			GfxCommandCtx->RHIBeginFrame();
 			RHICmdListMgr->ExecuteCommands();
 			GfxCommandCtx->RHIEndFrame();
-			G_GfxBarrier->Wait();
+			G_RenderBarrier->Signal();
 		}
 	}
 

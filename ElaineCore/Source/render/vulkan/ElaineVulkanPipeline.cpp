@@ -113,29 +113,51 @@ namespace VulkanRHI
 
         
         std::vector<VkPipelineShaderStageCreateInfo> ShaderStages;
-        std::vector<VkDescriptorSetLayout> ShaderLayouts;
+        //std::vector<VkDescriptorSetLayout> ShaderLayouts;
+        std::vector<VkVertexInputAttributeDescription> VKVertexAttributeDescs;
+        VulkanShader* NewVsShader = nullptr;
+        VulkanShader* NewPsShader = nullptr;
         if (!InState.mVSShaderCode.empty())
         {
-            VulkanShader* NewShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader);
-            ShaderStages.push_back(NewShader->GetShaderStageCreateInfo());
-            NewPipeline->mVsShader = NewShader;
-            NewShader->GetDescriptorSetLayouts(ShaderLayouts);
+            NewVsShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader, NewPipeline, InState.mVSPath);
+            NewPipeline->mVsShader = NewVsShader;
+            //NewVsShader->GetDescriptorSetLayouts(ShaderLayouts);
+            //VKVertexAttributeDescs = NewVsShader->GetVertexInputAttributeDescriptions();
         }
+
         if (!InState.mPSShaderCode.empty())
         {
-            VulkanShader* NewShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader);
-            ShaderStages.push_back(NewShader->GetShaderStageCreateInfo());
-            NewPipeline->mPsShader = NewShader;
-            NewShader->GetDescriptorSetLayouts(ShaderLayouts);
+            NewPsShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader, NewPipeline, InState.mPSPath);
+            NewPipeline->mPsShader = NewPsShader;
+           // NewPsShader->GetDescriptorSetLayouts(ShaderLayouts);
         }
+
+        if (!NewVsShader || !NewPsShader)
+        {
+            return nullptr;
+        }
+
+        bool CompileSucceed = VulkanShaderCompileManager::instance()->CompilePipeline(NewPipeline);
+
+        if (!CompileSucceed)
+        {
+            LOG_ERROR("Pipeline Compile Failed.");
+            assert(false);
+            return nullptr;
+        }
+
+        ShaderStages.push_back(NewVsShader->GetShaderStageCreateInfo());
+        ShaderStages.push_back(NewPsShader->GetShaderStageCreateInfo());
+        VKVertexAttributeDescs = NewVsShader->GetVertexInputAttributeDescriptions();
         CreateInfo.pStages = ShaderStages.data();
         CreateInfo.stageCount = ShaderStages.size();
 
         VkPipelineLayoutCreateInfo LayoutCreateInfo;
         Elaine::Memory::MemoryZero(LayoutCreateInfo);
         LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        LayoutCreateInfo.pSetLayouts = ShaderLayouts.data();
-        LayoutCreateInfo.setLayoutCount = ShaderLayouts.size();
+        LayoutCreateInfo.flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT;
+        LayoutCreateInfo.pSetLayouts = NewPipeline->mDescriptorSetLayouts.data();
+        LayoutCreateInfo.setLayoutCount = NewPipeline->mDescriptorSetLayouts.size();
         //todo 
         //LayoutCreateInfo.pPushConstantRanges
 
@@ -144,19 +166,6 @@ namespace VulkanRHI
         VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo;
         Elaine::Memory::MemoryZero(VertexInputStateCreateInfo);
         VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-        //todo
-        std::vector<VkVertexInputAttributeDescription> VKVertexAttributeDescs;
-        
-        for (int Index = 0; Index < InState.mVertexAttribute.mAttributeSize;++Index)
-        {
-            VkVertexInputAttributeDescription TempAttributeDesc;
-            TempAttributeDesc.binding = 0;
-            TempAttributeDesc.format = EngineToVkVertexFormat(InState.mVertexAttribute.mFormat[Index]);
-            TempAttributeDesc.location = Index;
-            TempAttributeDesc.offset = InState.mVertexAttribute.mOffset[Index];
-            VKVertexAttributeDescs.push_back(TempAttributeDesc);
-        }
-        
         VertexInputStateCreateInfo.pVertexAttributeDescriptions = VKVertexAttributeDescs.data();
         VertexInputStateCreateInfo.vertexAttributeDescriptionCount = VKVertexAttributeDescs.size();
         std::vector<VkVertexInputBindingDescription> VKVertexInputBindingDescs;
@@ -226,9 +235,9 @@ namespace VulkanRHI
         VkPipelineRasterizationStateCreateInfo RasterizationStateCreateInfo;
         Elaine::Memory::MemoryZero(RasterizationStateCreateInfo);
         RasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-        RasterizationStateCreateInfo.depthClampEnable = VK_FALSE;
+        RasterizationStateCreateInfo.depthClampEnable = VK_TRUE;
         RasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-        RasterizationStateCreateInfo.cullMode = TransRHICullModeToVk(InState.mCullMode);
+        RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;//TransRHICullModeToVk(InState.mCullMode);
         RasterizationStateCreateInfo.polygonMode = TransRHIPolygonModeToVk(InState.mPolygonMode);
         RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
         RasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;

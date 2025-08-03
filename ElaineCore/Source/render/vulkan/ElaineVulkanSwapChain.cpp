@@ -33,7 +33,7 @@ namespace VulkanRHI
 				break;
 			}
 		}
-		VkPresentModeKHR PresentMode = VK_PRESENT_MODE_FIFO_KHR;
+		VkPresentModeKHR PresentMode = VK_PRESENT_MODE_MAILBOX_KHR;
 		VkSurfaceCapabilitiesKHR SurfProperties;
 		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(GetVulkanDynamicRHI()->GetPhyDevice()->GetPhysicalDeviceHandle(),
 			GetVulkanDynamicRHI()->GetVulkanSurface(),
@@ -127,6 +127,23 @@ namespace VulkanRHI
 		*OutSemaphore = mImageAcquiredSemaphore[mSemaphoreIndex];
 		mCurrentImageIndex = (int32)ImageIndex;
 		return mCurrentImageIndex;
+	}
+
+	bool VulkanSwapChain::AcquireImage(VulkanSemaphore* InSemaphore, uint32& OutImageIndex)
+	{
+		if (InSemaphore == nullptr)
+		{
+			LOG_FATAL("AcquireImage failed!");
+			assert(false);
+		}
+
+		VkResult EResult = vkAcquireNextImageKHR(mDevice->GetDevice(), mSwapChainHandle, UINT64_MAX, InSemaphore->GetHandle(), VK_NULL_HANDLE, &OutImageIndex);
+		if (EResult == VK_ERROR_OUT_OF_DATE_KHR || EResult == VK_SUBOPTIMAL_KHR)
+		{
+			return false;
+		}
+		mCurrentImageIndex = (int32)OutImageIndex;
+		return true;
 	}
 
 	void VulkanSwapChain::GetSwapChainImages(std::vector<VkImage>& InOutImages)

@@ -57,6 +57,7 @@ namespace VulkanRHI
 		mFullAspectMask = GenerateVkImageAspectBits(InDesc);
 		VulkanImageCreateInfo ImageCreateInfo;
 		GenerateImageCreateInfo(ImageCreateInfo, mDevice, mDesc, &mStorageFormat, &mViewFormat);
+		mImageLayout = ImageCreateInfo.mImageCreateInfo.initialLayout;
 		vkCreateImage(InDevice->GetDevice(), &ImageCreateInfo.mImageCreateInfo, VULKAN_CPU_ALLOCATOR, &mHandle);
 		vkGetImageMemoryRequirements(InDevice->GetDevice(), mHandle, &mMemRequirements);
 		if (ImageCreateInfo.mImageCreateInfo.tiling != VK_IMAGE_TILING_OPTIMAL)
@@ -339,8 +340,8 @@ namespace VulkanRHI
 	void VulkanTexture::GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat, VkFormat* OutViewFormat, bool bForceLinearTexture)
 	{
 		const VkPhysicalDeviceProperties& DeviceProps = InDevice->GetPhyDevice()->GetDeviceProperties();
-		const PixelFormatInfo& FormatInfo = GPixelFormats[InDesc.mFormat];
-		VkFormat TextureFormat = (VkFormat)FormatInfo.PlatformFormat;
+		//const PixelFormatInfo& FormatInfo = 
+		VkFormat TextureFormat = EngineToVkTextureFormat(InDesc.mFormat, true);
 		const TextureCreateFlags Flags = InDesc.mFlags;
 		if (EnumHasAnyFlags(Flags, TextureCreateFlags::CPUReadback))
 		{
@@ -372,7 +373,7 @@ namespace VulkanRHI
 		default:
 			break;
 		}
-		VkFormat srgbFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAllFlags(Flags, TextureCreateFlags::UAV));
+		VkFormat srgbFormat = EngineToVkTextureFormat(InDesc.mFormat, !EnumHasAllFlags(Flags, TextureCreateFlags::UAV));
 		VkFormat nonSrgbFormat = EngineToVkTextureFormat(InDesc.mFormat, false);
 		ImageCreateInfo.format = EnumHasAnyFlags(Flags, TextureCreateFlags::UAV) ? nonSrgbFormat : srgbFormat;
 		if (OutViewFormat)
@@ -551,6 +552,8 @@ namespace VulkanRHI
 		{
 			ImageCreateInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
 		}
+
+		ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 	}
 
 	void VulkanTextureView::Create(VulkanDevice& Device, VkImage InImage, VkImageViewType ViewType, VkImageAspectFlags AspectFlags,
@@ -577,12 +580,15 @@ namespace VulkanRHI
 
 		if (bUseIdentitySwizzle)
 		{
-			// VK_COMPONENT_SWIZZLE_IDENTITY == 0 and this was memzero'd already
+			ViewInfo.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ViewInfo.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ViewInfo.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+			ViewInfo.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 		}
 		else
 		{
 			//todo
-			//ViewInfo.components = Device.GetFormatComponentMapping(UEFormat);
+			//ViewInfo.components = Device.GetFormatComponentMapping(Format);
 		}
 		ViewInfo.subresourceRange.aspectMask = AspectFlags;
 		ViewInfo.subresourceRange.baseMipLevel = FirstMip;

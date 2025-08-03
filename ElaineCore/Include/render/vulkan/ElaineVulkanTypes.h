@@ -10,6 +10,10 @@ namespace VulkanRHI
     class VulkanDevice;
     class VulkanPhysicalDevice;
    
+    enum
+    {
+        MAX_FRAMES_IN_FLIGHT = 3
+    };
 
     struct SwapChainSupportDetails
     {

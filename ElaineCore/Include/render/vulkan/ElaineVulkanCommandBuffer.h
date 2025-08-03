@@ -39,7 +39,7 @@ namespace VulkanRHI
 		void EndUniformUpdateBarrier();
 		void EndRenderPass();
 		void AddWaitSemaphore(VkPipelineStageFlags InWaitFlags, VulkanSemaphore* InWaitSemaphore);
-		void RefreshFenceStatus();
+		void RefreshFenceStatus(bool bResetFence = true);
 		//void BeginRenderPass(const FVulkanRenderTargetLayout& Layout, VulkanRenderPass* RenderPass, FVulkanFramebuffer* Framebuffer, const VkClearValue* AttachmentClearValues);
 		void BindGfxPipeline(VulkanGfxPipeline* InGfxPipeline);
 		void BindComputePipeline(VulkanComputePipeline* InPipeline);
@@ -88,11 +88,13 @@ namespace VulkanRHI
 			mWaitSemaphores.clear();
 		}
 
+		VulkanFence* GetFence() const { return mFence; }
+
 	private:
-		void AllocMemory();
+		void AllocMemory(VkCommandBufferLevel InBufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 		void FreeMemory();
 	private:
-		VulkanDevice*							mDeivce;
+		VulkanDevice*							mDevice;
 		VulkanCommandPool*						mCmdPool;
 		VkCommandBuffer							mHandle;
 		VulkanFence*							mFence;
@@ -141,6 +143,7 @@ namespace VulkanRHI
 		std::recursive_mutex				mMtx;
 		std::vector<VulkanCommandBuffer*>	mCmdBuffers;
 		std::vector<VulkanCommandBuffer*>	mFreeCmdBuffers;
+		std::vector<VulkanCommandBuffer*>	mUsedCmdBuffers;
 		friend class VulkanCommandBufferManager;
 	};
 
@@ -154,6 +157,8 @@ namespace VulkanRHI
 		void SubmitUploadCmdBuffer(uint32 NumSignalSemaphores = 0, VkSemaphore* SignalSemaphores = nullptr);
 		void SubmitActiveCmdBuffer(const std::vector<VulkanSemaphore*>& SignalSemaphores);
 		void PrepareForNewActiveCommandBuffer();
+		void RefreshCommandBufferState();
+		VulkanQueue* GetVulkanQueue() const { return mQueue; }
 		VulkanCommandBuffer* GetUploadCmdBuffer();
 		VulkanCommandBuffer* GetActiveCmdBuffer()
 		{

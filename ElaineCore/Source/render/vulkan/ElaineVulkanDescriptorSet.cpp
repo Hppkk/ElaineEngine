@@ -1,6 +1,8 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanDescriptorSet.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
+#include "render/vulkan/ElaineVulkanUniformBuffer.h"
+#include "render/vulkan/ElaineVulkanTexture.h"
 
 using namespace Elaine;
 
@@ -81,6 +83,44 @@ namespace VulkanRHI
         return mFreePool->AllocateDescriptorSets(InDescriptorSetAllocateInfo, &(*OutSets)->mHandle);;
     }
 
+    void VulkanDescriptorSetManager::WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet)
+    {
+        VkDescriptorBufferInfo BufferInfo{};
+        BufferInfo.buffer = InUniformBuffer->GetHandle();
+        BufferInfo.offset = InUniformBuffer->GetOffset();
+        BufferInfo.range = InUniformBuffer->GetBufferSize();
+        VkWriteDescriptorSet DescriptorWrite{};
+        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite.dstSet = InDescriptorSet->mHandle;
+        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstArrayElement = 0;
+        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        DescriptorWrite.descriptorCount = 1;
+        DescriptorWrite.pBufferInfo = &BufferInfo;
+        DescriptorWrite.pImageInfo = RHI_NULL_HANDLE; 
+        DescriptorWrite.pTexelBufferView = RHI_NULL_HANDLE;
+        vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &DescriptorWrite, 0, RHI_NULL_HANDLE);
+    }
+
+    void VulkanDescriptorSetManager::WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet)
+    {
+        VkDescriptorImageInfo ImageInfo{};
+        ImageInfo.imageLayout = InImage->GetImageLayout();
+        ImageInfo.imageView = InImage->GetTextureView().mView;
+        ImageInfo.sampler = InSampler;
+        VkWriteDescriptorSet DescriptorWrite{};
+        DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        DescriptorWrite.dstSet = InDescriptorSet->mHandle;
+        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstArrayElement = 0;
+        DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        DescriptorWrite.descriptorCount = 1;
+        DescriptorWrite.pBufferInfo = RHI_NULL_HANDLE;
+        DescriptorWrite.pImageInfo = &ImageInfo;
+        DescriptorWrite.pTexelBufferView = RHI_NULL_HANDLE;
+        vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &DescriptorWrite, 0, RHI_NULL_HANDLE);
+    }
+
     VulkanDescriptorSetManager::~VulkanDescriptorSetManager()
     {
         for (auto Pool : mPools)
@@ -95,5 +135,12 @@ namespace VulkanRHI
         vkCreateDescriptorSetLayout(mDevice->GetDevice(), &InCreateInfo, VULKAN_CPU_ALLOCATOR, &Result);
         mDescriptorSetLayouts.insert(Result);
         return Result;
+    }
+
+    VulkanDescriptorSet::VulkanDescriptorSet(int32 InSet, bool InEmpty)
+        : mSet(InSet)
+        , mbEmpty(InEmpty)
+    {
+
     }
 }

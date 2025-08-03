@@ -13,5 +13,6 @@ namespace Elaine
 	private:
 		std::mutex mMtx;
 		std::condition_variable mConditionVariable;
+		bool mSingaled = false;
 	};
 }

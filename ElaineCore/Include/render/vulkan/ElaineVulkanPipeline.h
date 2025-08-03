@@ -6,6 +6,7 @@ namespace VulkanRHI
 	class VulkanDevice;
 	class VulkanShader;
 	class VulkanRenderPass;
+	class VulkanDescriptorSet;
 
 	class ElaineCoreExport PipelineCache
 	{
@@ -58,11 +59,20 @@ namespace VulkanRHI
 		{
 			return *mLayout;
 		}
+
+		const std::vector<VulkanDescriptorSet*>& GetDescriptorSets() const { return mDescriptorSets; }
+		const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return mDescriptorSetLayouts; }
+
 	protected:
 		VulkanDevice* mDevice = nullptr;
 		VkPipeline mPipeline = nullptr;
 		VulkanLayout* mLayout = nullptr;
+		//VulkanDescriptorSet* mCommonDescriptorSets[MAX_FRAMES_IN_FLIGHT];
+		std::vector<VulkanDescriptorSet*> mDescriptorSets;
+		std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
 		Type mType = Graphic;
+		friend class VulkanShaderManager;
+		friend class VulkanShaderCompileManager;
 	};
 
 	class ElaineCoreExport VulkanGfxPipeline : public VulkanPipeline
@@ -76,6 +86,8 @@ namespace VulkanRHI
 		VulkanShader* mVsShader = nullptr;
 		VulkanShader* mPsShader = nullptr;
 		friend class VulkanPiplineManager;
+		friend class VulkanShaderCompileManager;
+		friend class VulkanShader;
 	};
 
 	class ElaineCoreExport VulkanComputePipeline : public VulkanPipeline

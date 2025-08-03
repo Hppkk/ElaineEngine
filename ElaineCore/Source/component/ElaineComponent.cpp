@@ -84,7 +84,7 @@ namespace Elaine
 		m_components.erase(com);
 	}
 
-	void ComponentTickManager::tick(float dt)
+	void ComponentTickManager::Tick(float dt)
 	{
 		for (auto com : m_components)
 		{

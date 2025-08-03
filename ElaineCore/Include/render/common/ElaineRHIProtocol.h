@@ -175,7 +175,20 @@ namespace Elaine
 
 	};
 
+	enum RHIResourceVisibility
+	{
+		RRV_VISIBILITY_NONE, // none
+		RRV_PRIVATE_VERTEX_STAGE, // single vertex shader visibility
+		RRV_PUBLIC_VERTEX_STAGE, // all vertex shader visibility
+		RRV_PRIVATE_FRAGMENT_STAGE, // single fragment shader visibility
+		RRV_PUBLIC_FRAGMENT_STAGE, // all fragment shader visibility
+		RRV_PUBLIC_ALL_STAGE, // all shader stage visibility
+	};
 
+	enum CommonShaderResourceName
+	{
+		CommonUniformBuffer,
+	};
 
 	/** Describes the dimension of a texture. */
 	enum class TextureDimension : uint8
@@ -288,6 +301,8 @@ namespace Elaine
 		 * which implies unordered access. Only changes the buffer alignment and can be combined with other flags.
 		**/
 		RayTracingScratch = (1 << 19) | UnorderedAccess,
+
+		UniformBuffer = 1 << 20,
 
 		// Helper bit-masks
 		AnyDynamic = (Dynamic | Volatile),
@@ -1088,6 +1103,8 @@ namespace Elaine
 	{
 		std::string						mVSShaderCode;
 		std::string						mPSShaderCode;
+		std::string						mVSPath;
+		std::string						mPSPath;
 		//RHIShader*						mVSShader;
 		//RHIShader*						mPSShader;
 		RHIVertexBufferDataDesc			mVertexAttribute;
@@ -1104,8 +1121,9 @@ namespace Elaine
 		ERenderTargetStoreAction		mStencilTargetStoreAction;
 		ExclusiveDepthStencil			mDepthStencilAccess;
 		RHISampler**					mSamples = nullptr;
-		RHITexture**					mTextures = nullptr;
+		RHITexture*						mTextures[16];
 		RHITexture*						mRenderTarget[MAX_RENDER_TARGET_COUNT] = { nullptr };
+		RHIUniformBuffer*				mUniformBuffer = nullptr;
 		uint16							mNumSamples = 0;
 		uint8							mMultiViewCount = 1;
 		bool							mbTessellation = false;

@@ -15,6 +15,7 @@ namespace VulkanRHI
 		void Present(VulkanQueue* InGfxQueue, VulkanSemaphore* InSemaphore);
 		void Destroy();
 		int32 AcquireImageIndex(VulkanSemaphore** OutSemaphore);
+		bool AcquireImage(VulkanSemaphore* InSemaphore, uint32& OutImageIndex);
 		void GetSwapChainImages(std::vector<VkImage>& InOutImages);
 		uint32 GetNumSwapChainImages() const { return mNumSwapChainImages; }
 		VkFormat GetVkFormat()const { return mImageFormat; }

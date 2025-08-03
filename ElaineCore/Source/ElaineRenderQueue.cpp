@@ -44,7 +44,7 @@ namespace Elaine
 				//InRHICommandList->BeginRenderPass(RenderGfxState);
 				InRHICommandList->BindGfxPipeline(CurrElement.mRenderPass->GetRHIPipeline());
 				InRHICommandList->BindDrawData(&RenderGfxState);
-				InRHICommandList->DrawPrimitive(0, 1, 1);
+				InRHICommandList->DrawPrimitive(0, 36, 1);
 				//InRHICommandList->EndRenderPass();
 			}
 		}

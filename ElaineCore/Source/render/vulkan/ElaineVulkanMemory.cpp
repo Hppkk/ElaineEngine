@@ -2576,11 +2576,11 @@ namespace VulkanRHI
 		return false;
 	}
 
-	void VulkanMemoryManager::AllocUniformBuffer(VulkanAllocation& OutAllocation, uint32 Size, const void* Contents)
+	bool VulkanMemoryManager::AllocUniformBuffer(VulkanAllocation& OutAllocation, uint32 Size, const void* Contents)
 	{
 		if (!AllocateBufferPooled(OutAllocation, nullptr, Size, 0, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT, VulkanAllocationMetaUniformBuffer, __FILE__, __LINE__))
 		{
-
+			return false;
 		}
 
 		if (Contents)
@@ -2588,6 +2588,7 @@ namespace VulkanRHI
 			Memory::MemoryCopy(OutAllocation.GetMappedPointer(mDeivce), Contents, Size);
 			OutAllocation.FlushMappedMemory(mDeivce);
 		}
+		return true;
 	}
 
 	void VulkanMemoryManager::FreeUniformBuffer(VulkanAllocation& InAllocation)

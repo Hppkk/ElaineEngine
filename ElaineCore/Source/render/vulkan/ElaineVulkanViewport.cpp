@@ -53,24 +53,6 @@ namespace VulkanRHI
 
 	void VulkanViewport::CreateSwapchain(VulkanSwapChain* InOldSwapChain)
 	{
-		RHITextureDesc DepthTextureDesc;
-		DepthTextureDesc.mArraySize = 1;
-		DepthTextureDesc.mDepth = 0;
-		DepthTextureDesc.mDimension = TextureDimension::Texture2D;
-		DepthTextureDesc.mExtent = Vector2(mSizeX, mSizeY);
-		DepthTextureDesc.mFlags = TextureCreateFlags::DepthStencilTargetable;
-		DepthTextureDesc.mFormat = PF_DepthStencil;
-		DepthTextureDesc.mNumMips = 1;
-		DepthTextureDesc.mNumSamples = 1;
-		DepthTextureDesc.mUAVFormat = PF_Unknown;
-		mDepthBuffer = new VulkanTexture(mDevice, DepthTextureDesc);
-		mDepthBufferView = new VulkanTextureView();
-		mDepthBufferView->Create(*mDevice, mDepthBuffer->getHandle(), VK_IMAGE_VIEW_TYPE_2D,
-			VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
-			PF_DepthStencil, EngineToVkTextureFormat(PF_DepthStencil, false), 0, 1, 0, 1, false, VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT);
-
-
-
 		mSwapChain = new VulkanSwapChain(mDevice, mSizeX, mSizeY, mbInIsFullscreen, InOldSwapChain, mPixelFormat);
 		std::vector<VkImage> Images;
 		mSwapChain->GetSwapChainImages(Images);
@@ -84,8 +66,8 @@ namespace VulkanRHI
 			mBackBufferImages[Index] = Images[Index];
 			mTextureViews[Index] = new VulkanTextureView();
 			mTextureViews[Index]->Create(*mDevice, Images[Index], VK_IMAGE_VIEW_TYPE_2D, VK_IMAGE_ASPECT_COLOR_BIT,
-				mPixelFormat, EngineToVkTextureFormat(mPixelFormat, true), 0, 1, 0, 1, false, VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-			VkImageSubresourceRange Range = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT);
+				mPixelFormat, EngineToVkTextureFormat(mPixelFormat, true), 0, 1, 0, 1, true);
+			VkImageSubresourceRange Range = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
 			VkClearColorValue ClearColor;
 			Elaine::Memory::MemoryZero(ClearColor);
 			VulkanSetImageLayout(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Range);
@@ -94,6 +76,27 @@ namespace VulkanRHI
 		}
 		CurrentCmdBuffer->End();
 		CurrentCmdCtx->GetCommandBufferManager()->SubmitUploadCmdBuffer();
+
+		for (int32 Index = 0; Index < Images.size(); ++Index)
+		{
+			RHITextureDesc DepthTextureDesc;
+			DepthTextureDesc.mArraySize = 1;
+			DepthTextureDesc.mDepth = 0;
+			DepthTextureDesc.mDimension = TextureDimension::Texture2D;
+			DepthTextureDesc.mExtent = Vector2(mSizeX, mSizeY);
+			DepthTextureDesc.mFlags = TextureCreateFlags::DepthStencilTargetable;
+			DepthTextureDesc.mFormat = PF_DepthStencil;
+			DepthTextureDesc.mNumMips = 1;
+			DepthTextureDesc.mNumSamples = 1;
+			DepthTextureDesc.mUAVFormat = PF_Unknown;
+			VulkanTexture* DepthTex = new VulkanTexture(mDevice, DepthTextureDesc);
+			VulkanTextureView* DepthTexView = new VulkanTextureView();
+			DepthTexView->Create(*mDevice, DepthTex->getHandle(), VK_IMAGE_VIEW_TYPE_2D,
+				VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
+				PF_DepthStencil, EngineToVkTextureFormat(PF_DepthStencil, false), 0, 1, 0, 1, true);
+			mDepthBuffers.push_back(DepthTex);
+			mDepthBufferViews.push_back(DepthTexView);
+		}
 
 	}
 	void VulkanViewport::DestroySwapchain()
@@ -133,7 +136,7 @@ namespace VulkanRHI
 		{
 			VkFramebuffer NewFrameBuffer;
 			VkFramebufferCreateInfo FramebufferCreateInfo;
-			std::array<VkImageView, 2> TempAttachents{ mTextureViews[Index]->mView,mDepthBufferView->mView };
+			std::array<VkImageView, 2> TempAttachents{ mTextureViews[Index]->mView, mDepthBufferViews[Index]->mView};
 			Memory::MemoryZero(FramebufferCreateInfo);
 			FramebufferCreateInfo.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
 			FramebufferCreateInfo.height = mSizeY;

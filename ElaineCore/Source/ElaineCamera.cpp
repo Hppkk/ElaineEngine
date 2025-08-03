@@ -3,101 +3,250 @@
 namespace Elaine
 {
 
-    Camera::Camera(const String& name)
-        : mName(name)
+    Camera::Camera(const String& InName)
+        : mName(InName)
     {
+        UpdateViewParams();
+    }
+
+    void Camera::SetPosition(const Vector3& InPosition)
+    {
+        if (InPosition == mPosition)
+            return;
+
+        mPosition = InPosition;
+        mbCacheViewOutOfData = true;
+        mbCacheOutOfData = true;
+    }
+
+    void Camera::SetRotation(const Vector3& InRotation)
+    {
+        mRotation = Quaternion::fromEulerZYX(InRotation);
+        mbCacheViewOutOfData = true;
+        mbCacheOutOfData = true;
+    }
+
+    void Camera::SetRotation(const Quaternion& InRotation)
+    {
+        if (InRotation == mRotation)
+            return;
+
+        mRotation = InRotation;
+        mbCacheViewOutOfData = true;
+        mbCacheOutOfData = true;
+    }
+
+    void Camera::LookAt(const Vector3& InTarget)
+    {
+        mForward = (InTarget - mPosition).normalisedCopy();
+        mRight = (mUp.crossProduct(mForward)).normalisedCopy();
+        mUp = (mForward.crossProduct(mRight)).normalisedCopy();
+        mViewMatrix = Matrix4x4(mRight[0], mUp[0], mForward[0], -mRight * mPosition,
+                                mRight[1], mUp[1], mForward[1], -mUp * mPosition,
+                                mRight[2], mUp[2], mForward[2], -mForward * mPosition,
+                                0.0f, 0.0f, 0.0f, 1.0f);
+
+        mbCacheOutOfData = true;
+    }
+
+    const Matrix4x4& Camera::GetViewMatrix()
+    {
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
+
+        return mViewMatrix;
+    }
+
+    const Matrix4x4& Camera::GetProjMatrix()
+    {
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
+        else if (mbCacheOutOfData)
+        {
+            CalculateProjMatrix();
+        }
+
+        return mProjMatrix;
+    }
+
+    const Matrix4x4& Camera::GetViewProjMatrix()
+    {
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
+        else if (mbCacheOutOfData)
+        {
+            CalculateProjMatrix();
+        }
+
+        return mViewProjMatrix;
+    }
+
+    void Camera::UpdateViewParams()
+    {
+        if (!mbCacheViewOutOfData)
+            return;
+        
+        float x = mRotation.x;
+        float y = mRotation.y;
+        float z = mRotation.z;
+        float w = mRotation.w;
+
+
+        mRight = (mRotation * Vector3::UNIT_X).normalisedCopy();
+        mUp = (mRotation * -Vector3::UNIT_Y).normalisedCopy();
+        mForward = (mRotation * -Vector3::UNIT_Z).normalisedCopy();
+        //mRight = Vector3(1.0f - 2.0f * y * y - 2.0f * z * z,
+        //    2.0f * x * y + 2.0f * w * z,
+        //    2.0f * x * z - 2.0f * w * y);
+
+        //mUp = Vector3(2 * x * y - 2 * w * z,
+        //    1 - 2 * x * x - 2 * z * z,
+        //    2 * y * z + 2 * w * x);
+
+        //mForward = Vector3(2 * x * z + 2 * w * y,
+        //    2 * y * z - 2 * w * x,
+        //    2 * x * x - 2 * y * y);
+
+        Matrix4x4 TranslationMat = Matrix4x4::IDENTITY;
+        TranslationMat[0][3] = -mPosition[0];
+        TranslationMat[1][3] = -mPosition[1];
+        TranslationMat[2][3] = -mPosition[2];
+
+
+        mViewMatrix = Matrix4x4(mRight[0], mUp[0], mForward[0], 0.0f,
+                                mRight[1], mUp[1], mForward[1], 0.0f,
+                                mRight[2], mUp[2], mForward[2], 0.0f,
+                                0.0f, 0.0f, 0.0f, 1.0f).transpose() * TranslationMat;
+
+        mbCacheViewOutOfData = false;
+
+        CalculateProjMatrix();
 
     }
 
-    void Camera::setMainViewMatrix(const Matrix4x4& view_matrix)
+    void Camera::CalculateProjMatrix()
     {
-        std::lock_guard<std::mutex> lock_guard(m_view_matrix_mutex);
+        if (!mbCacheOutOfData)
+            return;
 
-        m_view_matrices[MAIN_VIEW_MATRIX_INDEX] = view_matrix;
+        mbCacheOutOfData = false;
 
-        Vector3 s = Vector3(view_matrix[0][0], view_matrix[0][1], view_matrix[0][2]);
-        Vector3 u = Vector3(view_matrix[1][0], view_matrix[1][1], view_matrix[1][2]);
-        Vector3 f = Vector3(-view_matrix[2][0], -view_matrix[2][1], -view_matrix[2][2]);
-        m_position = s * (-view_matrix[0][3]) + u * (-view_matrix[1][3]) + f * view_matrix[2][3];
+        Degree Fovy(mFovy);
+        float RadFovy = Fovy.ValueRadians();
+        if (mProjectionType == ProjectionType::Prespective)
+        {
+
+            float xx = 1.0f / (mAspect * Math::tan(RadFovy / 2.0f));
+            float yy = 1.0f / Math::tan(RadFovy / 2.0f);
+            float zz = mFar / (mFar - mNear);
+            float zw = -(mFar * mNear) / (mFar - mNear);
+            mProjMatrix = Matrix4x4(xx, 0.0f, 0.0f, 0.0f,
+                                    0.0f, yy, 0.0f, 0.0f,
+                                    0.0f, 0.0f, zz, zw,
+                                    0.0f, 0.0f, 1.0f, 0.0f);
+        }
+        else
+        {
+            float h = 2 * mNear * Math::tan(RadFovy / 2.0f);
+            float w = mAspect * h;
+            float l = -w / 2.0f;
+            float r = w / 2.0f;
+            float b = -h / 2.0f;
+            float t = h / 2.0f;
+            mProjMatrix = Matrix4x4(2.0f / (r - l), 0.0f, 0.0f, -(r + l) / (r - l),
+                                    0.0f, -2.0f / (t - b), 0.0f, -(t + b) / (t - b),
+                                    0.0f, 0.0f, 1.0f / (mFar - mNear), -mNear / (mFar - mNear),
+                                    0.0f, 0.0f, 0.0f, 1.0f);
+        }
+
+        mViewProjMatrix = mProjMatrix * mViewMatrix;
     }
 
-    void Camera::move(Vector3 delta) { m_position += delta; }
-
-    void Camera::rotate(Vector2 delta)
+    void Camera::SetProjectionType(ProjectionType InType)
     {
-        // rotation around x, y axis
-        delta = Vector2(Radian(Degree(delta.x)).ValueRadians(), Radian(Degree(delta.y)).ValueRadians());
+        if (mProjectionType == InType)
+            return;
 
-        // limit pitch
-        float dot = m_up_axis.dotProduct(forward());
-        if ((dot < -0.99f && delta.x > 0.0f) || // angle nearing 180 degrees
-            (dot > 0.99f && delta.x < 0.0f))    // angle nearing 0 degrees
-            delta.x = 0.0f;
-
-        // pitch is relative to current sideways rotation
-        // yaw happens independently
-        // this prevents roll
-        Quaternion pitch, yaw;
-        pitch.fromAngleAxis(Radian(delta.x), X);
-        yaw.fromAngleAxis(Radian(delta.y), Z);
-
-        m_rotation = pitch * m_rotation * yaw;
-
-        m_invRotation = m_rotation.conjugate();
+        mProjectionType = InType;
+        mbCacheOutOfData = true;
     }
 
-    void Camera::zoom(float offset)
+    void Camera::SetFOV(float InFov)
     {
-        // > 0 = zoom in (decrease FOV by <offset> angles)
-        m_fovx = Math::clamp(m_fovx - offset, MIN_FOV, MAX_FOV);
+        if (InFov == mFovy)
+            return;
+
+        mFovy = InFov;
+        mbCacheOutOfData = true;
     }
 
-    void Camera::lookAt(const Vector3& position, const Vector3& target, const Vector3& up)
+    const Vector3& Camera::GetPosition()
     {
-        m_position = position;
+        if (mbCacheOutOfData)
+        {
+            UpdateViewParams();
+        }
 
-        // model rotation
-        // maps vectors to camera space (x, y, z)
-        Vector3 forward = (target - position).normalisedCopy();
-        m_rotation = forward.getRotationTo(Y);
-
-        // correct the up vector
-        // the cross product of non-orthogonal vectors is not normalized
-        Vector3 right = forward.crossProduct(up.normalisedCopy()).normalisedCopy();
-        Vector3 orthUp = right.crossProduct(forward);
-
-        Quaternion upRotation = (m_rotation * orthUp).getRotationTo(Z);
-
-        m_rotation = Quaternion(upRotation) * m_rotation;
-
-        // inverse of the model rotation
-        // maps camera space vectors to model vectors
-        m_invRotation = m_rotation.conjugate();
+        return mPosition;
     }
 
-    Matrix4x4 Camera::getViewMatrix()
+    const Quaternion& Camera::GetRotation()
     {
-        std::lock_guard<std::mutex> lock_guard(m_view_matrix_mutex);
+        if (mbCacheOutOfData)
+        {
+            UpdateViewParams();
+        }
 
-        return Math::MakeLookAtMatrix(position(), position() + forward(), up());
+        return mRotation;
     }
 
-    Matrix4x4 Camera::getPersProjMatrix() const
+    const Vector3& Camera::GetForward()
     {
-        Matrix4x4 fix_mat(1, 0, 0, 0, 0, -1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1);
-        Matrix4x4 proj_mat = fix_mat * Math::MakePerspectiveMatrix(Radian(Degree(m_fovy)), m_aspect, m_znear, m_zfar);
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
 
-        return proj_mat;
+        return mForward;
     }
 
-    void Camera::setAspect(float aspect)
+    const Vector3& Camera::GetUp()
     {
-        m_aspect = aspect;
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
 
-        // 1 / tan(fovy * 0.5) / aspect = 1 / tan(fovx * 0.5)
-        // 1 / tan(fovy * 0.5) = aspect / tan(fovx * 0.5)
-        // tan(fovy * 0.5) = tan(fovx * 0.5) / aspect
+        return mUp;
+    }
 
-        m_fovy = Radian(Math::atan(Math::tan(Radian(Degree(m_fovx) * 0.5f)) / m_aspect) * 2.0f).ValueDegrees();
+    const Vector3& Camera::GetRight()
+    {
+        if (mbCacheViewOutOfData)
+        {
+            UpdateViewParams();
+        }
+
+        return mRight;
+    }
+
+    float Camera::GetFOV() const
+    {
+        return mFovy;
+    }
+
+    void Camera::SetAspect(float InAspect)
+    {
+        if (mAspect == InAspect)
+            return;
+
+        mAspect = InAspect;
+        mbCacheOutOfData = true;
     }
 }

@@ -47,4 +47,6 @@ namespace VulkanRHI
 
 	void VulkanSetImageLayout(VkCommandBuffer InCmdBuffer, VkImage InImage, VkImageLayout InOldLayout, VkImageLayout InNewLayout, const VkImageSubresourceRange& InSubresourceRange);
 
+	void VulkanSetImageLayout(VkCommandBuffer InCmdBuffer, VulkanTexture* InTexture, VkImageLayout InNewLayout, const VkImageSubresourceRange& InSubresourceRange);
+
 }

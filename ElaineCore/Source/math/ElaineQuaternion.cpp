@@ -1,4 +1,5 @@
 #include "ElainePrecompiledHeader.h"
+#include "ElaineQuaternion.h"
 
 namespace Elaine
 {
@@ -111,6 +112,40 @@ namespace Elaine
         kRot[3][1] = 0;
         kRot[3][2] = 0;
         kRot[3][3] = 1;
+    }
+
+    Quaternion Quaternion::fromEulerZYX(const Vector3& InEulerZYX)
+    {
+        Quaternion Result;
+
+        float cy = std::cos(InEulerZYX.z * 0.5f);
+        float sy = std::sin(InEulerZYX.z * 0.5f);
+        float cp = std::cos(InEulerZYX.y * 0.5f);
+        float sp = std::sin(InEulerZYX.y * 0.5f);
+        float cr = std::cos(InEulerZYX.x * 0.5f);
+        float sr = std::sin(InEulerZYX.x * 0.5f);
+
+        Result.w = cr * cp * cy + sr * sp * sy;
+        Result.x = sr * cp * cy - cr * sp * sy;
+        Result.y = cr * sp * cy + sr * cp * sy;
+        Result.z = cr * cp * sy - sr * sp * cy;
+
+        return Result;
+    }
+
+    Vector3 Quaternion::toEulerZYX(const Quaternion& InRotation)
+    {
+        Vector3 Result;
+        Result.x = std::atan2(2.0f * (InRotation.w * InRotation.x + InRotation.y * InRotation.z),
+            1.0f - 2.0f * (InRotation.x * InRotation.x + InRotation.y * InRotation.y));
+        float sin_pitch = 2.0f * (InRotation.w * InRotation.y - InRotation.z * InRotation.x);
+        if (std::abs(sin_pitch) >= 1.0f)
+            Result.y = std::copysign(Elaine::PI / 2.0f, sin_pitch); // ¥¶¿Ì°¿90°„±ﬂΩÁ
+        else
+            Result.y = std::asin(sin_pitch);
+        Result.z = std::atan2(2.0f * (InRotation.w * InRotation.z + InRotation.x * InRotation.y),
+            1.0f - 2.0f * (InRotation.y * InRotation.y + InRotation.z * InRotation.z));
+        return Result;
     }
 
     void Quaternion::fromAngleAxis(const Radian& angle, const Vector3& axis)

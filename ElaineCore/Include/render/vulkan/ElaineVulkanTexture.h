@@ -52,10 +52,13 @@ namespace VulkanRHI
 		void Evict(VulkanDevice& Device, VulkanCommandContext& Context) override; ///evict to system memory
 		void Move(VulkanDevice& Device, VulkanCommandContext& Context, VulkanAllocation& NewAllocation) override; //move to a full new allocation
 		VulkanTexture* GetEvictableTexture() override { return this; }
+		VkImageLayout GetImageLayout() const { return mImageLayout; }
+		void SetImageLayout(VkImageLayout InVkImageLayout) { mImageLayout = InVkImageLayout; }
 		void InternalMoveSurface(VulkanDevice& InDevice, VulkanCommandContext& Context, VulkanAllocation& DestAllocation);
 		void DestroySurface();
 
 		const RHITextureDesc& GetDesc() const { return mDesc; }
+		const VulkanTextureView& GetTextureView() const { return mDefaultView; }
 	private:
 		VkImage						mHandle = VK_NULL_HANDLE;
 		VulkanDevice*				mDevice;
@@ -67,6 +70,7 @@ namespace VulkanRHI
 		VulkanAllocation			mAllocation;
 		VkImageAspectFlags			mFullAspectMask;
 		VkImageAspectFlags			mPartialAspectMask;
+		VkImageLayout				mImageLayout;
 		VulkanCpuReadbackBuffer*	mCpuReadbackBuffer;
 		RHITextureDesc				mDesc;
 		// View with all mips/layers

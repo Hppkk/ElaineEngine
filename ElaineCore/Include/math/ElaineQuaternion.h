@@ -28,6 +28,8 @@ namespace Elaine
         void                fromRotationMatrix(const Matrix3x3& rotation);
         void                toRotationMatrix(Matrix3x3& rotation) const;
         void                toRotationMatrix(Matrix4x4& rotation) const;
+        static Quaternion   fromEulerZYX(const Vector3& InEulerZYX);
+        static Vector3      toEulerZYX(const Quaternion& InRotation);
 
         void                fromAngleAxis(const Radian& angle, const Vector3& axis);
 

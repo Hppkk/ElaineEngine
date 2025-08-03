@@ -136,7 +136,7 @@ namespace VulkanRHI
 
 		~VulkanFence();
 
-		inline VkFence GetHandle() const
+		inline VkFence& GetHandle()
 		{
 			return mHandle;
 		}
@@ -793,7 +793,7 @@ namespace VulkanRHI
 		void UnregisterSubresourceAllocator(VulkanSubResourceAllocator* SubresourceAllocator);
 		bool ReleaseSubresourceAllocator(VulkanSubResourceAllocator* SubresourceAllocator);
 
-		void AllocUniformBuffer(VulkanAllocation& OutAllocation, uint32 Size, const void* Contents);
+		bool AllocUniformBuffer(VulkanAllocation& OutAllocation, uint32 Size, const void* Contents);
 		void FreeUniformBuffer(VulkanAllocation& InAllocation);
 
 		void ReleaseFreedPages(VulkanCommandContext& Context);

@@ -105,7 +105,7 @@ namespace VulkanRHI
 		VkAttachmentDescription ColorAttachmentDescription;
 		Memory::MemoryZero(ColorAttachmentDescription);
 		ColorAttachmentDescription.flags = 0;
-		ColorAttachmentDescription.format = VK_FORMAT_B8G8R8A8_SRGB;//mViewport->GetSwapChain()->GetVkFormat();
+		ColorAttachmentDescription.format = VK_FORMAT_R8G8B8A8_SRGB;//mViewport->GetSwapChain()->GetVkFormat();
 		ColorAttachmentDescription.samples = VK_SAMPLE_COUNT_1_BIT;
 		ColorAttachmentDescription.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		ColorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -163,9 +163,9 @@ namespace VulkanRHI
 
 
 
-		mViewport = new VulkanViewport(mDevice, mWindowHandle, InDesc.Width, InDesc.Height, false, PF_B8G8R8A8);
+		mViewport = new VulkanViewport(mDevice, mWindowHandle, InDesc.Width, InDesc.Height, false, PF_R8G8B8A8);
 
-		new VulkanShaderCompileManager();
+		new VulkanShaderCompileManager(mDevice);
 
 	}
 

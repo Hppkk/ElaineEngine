@@ -1,5 +1,6 @@
 #pragma once
 #include "render/common/ElaineRHICommandContext.h"
+#include "render/vulkan/ElaineVulkanTypes.h"
 
 
 namespace VulkanRHI
@@ -13,6 +14,11 @@ namespace VulkanRHI
 	class VulkanCommandBufferManager;
 	class VulkanGfxPipeline;
 	class VulkanComputePipeline;
+	class VulkanFence;
+	class VulkanSemaphore;
+	class VulkanDescriptorSet;
+	class VulkanUniformBuffer;
+	class VulkanDescriptorSetManager;
 
 	class ElaineCoreExport VulkanCommandContext :public Elaine::RHICommandContext
 	{
@@ -181,7 +187,7 @@ namespace VulkanRHI
 
 		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
-		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc) override;
+		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) override;
 
 		virtual RHITexture* RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) override;
 
@@ -190,21 +196,36 @@ namespace VulkanRHI
 		virtual RHIPipeline* RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) override;
 		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) override;
 
+		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) override;
+		virtual void RHIUpdateCommonUniformBuffer(size_t InSize, void* InContents) override;
+
 		void RHIWriteGPUFence(RHIGPUFence* FenceRHI) override;
 		VulkanCommandBufferManager* GetCommandBufferManager() const { return mCmdBufferManager; }
 		VulkanGfxPipeline* GetCurrentGfxPipeline() const { return mCurrentGfxPipeline; }
 		VulkanComputePipeline* GetCurrentComputePipeline() const { return mCurrentComputePipeline; }
 		void SetCurrentGfxPipeline(VulkanGfxPipeline* InGfxPipeline) { mCurrentGfxPipeline = InGfxPipeline; }
 		void SetCurrentComputePipeline(VulkanComputePipeline* InPipeline) { mCurrentComputePipeline = InPipeline; }
+		void SetCommonDescriptorSets(VulkanDescriptorSet* InDescroptorSet, size_t InIndex);
+		bool IsCreateCommonDescriptorSets() const { return mIsCreateCommonDescriptorSets; }
+		VulkanDescriptorSetManager* GetDescriptorSetManager() const { return mDescriptorSetManager; }
 	private:
 		VulkanDevice* mDevice = nullptr;
 		VulkanPhysicalDevice* mPhyDevice = nullptr;
 		VulkanInstance* mInstance = nullptr;
 		VulkanCommandBufferManager* mCmdBufferManager = nullptr;
-		VulkanQueue* mQueue;
+		VulkanQueue* mQueue = nullptr;
 		VulkanGfxPipeline* mCurrentGfxPipeline = nullptr;
 		VulkanComputePipeline* mCurrentComputePipeline = nullptr;
+		VulkanDescriptorSetManager* mDescriptorSetManager = nullptr;
 		void* mWindowHandle = nullptr;
+		VulkanSemaphore* mImageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
+		VulkanSemaphore* mRenderFinishedSemaphores[MAX_FRAMES_IN_FLIGHT];
+		VulkanDescriptorSet* mCommonDescriptorSets[MAX_FRAMES_IN_FLIGHT];
+		VulkanUniformBuffer* mCommonUniformBuffer[MAX_FRAMES_IN_FLIGHT] = { nullptr };
+		bool mIsCreateCommonDescriptorSets = false;
+		int mCurrentFrameIndex = 0;
+		uint32_t mCurrentImageIndex = 0;
+		VkSampler skyboxSampler;
 		friend class VulkanDynamicRHI;
 	};
 

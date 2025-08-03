@@ -2,7 +2,7 @@
 
 -----------------
 
-![ElaineEngine](D:\C++Project\ElaineEngine\ElaineEngine\ElaineEngine.png)
+![ElaineEngine](./ElaineEngine.png)
 
 Welcome to the Elaine Engine source code!
 

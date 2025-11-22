@@ -291,7 +291,7 @@ namespace VulkanRHI
 		SAFE_DELETE(mPool);
 	}
 
-	void VulkanCommandBufferManager::Initilize()
+	void VulkanCommandBufferManager::Initialize()
 	{
 		mActiveCmdBuffer->Begin();
 	}

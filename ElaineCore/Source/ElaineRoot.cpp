@@ -7,6 +7,7 @@
 #include "ElaineFileManager.h"
 #include "ElaineMemoryMap.h"
 #include "ElaineTextureUtils.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 
 namespace Elaine
 {
@@ -22,7 +23,7 @@ namespace Elaine
 
 	void Root::initilize(const RHI_PARAM_DESC& InDesc)
 	{
-		TextureUtils::Initilize();
+		TextureUtils::Initialize();
 		new FileManager();
 		m_timer = new Timer();
 #if  ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
@@ -44,9 +45,11 @@ namespace Elaine
 		new GameObjectInfoMgr();
 		readConfig(m_sResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
+		new TaskGraph::TaskGraph();
+		TaskGraph::TaskGraph::instance()->Initialize();
 		//new WindowSystem();
 		m_pRenderSystem = new RenderSystem();
-		m_pRenderSystem->Initilize(InDesc);
+		m_pRenderSystem->Initialize(InDesc);
 		new InputSystem();
 		m_MainSceneMgr = new SceneManager("Main SceneManager");
 		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);
@@ -147,6 +150,7 @@ namespace Elaine
 		delete GameObjectInfoMgr::instance();
 		delete DataStreamMgr::instance();
 		delete FileManager::instance();
+		delete TaskGraph::TaskGraph::instance();
 		for (auto& iter : m_SceneMgrs)
 		{
 			SAFE_DELETE(iter.second);

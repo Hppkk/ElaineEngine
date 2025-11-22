@@ -18,7 +18,7 @@ namespace Elaine
 		ElaineEngine();
 		virtual ~ElaineEngine();
 
-		void		Initilize(const RHI_PARAM_DESC& InRendererDesc);
+		void		Initialize(const RHI_PARAM_DESC& InRendererDesc);
 		void		RenderOneFrame();
 		void		RenderOneFrame(float InDeltaTime);
 		void		DestroyEngine();

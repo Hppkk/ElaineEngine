@@ -172,7 +172,7 @@ namespace VulkanRHI
 	public:
 		VulkanFenceManager();
 		~VulkanFenceManager();
-		void Initilize(VulkanDevice* InDevice);
+		void Initialize(VulkanDevice* InDevice);
 		void DeInit();
 		VulkanFence* AllocateFence(bool bCreateSignaled = false);
 		inline bool IsFenceSignaled(VulkanFence* Fence)

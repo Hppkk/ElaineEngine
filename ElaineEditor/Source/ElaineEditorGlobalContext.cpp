@@ -12,7 +12,7 @@ namespace ElaineEditor
 
 	}
 
-	void EditorGlobalContext::Initilize()
+	void EditorGlobalContext::Initialize()
 	{
 
 	}

@@ -6,7 +6,7 @@ namespace VulkanRHI
 	{
 	public:
 		VulkanInstance();
-		void Initilize();
+		void Initialize();
 		void Destroy();
 		const VkInstance GetInstance() const
 		{

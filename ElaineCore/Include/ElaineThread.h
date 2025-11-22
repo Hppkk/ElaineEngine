@@ -44,7 +44,7 @@ namespace Elaine
 
 		}
 
-		void Initilize();
+		void Initialize();
 
 		~ThreadWrap();
 		const std::thread& GetThread();

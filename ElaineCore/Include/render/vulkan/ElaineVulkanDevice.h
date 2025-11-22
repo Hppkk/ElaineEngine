@@ -145,7 +145,7 @@ namespace VulkanRHI
 	public:
 		VulkanDevice(VulkanPhysicalDevice* InPhyDevice);
 		~VulkanDevice();
-		void Initilize();
+		void Initialize();
 
 		VkDevice	GetDevice() const
 		{

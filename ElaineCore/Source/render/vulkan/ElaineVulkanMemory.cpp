@@ -242,7 +242,7 @@ namespace VulkanRHI
 
 	}
 
-	void VulkanFenceManager::Initilize(VulkanDevice* InDevice)
+	void VulkanFenceManager::Initialize(VulkanDevice* InDevice)
 	{
 		mDevice = InDevice;
 	}

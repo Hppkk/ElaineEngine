@@ -10,7 +10,7 @@ namespace Elaine
 	public:
 		RenderSystem();
 		~RenderSystem();
-		void Initilize(const RHI_PARAM_DESC& InDesc);
+		void Initialize(const RHI_PARAM_DESC& InDesc);
 		RHIBuffer* CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize);
 	private:
 		RHICommandContext* mImmedCommandCtx = nullptr;

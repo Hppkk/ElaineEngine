@@ -25,7 +25,7 @@ namespace VulkanRHI
 	public:
 		VulkanCommandContext(VulkanDevice* InDevice, VulkanQueue* InQueue);
 		~VulkanCommandContext();
-		void Initilize();
+		void Initialize();
 		void Deinitilize();
 		//void AllocCommand(EM_RHICommand InCmd, void* InRHIResourceHandle);
 		VulkanDevice* GetDevice() { return mDevice; }

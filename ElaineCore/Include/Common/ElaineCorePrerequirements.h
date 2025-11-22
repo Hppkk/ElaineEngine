@@ -24,4 +24,5 @@ namespace Elaine
 	//class RHI;
 	//class DX12RHI;
 	class Camera;
+	class ThreadWrap;
 }

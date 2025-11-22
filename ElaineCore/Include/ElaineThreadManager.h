@@ -4,16 +4,22 @@
 namespace Elaine
 {
 	class ThreadWrap;
-	enum class NamedThread
+	enum class NamedThread : uint8_t
 	{
+		AnyThread, //Any thread, indicating that tasks in the TaskGraph can be executed on any thread.
+		GameThread, //Game Logic Thread. Usually is main threrd.
+		RenderThread, //Render Logic Thread
 		RHIThread_Gfx, //Render API Command Thread
 		RHIThread_Compute,
 		RHIThread_Transf,
-		GameThread, //Game Logic Thread
-		RenderThread, //Render Logic Thread
-		ResourceThread0,
-		ResourceThread1,
-		ResourceThread2,
+		StreamingThread0,
+		StreamingThread1,
+		StreamingThread2,
+		StreamingThread3,
+		StreamingThread4,
+		StreamingThread5,
+		StreamingThread6,
+		StreamingThread7,
 		JobThread0,
 		JobThread1,
 		JobThread2,
@@ -22,6 +28,7 @@ namespace Elaine
 		GeneralThread1,
 		GeneralThread2,
 		ThreadCount,
+		ScheduleThread,
 	};
 	
 
@@ -39,7 +46,7 @@ namespace Elaine
 			{
 				auto task = std::bind(std::forward<Func>(_Fx), std::forward<Args>(_Ax)...);
 				ThreadWrap* NewThread = new ThreadWrap(type, task);
-				NewThread->Initilize();
+				NewThread->Initialize();
 				mThreads.emplace(type, NewThread);
 				return NewThread;
 			}

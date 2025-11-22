@@ -16,12 +16,12 @@ namespace Elaine
 		G_ElaineEngine = nullptr;
 	}
 
-	void ElaineEngine::Initilize(const RHI_PARAM_DESC& InRendererDesc)
+	void ElaineEngine::Initialize(const RHI_PARAM_DESC& InRendererDesc)
 	{
 		new Root();
-		LOG_INFO("Elaine Engine Initilize...");
+		LOG_INFO("Elaine Engine Initialize...");
 		Root::instance()->initilize(InRendererDesc);
-		LOG_INFO("Elaine Engine Initilize Complete!");
+		LOG_INFO("Elaine Engine Initialize Complete!");
 	}
 
 	void ElaineEngine::RenderOneFrame()

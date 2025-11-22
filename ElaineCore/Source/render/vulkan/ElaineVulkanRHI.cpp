@@ -39,18 +39,18 @@ namespace VulkanRHI
 		GVulkanDynamicRHI = nullptr;
 	}
 
-	void VulkanDynamicRHI::Initilize(const Elaine::RHI_PARAM_DESC& InDesc)
+	void VulkanDynamicRHI::Initialize(const Elaine::RHI_PARAM_DESC& InDesc)
 	{
 		mWindowHandle = InDesc.WindowHandle;
 
 		mInstance = new VulkanInstance();
-		mInstance->Initilize();
+		mInstance->Initialize();
 
 		mPhyDevice = new VulkanPhysicalDevice(mInstance);
-		mPhyDevice->Initilize();
+		mPhyDevice->Initialize();
 
 		mDevice = new VulkanDevice(mPhyDevice);
-		mDevice->Initilize();
+		mDevice->Initialize();
 
 		{
 			VulkanRHI::vkGetImageMemoryRequirements2KHR = (PFN_vkGetImageMemoryRequirements2KHR)vkGetInstanceProcAddr(mInstance->GetInstance(), "vkGetImageMemoryRequirements2KHR");
@@ -69,7 +69,7 @@ namespace VulkanRHI
 
 		mDefaultCommandContext = new VulkanCommandContext(mDevice, mDevice->GetGraphicQueue());
 		VulkanCommandContext* CurrentCtx = static_cast<VulkanCommandContext*>(mDefaultCommandContext);
-		CurrentCtx->Initilize();
+		CurrentCtx->Initialize();
 		CurrentCtx->mDevice = mDevice;
 		CurrentCtx->mInstance = mInstance;
 		CurrentCtx->mPhyDevice = mPhyDevice;
@@ -79,7 +79,7 @@ namespace VulkanRHI
 		{
 			mDefaultComputeContext = new VulkanCommandContext(mDevice, mDevice->GetComputeQueue());
 			VulkanCommandContext* CurrentCtx = static_cast<VulkanCommandContext*>(mDefaultComputeContext);
-			CurrentCtx->Initilize();
+			CurrentCtx->Initialize();
 			CurrentCtx->mDevice = mDevice;
 			CurrentCtx->mInstance = mInstance;
 			CurrentCtx->mPhyDevice = mPhyDevice;
@@ -91,7 +91,7 @@ namespace VulkanRHI
 		{
 			mDefaultTransferContext = new VulkanCommandContext(mDevice, mDevice->GetTransferQueue());
 			VulkanCommandContext* CurrentCtx = static_cast<VulkanCommandContext*>(mDefaultTransferContext);
-			CurrentCtx->Initilize();
+			CurrentCtx->Initialize();
 			CurrentCtx->mDevice = mDevice;
 			CurrentCtx->mInstance = mInstance;
 			CurrentCtx->mPhyDevice = mPhyDevice;

@@ -12,7 +12,7 @@ namespace VulkanRHI
 	public:
 		VulkanQueue(VulkanDevice* Device, uint32 InFamilyIndex);
 		~VulkanQueue();
-		void		Initilize();
+		void		Initialize();
 		inline VkQueue GetHandle() const
 		{
 			return mQueueHandle;

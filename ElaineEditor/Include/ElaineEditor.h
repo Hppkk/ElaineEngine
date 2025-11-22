@@ -10,7 +10,7 @@ namespace ElaineEditor
 	public:
 		ElaineEditor(Elaine::ElaineEngine* InEngine);
 		virtual ~ElaineEditor();
-		void			Initilize();
+		void			Initialize();
 		void			Destroy();
 		void			Tick();
 	private:

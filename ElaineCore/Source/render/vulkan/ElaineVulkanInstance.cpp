@@ -12,7 +12,7 @@ namespace VulkanRHI
 
     }
 
-    void VulkanInstance::Initilize()
+    void VulkanInstance::Initialize()
     {
         CreateInstance();
 

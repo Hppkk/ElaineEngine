@@ -21,7 +21,7 @@ namespace VulkanRHI
 	public:
 		VulkanDynamicRHI();
 		~VulkanDynamicRHI();
-		virtual void Initilize(const Elaine::RHI_PARAM_DESC& InDesc);
+		virtual void Initialize(const Elaine::RHI_PARAM_DESC& InDesc);
 		virtual Elaine::RHICommandContext* CreateCommandContex() override;
 		virtual void DestroyCommandContext(RHICommandContext* InCtx) override;
 		virtual void Destroy();

@@ -6,6 +6,7 @@
 #include "render/common/ElaineRHICommandList.h"
 #include "render/common/ElaineRHICommandContext.h"
 #include "ElaineUniformGPUManager.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 
 namespace Elaine
 {
@@ -101,7 +102,10 @@ namespace Elaine
 		}
 
 		mVisibleNodes.clear();
-
+		if (mRenderQueueSet->IsEmpty())
+		{
+			return;
+		}
 		//record render commands
 		RHICommandList* NewCmdList = GetDynamicRHI()->GetDefaultCommandContext()->GetRHICommandListMgr()->CreateCommandList();
 
@@ -120,6 +124,7 @@ namespace Elaine
 		{
 			WaitForRenderThread_Gfx();
 			RenderScene();
+			TaskGraph::TaskGraph::instance()->ExecuteInThread(NamedThread::RenderThread);
 			NotifyForRHIThread_Gfx();
 		}
 	}

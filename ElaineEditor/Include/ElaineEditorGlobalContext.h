@@ -8,7 +8,7 @@ namespace ElaineEditor
 	public:
 		EditorGlobalContext();
 		~EditorGlobalContext();
-		void Initilize();
+		void Initialize();
 	private:
 
 	};

@@ -9,7 +9,7 @@ namespace VulkanRHI
 	public:
 		VulkanPhysicalDevice(VulkanInstance* instance);
 
-		bool Initilize();
+		bool Initialize();
 
 		void Destroy();
 

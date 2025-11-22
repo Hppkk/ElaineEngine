@@ -22,7 +22,7 @@ git checkout -b <your-branch> origin/master
 
 The steps below take you through cloning your own private fork, then compiling and running the editor yourself:
 
-Elanie Engine can be easily build by cmake. Make sure your cmake version is 3.26 or higher.
+Elaine Engine can be easily build by CMake. Make sure your CMake version is 3.26 or higher.
 
 ## Windows
 
@@ -35,14 +35,12 @@ Elanie Engine can be easily build by cmake. Make sure your cmake version is 3.26
    When updating existing repository, don't forget to update all submodules:
    
    ```
-   git pull
-   git submodule init
-   git submodule update --recursive
+   git submodule update --init --recursive
    ```
+   
+2. Install Visual Studio 2022 or Visual Studio 2026. 
 
-2. Install Visual Studio 2022 or Visual Studio 2019. 
-
-3. Run the batch file `setup_windows.bat`. That will generate the VS solution in the path `build`. Open the `ElanieEngine.sln`with VS to run the project. Now you can start creating your own.
+3. Run the batch file `setup_windows.bat`. That will generate the Visual Studio solution in the path `Build`. Open the `ElanieEngine.sln`with Visual Studio to run the project. Now you can start creating your own.
 
 4. Choose one config between EditorDebug or EditorRelease  to debug your Editor.
 
@@ -62,4 +60,4 @@ Elanie Engine can be easily build by cmake. Make sure your cmake version is 3.26
 
 ---------------------------
 
-We welcome contributions to ElaineEngine development through pull requests on GitHub.
+We welcome contributions to Elaine Engine development through pull requests on GitHub.

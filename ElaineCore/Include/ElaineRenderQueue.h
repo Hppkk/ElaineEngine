@@ -33,6 +33,7 @@ namespace Elaine
 		void UpdateRenderQueue(Pass* InPass, RenderableObject* InObject, RenderQueuePriority InPriority);
 		void Render(RHICommandList* InRHICommandList);
 		void Clear();
+		bool IsEmpty();
 	protected:
 		NamedRenderQueue mName;
 		std::map<RenderQueuePriority, std::vector<RenderablePass>> mRenderableObjects;
@@ -48,6 +49,7 @@ namespace Elaine
 		void RecordRenderCommand(RenderQueue* InRenderQueue, RHICommandList* InRHICommandList);
 		void UpdateRenderQueue(RenderQueue* InRenderQueue, RenderableObject* InObject, RenderQueuePriority InPriority);
 		void ClearRenderQueue();
+		bool IsEmpty();
 	private:
 		std::array<RenderQueue*, RenderQueue_Count> mRenderQueues;
 	};

@@ -13,7 +13,7 @@ namespace VulkanRHI
 
 	}
 
-	bool VulkanPhysicalDevice::Initilize()
+	bool VulkanPhysicalDevice::Initialize()
 	{
         uint32 UPhysicalDeviceCount;
         vkEnumeratePhysicalDevices(mInstance->GetInstance(), &UPhysicalDeviceCount, nullptr);

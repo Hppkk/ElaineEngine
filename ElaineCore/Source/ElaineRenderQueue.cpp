@@ -55,6 +55,11 @@ namespace Elaine
 		mRenderableObjects.clear();
 	}
 
+	bool RenderQueue::IsEmpty()
+	{
+		return mRenderableObjects.empty();
+	}
+
 	RenderQueueSet::RenderQueueSet()
 	{
 		mRenderQueues[RenderQueue_Normal] = new RenderQueue(RenderQueue_Normal);
@@ -93,5 +98,17 @@ namespace Elaine
 		{
 			mRenderQueues[Index]->Clear();
 		}
+	}
+
+	bool RenderQueueSet::IsEmpty()
+	{
+		for (size_t Index = RenderQueue_Normal; Index < RenderQueue_Count; ++Index)
+		{
+			if (!mRenderQueues[Index]->IsEmpty())
+			{
+				return false;
+			}
+		}
+		return true;
 	}
 }

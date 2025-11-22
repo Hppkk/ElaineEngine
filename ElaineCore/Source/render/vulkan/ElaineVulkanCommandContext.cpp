@@ -31,10 +31,10 @@ namespace VulkanRHI
 		
 	}
 
-	void VulkanCommandContext::Initilize()
+	void VulkanCommandContext::Initialize()
 	{
 		mCmdBufferManager = new VulkanCommandBufferManager(mDevice, mQueue);
-		mCmdBufferManager->Initilize();
+		mCmdBufferManager->Initialize();
 		mDescriptorSetManager = new VulkanDescriptorSetManager(mDevice);
 		for (int Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
 		{

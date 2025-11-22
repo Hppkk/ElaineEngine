@@ -9,7 +9,7 @@ namespace Elaine
 
 	}
 
-	void RenderSystem::Initilize(const RHI_PARAM_DESC& InDesc)
+	void RenderSystem::Initialize(const RHI_PARAM_DESC& InDesc)
 	{
 		mWindowHandle = InDesc.WindowHandle;
 		InitEngineRHI(InDesc);

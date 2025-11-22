@@ -10,7 +10,7 @@ set(core_lib_path
  ${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64/$<IF:$<CONFIG:EDITORRELEASE>,Release,$<IF:$<CONFIG:EDITORDEBUG>,Debug,$<IF:$<CONFIG:RUNTIMEDEBUG>,Debug,Release>>>
 
 )
-message(${core_lib_path})
+
 #incldue group
 file(GLOB inc_ Include/*.h)
 source_group("Header Files" FILES ${inc_})
@@ -34,6 +34,10 @@ file(GLOB_RECURSE inc_resource Include/resource/*.h)
 source_group(resource FILES ${inc_resource})
 file(GLOB_RECURSE inc_platform_win Include/platform/Windows/*.h)
 source_group(platform/Windows FILES ${inc_platform_win})
+file(GLOB_RECURSE inc_task_graph Include/TaskGraph/*.h)
+source_group(TaskGraph FILES ${inc_task_graph})
+file(GLOB_RECURSE inc_render_graph Include/RenderGraph/*.h)
+source_group(RenderGraph FILES ${inc_render_graph})
 
 #source group
 file(GLOB src_ Source/*.cpp)
@@ -58,7 +62,10 @@ file(GLOB_RECURSE src_resource Source/resource/*.cpp)
 source_group(resource FILES ${src_resource})
 file(GLOB_RECURSE src_platform_win Source/platform/Windows/*.cpp)
 source_group(platform/Windows FILES ${src_platform_win})
-
+file(GLOB_RECURSE src_task_graph Source/TaskGraph/*.cpp)
+source_group(TaskGraph FILES ${src_task_graph})
+file(GLOB_RECURSE src_render_graph Source/RenderGraph/*.cpp)
+source_group(RenderGraph FILES ${src_render_graph})
 
 file(GLOB_RECURSE DIR_SRCS *.cpp)
 file(GLOB_RECURSE DIR_INC *.h)

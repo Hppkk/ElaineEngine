@@ -75,7 +75,7 @@ namespace Elaine
     {
     public:
         virtual ~DynamicRHI();
-        virtual void Initilize(const RHI_PARAM_DESC& InDesc) = 0;
+        virtual void Initialize(const RHI_PARAM_DESC& InDesc) = 0;
         virtual void Destroy() = 0;
         RHICommandContext* GetDefaultCommandContext() const { return mDefaultCommandContext; }
         RHICommandContext* GetDefaultComputeContext() const { return mDefaultComputeContext; }

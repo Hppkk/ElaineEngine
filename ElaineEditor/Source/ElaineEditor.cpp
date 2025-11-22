@@ -20,12 +20,12 @@ namespace ElaineEditor
 		Destroy();
 	}
 
-	void ElaineEditor::Initilize()
+	void ElaineEditor::Initialize()
 	{
-		LOG_INFO("Elaine Engine Editor Initilize...");
+		LOG_INFO("Elaine Engine Editor Initialize...");
 		new EditorGlobalContext();
-		EditorGlobalContext::instance()->Initilize();
-		LOG_INFO("Elaine Engine Editor Initilize Complete!");
+		EditorGlobalContext::instance()->Initialize();
+		LOG_INFO("Elaine Engine Editor Initialize Complete!");
 	}
 
 	void ElaineEditor::Destroy()

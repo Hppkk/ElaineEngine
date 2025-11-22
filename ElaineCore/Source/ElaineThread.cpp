@@ -15,7 +15,7 @@ namespace Elaine
 		return m_thread;
 	}
 
-	void ThreadWrap::Initilize()
+	void ThreadWrap::Initialize()
 	{
 #ifdef WIN32
 		SetThreadDescription(m_thread.native_handle(), ThreadManager::instance()->GetWStringName(m_eNamedThread).c_str());

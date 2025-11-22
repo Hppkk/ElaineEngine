@@ -28,7 +28,7 @@ namespace VulkanRHI
 
 	}
 
-	void VulkanQueue::Initilize()
+	void VulkanQueue::Initialize()
 	{
 		vkGetDeviceQueue(mDevice->GetDevice(), mFamilyIndex, mQueueIndex, &mQueueHandle);
 		FillSupportedStageBits();

@@ -7,7 +7,7 @@
 
 namespace Elaine
 {
-	void TextureUtils::Initilize()
+	void TextureUtils::Initialize()
 	{
 		//stbi_set_flip_vertically_on_load(true);
 	}

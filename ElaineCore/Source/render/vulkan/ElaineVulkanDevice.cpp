@@ -142,7 +142,7 @@ namespace VulkanRHI
 		SAFE_DELETE(mShaderManager);
 	}
 
-	void VulkanDevice::Initilize()
+	void VulkanDevice::Initialize()
 	{
 		for (uint32 Index = 0; Index < VK_FORMAT_ASTC_12x12_SRGB_BLOCK - VK_FORMAT_UNDEFINED + 1; ++Index)
 		{
@@ -249,7 +249,7 @@ namespace VulkanRHI
 		}
 
 		mGraphicQueue = new VulkanQueue(this, GfxQueueFamilyIndex);
-		mGraphicQueue->Initilize();
+		mGraphicQueue->Initialize();
 		if (ComputeQueueFamilyIndex == -1)
 		{
 			// If we didn't find a dedicated Queue, use the default one
@@ -264,7 +264,7 @@ namespace VulkanRHI
 			//	bAsyncComputeQueue = true;
 			//}
 			mComputeQueue = new VulkanQueue(this, ComputeQueueFamilyIndex);
-			mComputeQueue->Initilize();
+			mComputeQueue->Initialize();
 		}
 		
 		if (TransferQueueFamilyIndex == -1)
@@ -276,7 +276,7 @@ namespace VulkanRHI
 		else
 		{
 			mTransferQueue = new VulkanQueue(this, TransferQueueFamilyIndex);
-			mTransferQueue->Initilize();
+			mTransferQueue->Initialize();
 		}
 
 		uint64 NumBits = TmpQueueFamilyProps[GfxQueueFamilyIndex].timestampValidBits;
@@ -295,7 +295,7 @@ namespace VulkanRHI
 		}
 
 		mFenceMgr = new VulkanFenceManager();
-		mFenceMgr->Initilize(this);
+		mFenceMgr->Initialize(this);
 		mDeviceMemoryMgr = new VulkanDeviceMemoryManager();
 		mDeviceMemoryMgr->Init(this);
 		mMemoryManager = new VulkanMemoryManager(this);

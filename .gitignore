@@ -38,3 +38,5 @@
 **/ElaineReflection.lib
 **/ElaineReflection.pdb
 **/*.pdb
+/Build/CMakeFiles
+/Build

@@ -25,7 +25,7 @@ namespace Elaine
 		{
 		case Elaine::Vulkan:
 			mDynamicRHI = new VulkanRHI::VulkanDynamicRHI();
-			mDynamicRHI->Initilize(InDesc);
+			mDynamicRHI->Initialize(InDesc);
 			break;
 		case Elaine::Dx11:
 			break;

@@ -145,10 +145,10 @@ extern "C" {
 		INIT_DESC.RHIType = Elaine::Vulkan;
 		INIT_DESC.UseRHIThread = true;
 		INIT_DESC.WindowHandle = G_WIN_HANDLE;
-		NewEngine->Initilize(INIT_DESC);
+		NewEngine->Initialize(INIT_DESC);
 
 		ElaineEditor* NewEditor = new ElaineEditor(NewEngine);
-		NewEditor->Initilize();
+		NewEditor->Initialize();
 		
 		MSG msg = { 0 };
 		while (msg.message != WM_QUIT)

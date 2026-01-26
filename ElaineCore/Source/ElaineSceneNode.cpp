@@ -16,24 +16,24 @@ namespace Elaine
 
 	}
 
-	const Matrix4x4& SceneNode::getWorldMatrix()
+	const Matrix4x4& SceneNode::GetWorldMatrix()
 	{
 		return m_WorldMat;
 	}
 
-	void SceneNode::setWorldPosition(const Vector3& pos)
+	void SceneNode::SetPosition(const Vector3& pos)
 	{
 		m_WorldPosition = pos;
 		update();
 	}
 
-	void SceneNode::setWorldScale(const Vector3& scale)
+	void SceneNode::SetScale(const Vector3& scale)
 	{
 		m_WorldScale = scale;
 		update();
 	}
 
-	void SceneNode::setWorldRotation(const Vector3& rotation)
+	void SceneNode::SetRotation(const Vector3& rotation)
 	{
 		m_WorldRotation = rotation;
 		update();
@@ -61,7 +61,7 @@ namespace Elaine
 		{
 			if (CurrentRenderObj->IsVisible())
 			{
-				CurrentRenderObj->NotifyCurrentCamera(m_Creater->getMainCamera());
+				CurrentRenderObj->NotifyCurrentCamera(m_Creater->GetMainCamera());
 				if (!CurrentRenderObj->IsCulled())
 				{
 					CurrentRenderObj->UpdateRenderQueue(InRenderQueueSet);
@@ -72,9 +72,10 @@ namespace Elaine
 
 	SceneNode* SceneNode::createChild()
 	{
-		SceneNode* pNode = m_Creater->createSceneNode();
-		attachChildNode(pNode);
-		return pNode;
+		//SceneNode* pNode = m_Creater->createSceneNode();
+		//attachChildNode(pNode);
+		//return pNode;
+		return nullptr;
 	}
 
 	void SceneNode::attachChildNode(SceneNode* node)

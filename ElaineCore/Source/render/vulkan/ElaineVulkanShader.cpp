@@ -33,7 +33,7 @@ namespace VulkanRHI
 			const char* InRequestingSource,
 			size_t InIncludeDepth) override
 		{
-			std::string SPath = Root::instance()->getResourcePath() + "shader/vulkan/" + InRequestedSource;
+			std::string SPath = Root::instance()->GetResourcePath() + "shader/vulkan/" + InRequestedSource;
 			MemoryMapFile mmapFile(SPath);
 			mContent = (char*)Memory::SystemMalloc(mmapFile.MapSize());
 			Memory::MemoryCopy(mContent, mmapFile.MapPointer(), mmapFile.MapSize());
@@ -98,7 +98,7 @@ namespace VulkanRHI
 			InOutResult = mCompiler.CompileGlslToSpv(InShaderString, shaderstate,InExportPath.c_str(), InEntry.c_str(), mOptions);
 			if (InOutResult.GetNumErrors() > 0)
 			{
-				LOG_ERROR(InOutResult.GetErrorMessage());
+				LOG_ERROR("{}", InOutResult.GetErrorMessage());
 				return false;
 			}
 			return true;
@@ -466,10 +466,29 @@ namespace VulkanRHI
 
 				if (InShader->GetVkShaderStageFlag() == VK_SHADER_STAGE_VERTEX_BIT)
 				{
-					uint32_t attributeIndex = 0;
+					//@TODO : for mutil bindings
+					VkVertexInputBindingDescription TempInputBindingDesc;
+					Memory::MemoryZero(TempInputBindingDesc);
+					TempInputBindingDesc.binding = 0;
+					TempInputBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+					// 1. 定义一个辅助结构来暂存信息
+					struct ReflectedAttribute
+					{
+						uint32_t location;
+						uint32_t binding;
+						VkFormat format;
+						uint32_t size;
+						spirv_cross::ID id;
+					};
+
+					std::vector<ReflectedAttribute> sortedAttributes;
+
+					// 2. 第一遍循环：收集信息并确定 Format
 					for (const auto& resource : resources.stage_inputs)
 					{
-						VkVertexInputAttributeDescription attribute{};
+						ReflectedAttribute attribute{};
+						attribute.id = resource.id;
 						attribute.location = reflection.get_decoration(resource.id, spv::DecorationLocation);
 						attribute.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 
@@ -480,30 +499,59 @@ namespace VulkanRHI
 							attribute.format = type.vecsize == 3 ? VK_FORMAT_R32G32B32_SFLOAT :
 								type.vecsize == 2 ? VK_FORMAT_R32G32_SFLOAT : type.vecsize == 4 ? VK_FORMAT_R32G32B32A32_SFLOAT :
 								VK_FORMAT_R32_SFLOAT;
+							TempInputBindingDesc.stride += type.vecsize * 4;
+							attribute.size = type.vecsize * 4;
 							break;
 						case spirv_cross::SPIRType::Int:
 							attribute.format = type.vecsize == 3 ? VK_FORMAT_R32G32B32_SINT :
 								type.vecsize == 2 ? VK_FORMAT_R32G32_SINT : type.vecsize == 4 ? VK_FORMAT_R32G32B32A32_SINT :
 								VK_FORMAT_R32_SINT;
+							TempInputBindingDesc.stride += type.vecsize * 4;
+							attribute.size = type.vecsize * 4;
 							break;
 						case spirv_cross::SPIRType::Half:
 							attribute.format = type.vecsize == 3 ? VK_FORMAT_R16G16B16_SFLOAT :
 								type.vecsize == 2 ? VK_FORMAT_R16G16_SFLOAT : type.vecsize == 4 ? VK_FORMAT_R16G16B16A16_SFLOAT :
 								VK_FORMAT_R16_SFLOAT;
+							TempInputBindingDesc.stride += type.vecsize * 2;
+							attribute.size = type.vecsize * 4;
 							break;
 						case spirv_cross::SPIRType::Short:
 							attribute.format = type.vecsize == 3 ? VK_FORMAT_R16G16B16_SINT :
 								type.vecsize == 2 ? VK_FORMAT_R16G16_SINT : type.vecsize == 4 ? VK_FORMAT_R16G16B16A16_SINT :
 								VK_FORMAT_R16_SINT;
+							TempInputBindingDesc.stride += type.vecsize * 2;
+							attribute.size = type.vecsize * 4;
 							break;
 							// todo other types...
 						default:
 							break;
 						}
 
-						attribute.offset = reflection.get_decoration(resource.id, spv::DecorationOffset);
-						PipelineRefData.inputAttributes.push_back(attribute);
+						sortedAttributes.push_back(attribute);
 					}
+
+					std::sort(sortedAttributes.begin(), sortedAttributes.end(),
+						[](const ReflectedAttribute& a, const ReflectedAttribute& b)
+						{
+							return a.location < b.location;
+						});
+
+					uint32_t currentOffset = 0;
+
+					for (const auto& attr : sortedAttributes)
+					{
+						VkVertexInputAttributeDescription attribute{};
+						attribute.location = attr.location;
+						attribute.binding = attr.binding;
+						attribute.format = attr.format;
+						attribute.offset = currentOffset;
+
+						PipelineRefData.inputAttributes.push_back(attribute);
+						currentOffset += attr.size;
+					}
+					TempInputBindingDesc.stride = currentOffset;
+					InVertexShader->mVertexInputBindingDescs.push_back(TempInputBindingDesc);
 				}
 			};
 
@@ -555,6 +603,7 @@ namespace VulkanRHI
 					VulkanCommandContext* VkCommandCtx = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
 					VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
 					InPipelineRefData.mPipeline->mDescriptorSets.push_back(DescriptorSetRHI);
+					InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
 				}
 			}
 			++RealSetIndex;
@@ -595,6 +644,7 @@ namespace VulkanRHI
 					DescriptorSetAllocInfo.pSetLayouts = &setLayout;
 					VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
 					VkCommandCtx->SetCommonDescriptorSets(DescriptorSetRHI, Index);
+					InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
 				}
 			}
 			else if (setIndex != 0)
@@ -607,6 +657,7 @@ namespace VulkanRHI
 				DescriptorSetAllocInfo.pSetLayouts = &setLayout;
 				VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
 				InPipelineRefData.mPipeline->mDescriptorSets.push_back(DescriptorSetRHI);
+				InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
 			}
 		}
 		return true;

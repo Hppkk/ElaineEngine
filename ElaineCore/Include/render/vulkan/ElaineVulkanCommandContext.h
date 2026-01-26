@@ -1,6 +1,7 @@
-#pragma once
+﻿#pragma once
 #include "render/common/ElaineRHICommandContext.h"
 #include "render/vulkan/ElaineVulkanTypes.h"
+#include "render/vulkan/ElaineVulkanRenderPassCache.h"
 
 
 namespace VulkanRHI
@@ -19,6 +20,12 @@ namespace VulkanRHI
 	class VulkanDescriptorSet;
 	class VulkanUniformBuffer;
 	class VulkanDescriptorSetManager;
+	class VulkanSwapChain;
+	class VulkanSamplerCache;
+	class VulkanRenderPassCache;
+	class VulkanRenderPassCache;
+	class VulkanFramebufferCache;
+	class VulkanFrameDescriptorAllocator;
 
 	class ElaineCoreExport VulkanCommandContext :public Elaine::RHICommandContext
 	{
@@ -32,6 +39,10 @@ namespace VulkanRHI
 		VulkanInstance* GetInstance() { return mInstance; }
 		VulkanPhysicalDevice* GetPhyDevice() { return mPhyDevice; } 
 
+		virtual void RHIWaitIdle() override;
+
+		virtual void RHIWindowResize(RHISwapchain* InSwapchain, uint32 InWidth, uint32 InHeight) override;
+
 		virtual void RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ) override;
 
 		virtual void RHIDispatchIndirectComputeShader(RHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) override;
@@ -40,6 +51,8 @@ namespace VulkanRHI
 		// @param Count >0
 		// @param Data must not be 0
 		virtual void RHISetMultipleViewports(uint32 Count, const ViewportBounds* Data) override;
+
+		virtual void RHISetSwapchain(RHISwapchain* InSwapchain) override;
 
 		/**
 		* Resolves from one texture to another.
@@ -68,6 +81,13 @@ namespace VulkanRHI
 
 		
 		virtual void RHIEndFrame() override;
+
+		//=========================================================================
+		// 交换链控制接口实现
+		//=========================================================================
+		virtual RHITexture* RHIAcquireSwapchainImage(RHISwapchain* InSwapchain) override;
+		virtual void RHIPresentSwapchain(RHISwapchain* InSwapchain, bool bVsync = true) override;
+
 
 		/**
 		* Signals the beginning of scene rendering. The RHI makes certain caching assumptions between
@@ -144,6 +164,8 @@ namespace VulkanRHI
 
 		virtual void RHIBindDrawData(GRAPHICS_PIPELINE_STATE_DESC* InDrawData) override;
 
+		virtual void RHIBindResourceBinding(const RHI_DRAW_RESOURCE_BINDING& InResourceBinding) override;
+
 		virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) override;
 
 		virtual void RHIDrawPrimitiveIndirect(RHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) override;
@@ -169,6 +191,9 @@ namespace VulkanRHI
 
 		virtual void RHIBeginRenderPass(const GRAPHICS_PIPELINE_STATE_DESC& InGfxState/*const RHIRenderPassInfo& InInfo, const TCHAR* InName*/) override;
 
+		// 新增：支持 RenderGraph 动态设置渲染目标
+		virtual void RHIBeginRenderPass(const RHIRenderPassInfo& InRenderPassInfo, const char * InName) override;
+
 		virtual void RHIEndRenderPass() override;
 
 		virtual void RHINextSubpass() override;
@@ -177,13 +202,19 @@ namespace VulkanRHI
 
 		virtual void RHICopyBufferRegion(RHIBuffer* DestBuffer, uint64 DstOffset, RHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes) override;
 
+		// 资源屏障
+		virtual void RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier) override;
+
 		virtual void RHIBindGfxPipeline(RHIPipeline* InPipeline);
+		
+		// 获取当前 RenderPass 的 Key（用于 Pipeline 变体查找）
+		const RenderPassKey& GetCurrentRenderPassKey() const { return mCurrentRenderPassKey; }
 
 		virtual RHIBuffer* RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) override;
 
 		virtual RHIBuffer* RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
-		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents) override;
+		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize) override;
 
 		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
@@ -195,9 +226,16 @@ namespace VulkanRHI
 		
 		virtual RHIPipeline* RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) override;
 		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) override;
+		virtual RHISwapchain* RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) override;
+
+		virtual void RHICreateSurface(void* InNativeHandle) override;
 
 		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) override;
-		virtual void RHIUpdateCommonUniformBuffer(size_t InSize, void* InContents) override;
+		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) override;
+
+		// 新增：带语义槽位的 UniformBuffer 创建和绑定
+		virtual RHIUniformBuffer* RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) override;
+		virtual void RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer) override;
 
 		void RHIWriteGPUFence(RHIGPUFence* FenceRHI) override;
 		VulkanCommandBufferManager* GetCommandBufferManager() const { return mCmdBufferManager; }
@@ -208,7 +246,13 @@ namespace VulkanRHI
 		void SetCommonDescriptorSets(VulkanDescriptorSet* InDescroptorSet, size_t InIndex);
 		bool IsCreateCommonDescriptorSets() const { return mIsCreateCommonDescriptorSets; }
 		VulkanDescriptorSetManager* GetDescriptorSetManager() const { return mDescriptorSetManager; }
+		VkSurfaceKHR GetVulkanSurface() const { return mSurface; }
+		VulkanSamplerCache* GetSamplerCache() const { return mSamplerCache; }
+		uint32_t GetCurrentFrameIndex() const { return mCurrentFrameIndex; }
+		VkRenderPass GetCurrentRenderPass() const { return mCurrentRenderPass; }
+		VulkanRenderPassCache* GetRenderPassCache() const { return mRenderPassCache; }
 	private:
+		void* mWindowHandle = nullptr;
 		VulkanDevice* mDevice = nullptr;
 		VulkanPhysicalDevice* mPhyDevice = nullptr;
 		VulkanInstance* mInstance = nullptr;
@@ -217,15 +261,27 @@ namespace VulkanRHI
 		VulkanGfxPipeline* mCurrentGfxPipeline = nullptr;
 		VulkanComputePipeline* mCurrentComputePipeline = nullptr;
 		VulkanDescriptorSetManager* mDescriptorSetManager = nullptr;
-		void* mWindowHandle = nullptr;
 		VulkanSemaphore* mImageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
 		VulkanSemaphore* mRenderFinishedSemaphores[MAX_FRAMES_IN_FLIGHT];
-		VulkanDescriptorSet* mCommonDescriptorSets[MAX_FRAMES_IN_FLIGHT];
-		VulkanUniformBuffer* mCommonUniformBuffer[MAX_FRAMES_IN_FLIGHT] = { nullptr };
+		VulkanDescriptorSet* mCommonDescriptorSet = nullptr;
+		RHIUniformBuffer* mBoundUniformBuffers[(size_t)RHIUniformSlot::Count] = { nullptr };
 		bool mIsCreateCommonDescriptorSets = false;
 		int mCurrentFrameIndex = 0;
 		uint32_t mCurrentImageIndex = 0;
-		VkSampler skyboxSampler;
+		VulkanSamplerCache* mSamplerCache = nullptr;
+		VulkanSwapChain* mSwapchain = nullptr;
+		VulkanViewport* mDefaultViewport = nullptr;
+		VkSurfaceKHR mSurface = nullptr;
+
+		// RenderPass 和 Framebuffer 缓存
+		VulkanRenderPassCache* mRenderPassCache = nullptr;
+		VulkanFramebufferCache* mFramebufferCache = nullptr;
+		VkRenderPass mCurrentRenderPass = VK_NULL_HANDLE;
+		RenderPassKey mCurrentRenderPassKey;  // 当前 RenderPass 的 Key，用于 Pipeline 变体选择
+
+		// 动态资源描述符分配器
+		VulkanFrameDescriptorAllocator* mFrameDescriptorAllocator = nullptr;
+
 		friend class VulkanDynamicRHI;
 	};
 

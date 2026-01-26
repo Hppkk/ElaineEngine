@@ -62,6 +62,22 @@ namespace VulkanRHI
                 {
                     mHandle = device.second;
                     vkGetPhysicalDeviceProperties(mHandle, &mGpuProps);
+                    VkPhysicalDeviceMemoryProperties memoryProperties;
+                    vkGetPhysicalDeviceMemoryProperties(mHandle, &memoryProperties);
+                    VkDeviceSize totalVRAM = 0;
+                    for (uint32_t i = 0; i < memoryProperties.memoryHeapCount; i++) {
+                        if (memoryProperties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+                            totalVRAM += memoryProperties.memoryHeaps[i].size;
+                        }
+                    }
+                    double vramGB = static_cast<double>(totalVRAM) / (1024.0 * 1024.0 * 1024.0);
+
+					LOG_INFO("VulkanPhysicalDevice: {} (API Version: {}.{}.{}) | VRAM: {:.2f} GB"
+						, mGpuProps.deviceName
+						, VK_VERSION_MAJOR(mGpuProps.apiVersion)
+						, VK_VERSION_MINOR(mGpuProps.apiVersion)
+						, VK_VERSION_PATCH(mGpuProps.apiVersion)
+                        , vramGB);
                     break;
                 }
             }
@@ -101,6 +117,15 @@ namespace VulkanRHI
         mDeviceExtensions.resize(ExtensionCount);
         vkEnumerateDeviceExtensionProperties(PhysicalDevice, nullptr, &ExtensionCount, mDeviceExtensions.data());
 
-        return !mDeviceExtensions.empty();
+        for (const auto& Extension : mDeviceExtensions)
+		{
+			if (strcmp(Extension.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
+			{
+				return true;
+			}
+		}
+		
+		LOG_ERROR("VulkanPhysicalDevice: VK_KHR_swapchain extension not supported!");
+		return false;
     }
 }

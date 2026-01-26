@@ -1,4 +1,5 @@
 #pragma once
+#include "Elaine.h"
 #include "ElaineMemory.h"
 #include "render/common/ElaineRHISmartPtr.h"
 
@@ -46,6 +47,7 @@ namespace Elaine
         RRT_Texture,
         RRT_TimestampCalibrationQuery,
         RRT_GPUFence,
+        RRT_Swapchain,
         RRT_RenderQuery,
         RRT_RenderQueryPool,
         RRT_ComputeFence,
@@ -254,6 +256,8 @@ namespace Elaine
         /** Texture needs to support atomic operations */
         Atomic64Compatible = 1ull << 36,
     };
+
+    ENUM_OPERATORS(TextureCreateFlags);
 
 
     enum RHIFormat : int
@@ -684,203 +688,4 @@ namespace Elaine
         All = Graphics | AsyncCompute,
         Num = 2
     };
-
-
-    //-----------------------------------------------
-    //class
-    //-----------------------------------------------
-    class RHIResource : public RHIResourceRef<RHIResource>
-    {
-    public:
-        RHIResource(RHIResourceType InType = RRT_None) :mType(InType) {}
-        RHIResourceType mType = RRT_None;
-    };
-
-    class RHIBuffer : public RHIResource
-    {
-    public:
-        RHIBuffer() :RHIResource(RRT_Buffer) {}
-    };
-
-    class RHIBufferView : public RHIResource
-    {
-    
-    };
-
-    //class RHIDeviceMemory {};
-    //class RHIEvent {};
-    //class RHIFence {};
-    class RHIFramebuffer : public RHIResource {};
-    class RHITexture : public RHIResource 
-    {
-    public:
-        RHITexture() :RHIResource(RRT_Texture){}
-        PixelFormat GetFormat();
-        TextureCreateFlags GetFlags();
-        uint16 GetNumSamples();
-    };
-    class RHITextureView : public RHIResource {};
-    class RHIPipeline : public RHIResource 
-    {
-    public:
-        RHIPipeline() : RHIResource(RRT_Pipeline) {}
-    };
-    class RHIPipelineCache : public RHIResource {};
-    class RHIPipelineLayout : public RHIResource {};
-    //class RHIRenderPass {};
-    class RHISampler : public RHIResource {};
-    class RHIShader : public RHIResource
-    {
-    public:
-        RHIShader(){ }
-        const std::string& GetShaderString() { return mShaderString; }
-    protected:
-        std::string mShaderString;
-        std::string mShaderPath;
-    };
-    class RHIRenderQuery :public RHIResource {};
-    class RHIGPUFence :public RHIResource
-    {
-    public:
-        RHIGPUFence() :RHIResource(RRT_GPUFence) {}
-    };
-    class RHIGraphicsPipelineState : public RHIResource
-    {
-    public:
-        RHIGraphicsPipelineState() : RHIResource(RRT_GraphicsPipelineState) {}
-
-        inline void SetSortKey(uint64 InSortKey) { mSortKey = InSortKey; }
-        inline uint64 GetSortKey() const { return mSortKey; }
-
-    private:
-        uint64 mSortKey = 0;
-    };
-
-    class RHIUniformBuffer :public RHIResource
-    {
-    public:
-        RHIUniformBuffer() :RHIResource(RRT_UniformBuffer) {}
-    };
-
-    class RHIViewport :public RHIResource
-    {
-    public:
-        RHIViewport() :RHIResource(RRT_Viewport) {}
-    };
-
-    //-----------------------------------------------
-    //struct
-    //-----------------------------------------------
-
-    struct LinearColor
-    {
-        union
-        {
-            struct
-            {
-                float	R,
-                    G,
-                    B,
-                    A;
-            };
-            float RGBA[4];
-        };
-    };
-
-
-
-    struct RHIMemoryBarrier;
-    struct RHICopyDescriptorSet;
-    struct RHIDescriptorImageInfo;
-    struct RHIDescriptorBufferInfo;
-    struct RHIOffset2D;
-    struct RHISpecializationMapEntry;
-    struct RHIBufferMemoryBarrier;
-    struct RHIImageSubresourceRange;
-    struct RHIImageMemoryBarrier;
-    struct RHIExtent2D;
-    struct RHIExtent3D;
-    struct RHIApplicationInfo;
-    struct RHIAttachmentDescription;
-    struct RHIBufferCopy;
-    struct RHIBufferCreateInfo;
-    struct RHIBufferImageCopy;
-    struct RHICommandBufferAllocateInfo;
-    struct RHICommandBufferBeginInfo;
-    struct RHICommandBufferInheritanceInfo;
-    struct RHICommandPoolCreateInfo;
-    struct RHIDescriptorPoolSize;
-    struct RHIDescriptorPoolCreateInfo;
-    struct RHIDescriptorSetAllocateInfo;
-    struct RHIDescriptorSetLayoutBinding;
-    struct RHIDescriptorSetLayoutCreateInfo;
-    struct RHIDeviceCreateInfo;
-    struct RHIDeviceQueueCreateInfo;
-    struct RHIExtensionProperties;
-    struct RHIFenceCreateInfo;
-    struct RHIFormatProperties;
-    struct RHIFramebufferCreateInfo;
-    struct RHIGraphicsPipelineCreateInfo;
-    struct RHIComputePipelineCreateInfo;
-    struct RHIImageBlit;
-    struct RHIImageCreateInfo;
-    struct RHIImageFormatProperties;
-    struct RHIImageViewCreateInfo;
-    struct RHIInstanceCreateInfo;
-    struct RHILayerProperties;
-    struct RHIMemoryAllocateInfo;
-    struct RHIMemoryHeap;
-    struct RHIMemoryRequirements;
-    struct RHIMemoryType;
-    struct RHIPhysicalDeviceFeatures;
-    struct RHIPhysicalDeviceLimits;
-    struct RHIPhysicalDeviceMemoryProperties;
-    struct RHIPhysicalDeviceProperties;
-    struct RHIPhysicalDeviceSparseProperties;
-    struct RHIPipelineColorBlendStateCreateInfo;
-    struct RHIPipelineDepthStencilStateCreateInfo;
-    struct RHIPipelineDynamicStateCreateInfo;
-    struct RHIPipelineInputAssemblyStateCreateInfo;
-    struct RHIPipelineLayoutCreateInfo;
-    struct RHIPipelineMultisampleStateCreateInfo;
-    struct RHIPipelineRasterizationStateCreateInfo;
-    struct RHIPipelineShaderStageCreateInfo;
-    struct RHIPipelineTessellationStateCreateInfo;
-    struct RHIPipelineVertexInputStateCreateInfo;
-    struct RHIPipelineViewportStateCreateInfo;
-    struct RHIPushConstantRange;
-    struct RHIQueueFamilyProperties;
-    struct RHIRenderPassCreateInfo;
-    struct RHISamplerCreateInfo;
-    struct RHISemaphoreCreateInfo;
-    struct RHIShaderModuleCreateInfo;
-    struct RHISubmitInfo;
-    struct RHISubpassDependency;
-    struct RHISubpassDescription;
-    struct RHIWriteDescriptorSet;
-    struct RHIOffset3D;
-    struct RHIAttachmentReference;
-    struct RHIComponentMapping;
-    struct RHIImageSubresourceLayers;
-    struct RHIPipelineColorBlendAttachmentState;
-    struct RHIRect2D;
-    struct RHISpecializationInfo;
-    struct RHIStencilOpState;
-    struct RHIVertexInputAttributeDescription;
-    struct RHIVertexInputBindingDescription;
-    
-    struct RHIRenderPassBeginInfo;
-    union RHIClearValue;
-    union RHIClearColorValue;
-    struct RHIClearDepthStencilValue;
-
-
-    //RHI Resource Ptr
-
-    using RHIBufferPtr = RHISmartPtr<RHIBuffer>;
-    using RHITexturePtr = RHISmartPtr<RHITexture>;
-    using RHIPipelinePtr = RHISmartPtr<RHIPipeline>;
-    using RHIShaderPtr = RHISmartPtr<RHIShader>;
-    using RHIUniformBufferPtr = RHISmartPtr<RHIUniformBuffer>;
-    using RHIViewportPtr = RHISmartPtr<RHIViewport>;
 }

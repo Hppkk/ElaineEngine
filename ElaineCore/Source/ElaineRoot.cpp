@@ -1,16 +1,25 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineTimer.h"
-#include "render/ElaineWindowSystem.h"
 #include "ElaineInputSystem.h"
-#include "resource/ElaineDataStreamMgr.h"
+#include "ElaineDataStreamMgr.h"
 #include "ElaineThreadManager.h"
 #include "ElaineFileManager.h"
 #include "ElaineMemoryMap.h"
 #include "ElaineTextureUtils.h"
 #include "TaskGraph/ElaineTaskGraph.h"
+#include "ElaineModuleManager.h"
+#include "ElaineFileMonitor.h"
+#include "common/ElaineRenderModule.h"
+#include "ElaineForwardRenderPipeline.h"
+#include "ElaineRenderCommandQueue.h"
+#include "platform/ElaineSystemInfo.h"
 
 namespace Elaine
 {
+	extern EBarrier* LogicToRender_Barrier = new EBarrier();
+
+	extern EBarrier* RenderToLogic_Barrier = new EBarrier();
+
 	Root::Root()
 	{
 		new LogSystem();
@@ -18,14 +27,16 @@ namespace Elaine
 
 	Root::~Root()
 	{
-		terminate();
+		Terminate();
 	}
 
-	void Root::initilize(const RHI_PARAM_DESC& InDesc)
+	void Root::Initialize(const RHI_PARAM_DESC& InDesc)
 	{
 		TextureUtils::Initialize();
+		SystemInfo::LogSystemInfo();
 		new FileManager();
-		m_timer = new Timer();
+		mTimer = new Timer();
+		new FileMonitor();
 #if  ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 		char szFilePath[MAX_PATH + 1] = { 0 };
 		GetModuleFileNameA(NULL, szFilePath, MAX_PATH);
@@ -34,127 +45,201 @@ namespace Elaine
 			if (szFilePath[i] == '\\')
 				szFilePath[i] = '/';
 		}
-		m_sAppPath = szFilePath;
-		auto pos = m_sAppPath.find_last_of('/');
-		m_sAppPath = m_sAppPath.substr(0, pos);
-		m_sResourcePath = m_sAppPath + "/../../../Contents/";
+		mAppPath = szFilePath;
+		auto pos = mAppPath.find_last_of('/');
+		mAppPath = mAppPath.substr(0, pos);
+		mResourcePath = mAppPath + "/../../../Contents/";
 #endif 
-
 		
-		new DataStreamMgr();
-		new GameObjectInfoMgr();
-		readConfig(m_sResourcePath + "config/EngineConfig.cfg");
+		LoadConfig(mResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
 		new TaskGraph::TaskGraph();
 		TaskGraph::TaskGraph::instance()->Initialize();
+		new ModuleManager();
+		ModuleManager::instance()->Initialize();
+		GETMODULE(RenderModule)->LoadDynamicRHI(InDesc);
 		//new WindowSystem();
-		m_pRenderSystem = new RenderSystem();
-		m_pRenderSystem->Initialize(InDesc);
+
 		new InputSystem();
-		m_MainSceneMgr = new SceneManager("Main SceneManager");
-		m_SceneMgrs.emplace("Main SceneManager", m_MainSceneMgr);
-		
+		//mMainSceneMgr = new SceneManager("Main SceneManager");
+		//mSceneMgrs.emplace("Main SceneManager", mMainSceneMgr);
+
+		mRenderPipeline[RP_Forward] = new ForwardRenderPipeline();
+		mRenderPipeline[RP_Forward]->Initialize();
+
+		mRenderThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RenderThread, &Root::RenderOneFrame, this);
 	}
 
-	float Root::calculateDeltaTime()
+	void Root::PostInitialize()
+	{
+		mbInitialize = true;
+	}
+
+	float Root::CalculateDeltaTime()
 	{
 		float dt = .0f;
 		using namespace std::chrono;
 		steady_clock::time_point tick_time_point = steady_clock::now();
-		duration<float> time_span = duration_cast<duration<float>>(tick_time_point - m_last_tick_time_point);
+		duration<float> time_span = duration_cast<duration<float>>(tick_time_point - mLastTickTimePoint);
 		dt = time_span.count();
-		m_last_tick_time_point = tick_time_point;
+		mLastTickTimePoint = tick_time_point;
+		mDeltaTime = dt;
 		return dt;
 	}
 
-	void Root::calculateFPS(float dt)
+	void Root::CalculateFPS(float dt)
 	{
-		m_frame_count++;
-		if (m_frame_count == 1)
+		mFrameCount++;
+		if (mFrameCount == 1)
 		{
-			m_average_duration = dt;
+			mAverageDuration = dt;
 		}
 		else
 		{
-			m_average_duration = m_average_duration * (1 - s_fps_alpha) + dt * s_fps_alpha;
+			mAverageDuration = mAverageDuration * (1 - mFPSAlpha) + dt * mFPSAlpha;
 		}
-		m_fps = static_cast<int>(1.f / m_average_duration);
+		mFPS = static_cast<int>(1.f / mAverageDuration);
 	}
 
-	void Root::beginFrame(float dt)
+	void Root::PreFrame(float dt)
+	{
+
+	}
+
+	void Root::BeginFrame(float dt)
 	{
 		
 	}
-	void Root::fixedUpdate(float dt)
+	void Root::FixedUpdate(float dt)
 	{
 
 	}
-	void Root::endFrame(float dt)
+	void Root::EndFrame(float dt)
+	{
+
+	}
+
+	void Root::PostFrame(float dt)
 	{
 
 	}
 
 	void Root::RenderOneFrame()
 	{
-		float dt = calculateDeltaTime();
-		calculateFPS(dt);
-		beginFrame(dt);
-		fixedUpdate(dt);
-		endFrame(dt);
-		
+		RenderToLogic_Barrier->Signal();
+		while (true)
+		{
+			if (!mbInitialize)
+				continue;
+			
+			
+			CalculateDeltaTime();
+			CalculateFPS(mDeltaTime);
+			//PreFrame(mDeltaTime);
+			//BeginFrame(mDeltaTime);
+			//FixedUpdate(mDeltaTime);
+			//EndFrame(mDeltaTime);
+			//PostFrame(mDeltaTime);
+			LogicToRender_Barrier->Wait();
+			RenderSystem::instance()->GetRenderCommandQueue()->Execute();
+			RenderToLogic_Barrier->Signal();
+
+			WaitForRenderThread_Gfx();
+			for (RenderView* CurrentView : mRenderViews)
+			{
+				if (!CurrentView->IsValid() || !CurrentView->IsActive())
+					continue;
+
+				//TODO: GetPipeline()
+				mRenderPipeline[RP_Forward]->Render(CurrentView);
+			}
+
+			TaskGraph::TaskGraph::instance()->ExecuteInThread(NamedThread::RenderThread);
+			NotifyForRHIThread_Gfx();
+		}
 	}
 
-	SceneManager* Root::getSceneManager(const String& name)
+	void Root::TickTime()
 	{
-		auto iter = m_SceneMgrs.find(name);
-		if (iter != m_SceneMgrs.end())
-			return iter->second;
+		CalculateDeltaTime();
+		CalculateFPS(mDeltaTime);
+	}
+
+	SceneManager* Root::GetSceneManager(const String& name)
+	{
+		//auto iter = mSceneMgrs.find(name);
+		//if (iter != mSceneMgrs.end())
+		//	return iter->second;
 
 		return nullptr;
 	}
 
-	SceneManager* Root::getMainSceneManager()
+	SceneManager* Root::GetMainSceneManager()
 	{
-		return m_MainSceneMgr;
+		return mMainSceneMgr;
 	}
 
-	SceneManager* Root::createSceneManager(const String& name)
+	SceneManager* Root::CreateSceneManager(const String& name)
 	{
 		auto mgr = new SceneManager(name);
-		m_SceneMgrs.emplace(name, mgr);
+		mSceneMgrs.emplace(mgr);
 		return mgr;
 	}
 
-	void Root::readConfig(const std::string& file)
+	void Root::DestroySceneManager(SceneManager* InSceneManager)
 	{
-		//todo
-		 //ResourceBasePtr res = DataStreamMgr::instance()->getDataStreamFromFile(file);
-		 //DataStream* ds = static_cast<DataStream*>(res.get());
-		 //auto stream = ds->getDataStream();
-		 MemoryMapFile mapFile(file);
-		 char* stream = static_cast<char*>(mapFile.MapPointer());
-		 cJSON* pNode = cJSON_Parse(stream);
-		 cJSON* pWindows = cJSON_GetObjectItem(pNode, "Windows");
-		 cJSON* pRHI = cJSON_GetObjectItem(pWindows, "RenderRHI");
-		 m_RHIType = (RHITYPE)pRHI->valueint;
+		if (InSceneManager == nullptr)
+			return;
+
+		mSceneMgrs.erase(InSceneManager);
+		SAFE_DELETE(InSceneManager);
 	}
 
-	void Root::terminate()
+	void Root::RegisterRenderView(RenderView* InRenderView)
+	{
+		if (InRenderView == nullptr)
+			return;
+
+		mRenderViews.insert(InRenderView);
+	}
+
+	void Root::UnregisterRenderView(RenderView* InRenderView)
+	{
+		if (InRenderView == nullptr)
+			return;
+
+		mRenderViews.erase(InRenderView);
+	}
+
+	bool Root::CheckThread(NamedThread InNamedThread)
+	{
+		return ThreadManager::instance()->CheckThread(InNamedThread);
+	}
+
+	void Root::LoadConfig(const std::string& InPath)
+	{
+		 MemoryMapFile mapFile(InPath);
+		 char* stream = static_cast<char*>(mapFile.MapPointer());
+		 JsonCpp ConfigJson = JsonCpp::parse(stream);
+		 JsonCpp WinConfigJson = ConfigJson["Windows"];
+		 mRHIType = (RHITYPE)WinConfigJson.value("RenderRHI", 0);
+	}
+
+	void Root::Terminate()
 	{
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();
 		//delete WindowSystem::instance();
-		SAFE_DELETE(m_timer);
+		SAFE_DELETE(mTimer);
 		delete InputSystem::instance();
-		delete GameObjectInfoMgr::instance();
-		delete DataStreamMgr::instance();
 		delete FileManager::instance();
 		delete TaskGraph::TaskGraph::instance();
-		for (auto& iter : m_SceneMgrs)
+		for (auto iter : mSceneMgrs)
 		{
-			SAFE_DELETE(iter.second);
+			SAFE_DELETE(iter);
 		}
-		
+		delete ModuleManager::instance();
+		delete FileMonitor::instance();
 	}
 }

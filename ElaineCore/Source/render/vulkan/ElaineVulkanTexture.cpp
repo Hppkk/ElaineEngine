@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanTexture.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "render/vulkan/ElaineVulkanPhysicalDevice.h"
@@ -22,7 +22,7 @@ namespace VulkanRHI
 
 	VkImageAspectFlags GenerateVkImageAspectBits(RHITextureDesc InDesc)
 	{
-		if (InDesc.mFlags == TextureCreateFlags::DepthStencilTargetable)
+		if ((InDesc.mFlags & TextureCreateFlags::DepthStencilTargetable) != TextureCreateFlags::None)
 		{
 			return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
 		}
@@ -34,14 +34,14 @@ namespace VulkanRHI
 	}
 
 	VulkanTexture::VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc)
-		: mDevice(InDevice)
+		: RHITexture(InDesc)
+		, mDevice(InDevice)
 		, mViewFormat(VK_FORMAT_UNDEFINED)
 		, mMemProps(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
 		, mTiling(VK_IMAGE_TILING_MAX_ENUM)
 		, mFullAspectMask(0)
 		, mPartialAspectMask(0)
 		, mCpuReadbackBuffer(nullptr)
-		, mDesc(InDesc)
 	{
 		if (EnumHasAnyFlags(InDesc.mFlags, TextureCreateFlags::CPUReadback))
 		{
@@ -50,7 +50,7 @@ namespace VulkanRHI
 			for (uint32 Mip = 0; Mip < InDesc.mNumMips; ++Mip)
 			{
 				uint32 LocalSize = 0;
-				//todo ����Ҫ�����buffer��С
+				//todo 计算要分配的buffer大小
 			}
 			return;
 		}
@@ -58,6 +58,7 @@ namespace VulkanRHI
 		VulkanImageCreateInfo ImageCreateInfo;
 		GenerateImageCreateInfo(ImageCreateInfo, mDevice, mDesc, &mStorageFormat, &mViewFormat);
 		mImageLayout = ImageCreateInfo.mImageCreateInfo.initialLayout;
+		mAccess = ERHIAccess::Unknown;
 		vkCreateImage(InDevice->GetDevice(), &ImageCreateInfo.mImageCreateInfo, VULKAN_CPU_ALLOCATOR, &mHandle);
 		vkGetImageMemoryRequirements(InDevice->GetDevice(), mHandle, &mMemRequirements);
 		if (ImageCreateInfo.mImageCreateInfo.tiling != VK_IMAGE_TILING_OPTIMAL)
@@ -118,6 +119,44 @@ namespace VulkanRHI
 		}
 
 
+	}
+
+	// Swapchain 图像包装构造函数（不创建 VkImage，不分配内存）
+	VulkanTexture::VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkImage InExistingImage)
+		: RHITexture(InDesc)
+		, mDevice(InDevice)
+		, mHandle(InExistingImage)  // 使用已有的 VkImage
+		, mViewFormat(VK_FORMAT_UNDEFINED)
+		, mMemProps(VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
+		, mTiling(VK_IMAGE_TILING_OPTIMAL)
+		, mFullAspectMask(0)
+		, mPartialAspectMask(0)
+		, mCpuReadbackBuffer(nullptr)
+	{
+		// Swapchain 图像已经由 Vulkan 创建，不需要创建或分配内存
+		mFullAspectMask = GenerateVkImageAspectBits(InDesc);
+		mPartialAspectMask = mFullAspectMask;
+		
+		// 设置 Format
+		mStorageFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAllFlags(InDesc.mFlags, TextureCreateFlags::SRGB));
+		mViewFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAllFlags(InDesc.mFlags, TextureCreateFlags::SRGB));
+		
+		// 设置初始布局（Swapchain 图像通常初始为 UNDEFINED 或 COLOR_ATTACHMENT_OPTIMAL）
+		mImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		mAccess = ERHIAccess::Unknown;
+		
+		// 创建 View
+		const VkImageViewType ViewType = GetViewType();
+		if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
+		{
+			const bool bArray = ViewType == VK_IMAGE_VIEW_TYPE_1D_ARRAY || ViewType == VK_IMAGE_VIEW_TYPE_2D_ARRAY || ViewType == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
+			mDefaultView.Create(*InDevice, mHandle, ViewType, GetFullAspectMask(), InDesc.mFormat, mViewFormat, 
+				0, Math::max(InDesc.mNumMips, (uint8)1u), 0, 
+				bArray ? Math::max((uint16)1u, InDesc.mArraySize) : Math::max((uint16)1u, InDesc.mDepth), true);
+		}
+		
+		mPartialView = &mDefaultView;
+		mbOwnsImage = false;  // 外部 VkImage，不拥有所有权
 	}
 
 	void VulkanTexture::Evict(VulkanDevice& InDevice, VulkanCommandContext& Context)
@@ -334,7 +373,24 @@ namespace VulkanRHI
 
 	VulkanTexture::~VulkanTexture()
 	{
-
+		// 总是销毁 View（由 VulkanTexture 创建）
+		mDefaultView.Destroy(*mDevice);
+		
+		// 如果是独立分配的 mPartialView，也需要销毁
+		if (mPartialView != nullptr && mPartialView != &mDefaultView)
+		{
+			mPartialView->Destroy(*mDevice);
+			delete mPartialView;
+			mPartialView = nullptr;
+		}
+		
+		// 仅当拥有 VkImage 所有权时销毁图像和内存
+		if (mbOwnsImage && mHandle != VK_NULL_HANDLE)
+		{
+			mDevice->GetDeferredDeletionQueue().EnqueueResource(DeferredDeletionQueue::EType::Image, mHandle);
+			mDevice->GetMemoryManager()->FreeVulkanAllocation(mAllocation);
+			mHandle = VK_NULL_HANDLE;
+		}
 	}
 
 	void VulkanTexture::GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat, VkFormat* OutViewFormat, bool bForceLinearTexture)
@@ -547,10 +603,12 @@ namespace VulkanRHI
 			ImageCreateInfo.usage &= ~VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 		}
 
-		//todo
-		if (EnumHasAnyFlags(Flags, TextureCreateFlags::DepthStencilTargetable) && 0)
+		if (EnumHasAnyFlags(Flags, TextureCreateFlags::DepthStencilTargetable))
 		{
-			ImageCreateInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+			if (VKHasAnyFlags(FormatFlags, VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))
+			{
+				ImageCreateInfo.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
+			}
 		}
 
 		ImageCreateInfo.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;

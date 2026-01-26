@@ -3,13 +3,14 @@
 
 namespace Elaine
 {
-	class RenderableObject;
+	class RenderProxy;
 	class RHICommandContext;
-	class Pass;
+	class ShaderPass;
 
 	enum NamedRenderQueue
 	{
 		RenderQueue_Normal,
+		RenderQueue_Shadow,
 		RenderQueue_Sky,
 		RenderQueue_Transparent,
 		RenderQueue_Screen,
@@ -21,8 +22,8 @@ namespace Elaine
 
 	struct RenderablePass
 	{
-		RenderableObject* mRenderObject = nullptr;
-		Pass* mRenderPass = nullptr;
+		RenderProxy* mRenderObject = nullptr;
+		ShaderPass* mRenderPass = nullptr;
 	};
 
 	class ElaineCoreExport RenderQueue
@@ -30,7 +31,7 @@ namespace Elaine
 	public:
 		RenderQueue(NamedRenderQueue InName);
 		void RecordRenderCommand(RHICommandList* InRHICommandList);
-		void UpdateRenderQueue(Pass* InPass, RenderableObject* InObject, RenderQueuePriority InPriority);
+		void UpdateRenderQueue(ShaderPass* InPass, RenderProxy* InObject, RenderQueuePriority InPriority);
 		void Render(RHICommandList* InRHICommandList);
 		void Clear();
 		bool IsEmpty();
@@ -47,7 +48,7 @@ namespace Elaine
 		~RenderQueueSet();
 		RenderQueue* GetRenderQueue(NamedRenderQueue InName);
 		void RecordRenderCommand(RenderQueue* InRenderQueue, RHICommandList* InRHICommandList);
-		void UpdateRenderQueue(RenderQueue* InRenderQueue, RenderableObject* InObject, RenderQueuePriority InPriority);
+		void UpdateRenderQueue(RenderQueue* InRenderQueue, RenderProxy* InObject, RenderQueuePriority InPriority);
 		void ClearRenderQueue();
 		bool IsEmpty();
 	private:

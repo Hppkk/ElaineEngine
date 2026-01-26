@@ -59,12 +59,28 @@ namespace Elaine
 
 		}
 		void BeginRenderPass(const GRAPHICS_PIPELINE_STATE_DESC& InGfxState);
+		void BeginRenderPassInfo(const RHIRenderPassInfo& InInfo, const char* InName);
 		void EndRenderPass();
 		void BindGfxPipeline(RHIPipeline* InPipeline);
 		void DrawPrimitive(uint32 InBaseVertexIndex, uint32 InNumPrimitives, uint32 InNumInstances);
-		void BindDrawData(GRAPHICS_PIPELINE_STATE_DESC* InDrawData);
-		void UpdateCommonUniformBuffer(size_t InSize, void* InContents);
-		void UpdateUniformBuffer();
+		void BindDrawData(RHI_DRAW_RESOURCE_BINDING* InDrawData);
+		void UpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents);
+		void UpdateUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents);
+		void SetSwapchain(RHISwapchain* InSwapchain);
+		void SetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ);
+		void AcquireSwapchainImage(RHISwapchain* InSwapchain);
+		void PresentSwapchain(RHISwapchain* InSwapchain, bool bVsync = true);
+		void BeginFrame();
+		void EndFrame();
+		void BeginScene();
+		void EndScene();
+		void SetScissorRect(bool bEnable, uint32 MinX, uint32 MinY, uint32 MaxX, uint32 MaxY);
+		void DrawIndexedPrimitive(RHIBuffer* IndexBuffer, int32 BaseVertexIndex, uint32 FirstInstance, uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances);
+		void SetStreamSource(uint32 StreamIndex, RHIBuffer* VertexBuffer, uint32 Offset);
+		void CopyTexture(RHITexture* SourceTexture, RHITexture* DestTexture, const RHICopyTextureInfo& CopyInfo);
+		void BindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer);
+		void ResourceBarrier(const RHIResourceBarrierDesc& Barrier);
+
 		bool HasCommand();
 
 		void SetPriority(uint32 InPriority);
@@ -89,7 +105,7 @@ namespace Elaine
 	class ElaineCoreExport RHICommandListManager
 	{
 	public:
-		//现阶段仅支持单个RHI线程执行命令队列
+		//鐜伴樁娈典粎鏀寔鍗曚釜RHI绾跨▼鎵ц鍛戒护闃熷垪
 		enum EM_ExecuteMode
 		{
 			SingleThread,
@@ -98,7 +114,7 @@ namespace Elaine
 		RHICommandListManager(RHICommandContext* InCtx);
 		~RHICommandListManager();
 		RHICommandList* GetDefaultCommandList() const { return mDefaultCommandList; }
-
+		RHICommandList* GetCurrentCommandList() const { return mCurrentCommandList; }
 		RHICommandList* CreateCommandList();
 		void DestroyCommandList(RHICommandList* InCmdList);
 		void SwapCommands();
@@ -113,6 +129,7 @@ namespace Elaine
 		std::vector<RHICommandList*> mWaitDetroyCmdLists;
 		RHIObjectPool<RHICommandList> mRHICmdListAllocation;
 		RHICommandContext* mRHICommandCtx = nullptr;
+		RHICommandList* mCurrentCommandList = nullptr;
 		friend class RHICommandList;
 	};
 
@@ -152,6 +169,18 @@ namespace Elaine
 		void Execute(RHICommandList * InCmdList);
 	};
 
+	RHI_COMMAND_DEFINE(BeginRenderPassInfo)
+	{
+		RHI_COMMAND_TYPE(BeginRenderPassInfo)(const RHIRenderPassInfo& InInfo, const char* InName)
+			: mRenderPassInfo(InInfo)
+			, mName(InName ? InName : "")
+		{}
+
+		void Execute(RHICommandList* InCmdList);
+		RHIRenderPassInfo mRenderPassInfo;
+		std::string mName;
+	};
+
 	RHI_COMMAND_DEFINE(BindGfxPipeline)
 	{
 		RHI_COMMAND_TYPE(BindGfxPipeline)(RHIPipeline * InGfxPipeline)
@@ -165,35 +194,38 @@ namespace Elaine
 
 	RHI_COMMAND_DEFINE(BindDrawData)
 	{
-		RHI_COMMAND_TYPE(BindDrawData)(GRAPHICS_PIPELINE_STATE_DESC* InRenderData)
+		RHI_COMMAND_TYPE(BindDrawData)(RHI_DRAW_RESOURCE_BINDING * InRenderData)
 			: mRenderData(InRenderData)
 		{
 		}
 
 		void Execute(RHICommandList* InCmdList);
 
-		GRAPHICS_PIPELINE_STATE_DESC* mRenderData = nullptr;
+		RHI_DRAW_RESOURCE_BINDING* mRenderData = nullptr;
 	};
 
 	RHI_COMMAND_DEFINE(UpdateUniformBuffer)
 	{
-		RHI_COMMAND_TYPE(UpdateUniformBuffer)(RHIUniformBuffer* InUniformBufferRHI, void* InContents)
+		RHI_COMMAND_TYPE(UpdateUniformBuffer)(RHIUniformBuffer* InUniformBufferRHI, void* InContents, size_t InSize)
 			: mUniformBufferRHI(InUniformBufferRHI)
 			, mContents(InContents)
+			, mSize(InSize)
 		{
 
 		}
 
 		void Execute(RHICommandList * InCmdList);
 
+		size_t mSize;
 		void* mContents = nullptr;
 		RHIUniformBuffer* mUniformBufferRHI = nullptr;
 	};
 
 	RHI_COMMAND_DEFINE(UpdateCommonUniformBuffer)
 	{
-		RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)(size_t InSize, void* InContents)
-			: mSize(InSize)
+		RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)(RHIUniformBuffer * InUniformBufferRHI, size_t InSize, void* InContents)
+			: mUniformBufferRHI(InUniformBufferRHI)
+			, mSize(InSize)
 			, mContents(InContents)
 		{
 			mContents = Memory::SystemMalloc(InSize);
@@ -209,6 +241,179 @@ namespace Elaine
 
 		size_t mSize;
 		void* mContents;
+		RHIUniformBuffer* mUniformBufferRHI;
+	};
+
+	RHI_COMMAND_DEFINE(SetViewport)
+	{
+		RHI_COMMAND_TYPE(SetViewport)(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)
+		{
+			mMinX = MinX;
+			mMinY = MinY;
+			mMinZ = MinZ;
+			mMaxX = MaxX;
+			mMaxY = MaxY;
+			mMaxZ = MaxZ;
+		}
+
+		void Execute(RHICommandList * InCmdList);
+
+		float mMinX; 
+		float mMinY;
+		float mMinZ;
+		float mMaxX;
+		float mMaxY;
+		float mMaxZ;
+	};
+
+	RHI_COMMAND_DEFINE(SetSwapchain)
+	{
+		RHI_COMMAND_TYPE(SetSwapchain)(RHISwapchain* InSwapchain)
+			: mSwapchain(InSwapchain)
+		{
+		}
+
+		void Execute(RHICommandList * InCmdList);
+
+		RHISwapchain* mSwapchain;
+	};
+
+	RHI_COMMAND_DEFINE(AcquireSwapchainImage)
+	{
+		RHI_COMMAND_TYPE(AcquireSwapchainImage)(RHISwapchain * InSwapchain)
+			: mSwapchain(InSwapchain)
+		{
+		}
+
+		void Execute(RHICommandList * InCmdList);
+		RHISwapchain* mSwapchain;
+	};
+
+	RHI_COMMAND_DEFINE(PresentSwapchain)
+	{
+		RHI_COMMAND_TYPE(PresentSwapchain)(RHISwapchain * InSwapchain, bool bVsync = true)
+			: mSwapchain(InSwapchain)
+			, mbVsync(bVsync)
+		{
+		}
+
+		void Execute(RHICommandList * InCmdList);
+		RHISwapchain* mSwapchain;
+		bool mbVsync;
+	};
+
+	RHI_COMMAND_DEFINE(BeginFrame)
+	{
+		RHI_COMMAND_TYPE(BeginFrame)() {}
+		void Execute(RHICommandList* InCmdList);
+	};
+
+	RHI_COMMAND_DEFINE(EndFrame)
+	{
+		RHI_COMMAND_TYPE(EndFrame)() {}
+		void Execute(RHICommandList* InCmdList);
+	};
+
+	RHI_COMMAND_DEFINE(BeginScene)
+	{
+		RHI_COMMAND_TYPE(BeginScene)() {}
+		void Execute(RHICommandList* InCmdList);
+	};
+
+	RHI_COMMAND_DEFINE(EndScene)
+	{
+		RHI_COMMAND_TYPE(EndScene)() {}
+		void Execute(RHICommandList* InCmdList);
+	};
+
+	RHI_COMMAND_DEFINE(SetScissorRect)
+	{
+		RHI_COMMAND_TYPE(SetScissorRect)(bool bEnable, uint32 MinX, uint32 MinY, uint32 MaxX, uint32 MaxY)
+			: mbEnable(bEnable)
+			, mMinX(MinX)
+			, mMinY(MinY)
+			, mMaxX(MaxX)
+			, mMaxY(MaxY)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		bool mbEnable;
+		uint32 mMinX;
+		uint32 mMinY;
+		uint32 mMaxX;
+		uint32 mMaxY;
+	};
+
+	RHI_COMMAND_DEFINE(DrawIndexedPrimitive)
+	{
+		RHI_COMMAND_TYPE(DrawIndexedPrimitive)(RHIBuffer* IndexBuffer, int32 BaseVertexIndex, uint32 FirstInstance, uint32 NumVertices, uint32 StartIndex, uint32 NumPrimitives, uint32 NumInstances)
+			: mIndexBuffer(IndexBuffer)
+			, mBaseVertexIndex(BaseVertexIndex)
+			, mFirstInstance(FirstInstance)
+			, mNumVertices(NumVertices)
+			, mStartIndex(StartIndex)
+			, mNumPrimitives(NumPrimitives)
+			, mNumInstances(NumInstances)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		RHIBuffer* mIndexBuffer;
+		int32 mBaseVertexIndex;
+		uint32 mFirstInstance;
+		uint32 mNumVertices;
+		uint32 mStartIndex;
+		uint32 mNumPrimitives;
+		uint32 mNumInstances;
+	};
+
+	RHI_COMMAND_DEFINE(SetStreamSource)
+	{
+		RHI_COMMAND_TYPE(SetStreamSource)(uint32 StreamIndex, RHIBuffer* VertexBuffer, uint32 Offset)
+			: mStreamIndex(StreamIndex)
+			, mVertexBuffer(VertexBuffer)
+			, mOffset(Offset)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		uint32 mStreamIndex;
+		RHIBuffer* mVertexBuffer;
+		uint32 mOffset;
+	};
+
+	RHI_COMMAND_DEFINE(CopyTexture)
+	{
+		RHI_COMMAND_TYPE(CopyTexture)(RHITexture* SourceTexture, RHITexture* DestTexture, const RHICopyTextureInfo& CopyInfo)
+			: mSourceTexture(SourceTexture)
+			, mDestTexture(DestTexture)
+			, mCopyInfo(CopyInfo)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		RHITexture* mSourceTexture;
+		RHITexture* mDestTexture;
+		RHICopyTextureInfo mCopyInfo;
+	};
+
+	RHI_COMMAND_DEFINE(BindUniformBuffer)
+	{
+		RHI_COMMAND_TYPE(BindUniformBuffer)(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer)
+			: mSlot(InSlot)
+			, mBuffer(InBuffer)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		RHIUniformSlot mSlot;
+		RHIUniformBuffer* mBuffer;
+	};
+
+	RHI_COMMAND_DEFINE(ResourceBarrier)
+	{
+		RHI_COMMAND_TYPE(ResourceBarrier)(const RHIResourceBarrierDesc& Barrier)
+			: mBarrier(Barrier)
+		{}
+		void Execute(RHICommandList* InCmdList);
+
+		RHIResourceBarrierDesc mBarrier;
 	};
 
 }

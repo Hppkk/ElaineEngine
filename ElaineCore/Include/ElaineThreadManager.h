@@ -9,9 +9,9 @@ namespace Elaine
 		AnyThread, //Any thread, indicating that tasks in the TaskGraph can be executed on any thread.
 		GameThread, //Game Logic Thread. Usually is main threrd.
 		RenderThread, //Render Logic Thread
-		RHIThread_Gfx, //Render API Command Thread
-		RHIThread_Compute,
-		RHIThread_Transf,
+		RHIGraphicThread, //Render API Command Thread
+		RHIComputeThread,
+		RHITransferThread,
 		StreamingThread0,
 		StreamingThread1,
 		StreamingThread2,
@@ -20,17 +20,13 @@ namespace Elaine
 		StreamingThread5,
 		StreamingThread6,
 		StreamingThread7,
-		JobThread0,
-		JobThread1,
-		JobThread2,
-		JobThread3,
 		GeneralThread0,
 		GeneralThread1,
 		GeneralThread2,
 		ThreadCount,
-		ScheduleThread,
+		ScheduleThread, //Use for TaskGraph schedule tacks.
 	};
-	
+
 
 
 	class ElaineCoreExport ThreadManager :public Singleton<ThreadManager>
@@ -39,21 +35,28 @@ namespace Elaine
 		ThreadManager();
 		~ThreadManager();
 		template <class Func, class... Args>
-		ThreadWrap* GetOrCreateThread(NamedThread type, Func&& _Fx, Args&&... _Ax)
+		ThreadWrap* GetOrCreateThread(NamedThread InType, Func&& _Fx, Args&&... _Ax)
 		{
-			auto Iter = mThreads.find(type);
+			auto Iter = mThreads.find(InType);
 			if (Iter == mThreads.end())
 			{
 				auto task = std::bind(std::forward<Func>(_Fx), std::forward<Args>(_Ax)...);
-				ThreadWrap* NewThread = new ThreadWrap(type, task);
+				ThreadWrap* NewThread = new ThreadWrap(InType, [task, InType]()
+				{
+					ThreadManager::instance()->InitilizeThread(InType);
+					task();
+				});
 				NewThread->Initialize();
-				mThreads.emplace(type, NewThread);
+				mThreads.emplace(InType, NewThread);
 				return NewThread;
 			}
 			return Iter->second;
 		}
 
 		void DestroyThread(ThreadWrap* InThread);
+
+		bool CheckThread(NamedThread InName);
+		void InitilizeThread(NamedThread InType);
 
 		const std::string&			GetStringName(NamedThread InName);
 		const std::wstring&			GetWStringName(NamedThread InName);

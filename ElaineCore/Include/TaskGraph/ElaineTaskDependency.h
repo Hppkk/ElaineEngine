@@ -11,7 +11,7 @@ namespace TaskGraph
 	public:
 		TaskDependency(GraphTask* InTask);
 		~TaskDependency();
-		void AddDependency(GraphTaskPtr InTask);
+		void AddResourceEvent(GraphTaskPtr InTask);
 		bool IsEmpty();
 		bool DependencyReady();
 		void DispatchSubsequents();

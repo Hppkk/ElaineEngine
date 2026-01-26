@@ -163,11 +163,17 @@ namespace VulkanRHI
 				mDeviceExtensions.push_back(Extension.extensionName);
 		}
 
+		LOG_INFO("VulkanDevice: Enabled Device Extensions:");
+		for (const auto& extension : mDeviceExtensions)
+		{
+			LOG_INFO("  - {}", extension);
+		}
+
 		DeviceCreateInfo.enabledExtensionCount = mDeviceExtensions.size();
 		DeviceCreateInfo.ppEnabledExtensionNames = mDeviceExtensions.data();
 
 		//don't care, vulkan the current version has been moved the validation layer to the when the instance creating. 
-		if (Root::instance()->isEnableVulkanValidationLayer())
+		if (Root::instance()->IsEnableVulkanValidationLayer())
 		{
 			DeviceCreateInfo.enabledLayerCount = mVulkanPhyDevice->GetVulkanInstance()->GetLayers().size();
 			DeviceCreateInfo.ppEnabledLayerNames = mVulkanPhyDevice->GetVulkanInstance()->GetLayers().data();
@@ -243,10 +249,13 @@ namespace VulkanRHI
 		DeviceCreateInfo.pEnabledFeatures = &mVulkanPhyDevice->GetPhysicalFeatures();
 
 		VkResult Result = vkCreateDevice(mVulkanPhyDevice->GetPhysicalDeviceHandle(), &DeviceCreateInfo, VULKAN_CPU_ALLOCATOR, &mHandle);
-		if (Result == VK_ERROR_INITIALIZATION_FAILED)
+		if (Result != VK_SUCCESS)
 		{
-			LOG_ERROR("VulkanRHI: Cannot create a Vulkan device. Try updating your video driver to a more recent version. Vulkan device creation failed.");
+			LOG_ERROR("VulkanRHI: Cannot create a Vulkan device. Error Code: {}", Result);
 		}
+#ifdef USE_VOLK
+		volkLoadDevice(mHandle);
+#endif
 
 		mGraphicQueue = new VulkanQueue(this, GfxQueueFamilyIndex);
 		mGraphicQueue->Initialize();

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "render/common/ElaineRHIProtocol.h"
 
 namespace Elaine
@@ -10,6 +10,8 @@ namespace Elaine
 	public:
 		RHICommandContext();
 		virtual ~RHICommandContext();
+		virtual void RHIWaitIdle() = 0;
+		virtual void RHIWindowResize(RHISwapchain* InSwapchain, uint32 InWidth, uint32 InHeight) = 0;
 		virtual void RHIDispatchComputeShader(uint32 ThreadGroupCountX, uint32 ThreadGroupCountY, uint32 ThreadGroupCountZ) = 0;
 
 		virtual void RHIDispatchIndirectComputeShader(RHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) = 0;
@@ -18,6 +20,8 @@ namespace Elaine
 		// @param Count >0
 		// @param Data must not be 0
 		virtual void RHISetMultipleViewports(uint32 Count, const ViewportBounds* Data) = 0;
+
+		virtual void RHISetSwapchain(RHISwapchain* InSwapchain) = 0;
 
 		/**
 		* Resolves from one texture to another.
@@ -46,6 +50,25 @@ namespace Elaine
 
 		// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 		virtual void RHIEndFrame() = 0;
+
+		//=========================================================================
+		// 交换链控制接口 - 由上层控制渲染目标
+		//=========================================================================
+		/**
+		* Acquires the next available image from the swapchain.
+		* @param InSwapchain - The swapchain to acquire from
+		* @param OutImageIndex - Output parameter for the acquired image index
+		* @return true if acquire succeeded, false if swapchain needs recreation
+		*/
+		virtual RHITexture* RHIAcquireSwapchainImage(RHISwapchain* InSwapchain) = 0;
+
+		/**
+		* Presents the rendered image to the swapchain.
+		* @param InSwapchain - The swapchain to present to
+		* @param bVsync - Whether to wait for vertical sync
+		*/
+		virtual void RHIPresentSwapchain(RHISwapchain* InSwapchain, bool bVsync = true) = 0;
+
 
 		/**
 		* Signals the beginning of scene rendering. The RHI makes certain caching assumptions between
@@ -136,6 +159,12 @@ namespace Elaine
 
 		virtual void RHIBindDrawData(GRAPHICS_PIPELINE_STATE_DESC* InDrawData) = 0;
 
+		/**
+		 * 绑定绘制资源 (纹理、缓冲等)
+		 * @param InResourceBinding - 资源绑定描述符
+		 */
+		virtual void RHIBindResourceBinding(const RHI_DRAW_RESOURCE_BINDING& InResourceBinding) = 0;
+
 		virtual void RHIDrawPrimitive(uint32 BaseVertexIndex, uint32 NumPrimitives, uint32 NumInstances) = 0;
 
 		virtual void RHIDrawPrimitiveIndirect(RHIBuffer* ArgumentBuffer, uint32 ArgumentOffset) = 0;
@@ -167,6 +196,9 @@ namespace Elaine
 
 		virtual void RHIBeginRenderPass(const GRAPHICS_PIPELINE_STATE_DESC& InGfxState/*const RHIRenderPassInfo& InInfo, const TCHAR* InName*/) = 0;
 
+		// 新增：支持 RenderGraph 动态设置渲染目标
+		virtual void RHIBeginRenderPass(const RHIRenderPassInfo& InRenderPassInfo, const char* InName) = 0;
+
 		virtual void RHIEndRenderPass() = 0;
 
 		virtual void RHINextSubpass()
@@ -179,12 +211,16 @@ namespace Elaine
 		{
 			
 		}
+
+		// 资源屏障 - 用于 RenderGraph 状态转换
+		virtual void RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier) = 0;
+
 		virtual void RHIBindGfxPipeline(RHIPipeline* InPipeline) = 0;
 		virtual RHIBuffer* RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) = 0;
 
 		virtual RHIBuffer* RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents)  = 0;
+		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize)  = 0;
 		
 		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
@@ -196,11 +232,30 @@ namespace Elaine
 
 		virtual RHIPipeline* RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) = 0;
 		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) = 0;
+		virtual RHISwapchain* RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) = 0;
+
+		//@TODO : Destroy and RHIType
+		virtual void RHICreateSurface(void* InNativeHandle) = 0;
 
 		virtual void RHIWriteGPUFence(RHIGPUFence* FenceRHI) { }
 
 		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) = 0;
-		virtual void RHIUpdateCommonUniformBuffer(size_t InSize, void* InContents) = 0;
+		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) = 0;
+
+		/**
+		 * 创建带语义槽位的 UniformBuffer
+		 * @param InDesc - 创建描述符，包含槽位、大小、初始数据
+		 * @return 创建的 UniformBuffer，带有槽位信息
+		 */
+		virtual RHIUniformBuffer* RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) = 0;
+
+		/**
+		 * 按语义槽位绑定 UniformBuffer
+		 * @param InSlot - 语义槽位
+		 * @param InBuffer - 要绑定的 UniformBuffer
+		 */
+		virtual void RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer) = 0;
+
 
 		//virtual void RHIBeginUpdateMultiFrameResource(RHIUnorderedAccessView* UAV)
 		//{

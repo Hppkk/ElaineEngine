@@ -1,4 +1,6 @@
 #pragma once
+#include <ElaineModuleManager.h>
+#include <ElaineModuleBase.h>
 
 namespace Elaine
 {
@@ -6,14 +8,15 @@ namespace Elaine
 
 	// initilize render module
 
-	class ElaineCoreExport RenderModule
+	class ElaineCoreExport RenderModule : public ModuleBase
 	{
 	public:
 		RenderModule();
-		~RenderModule();
-		DynamicRHI* LoadDynamicRHI(const RHI_PARAM_DESC& InDesc);
+		virtual ~RenderModule();
+		void LoadDynamicRHI(const RHI_PARAM_DESC& InDesc);
+		virtual void Initialize() override;
+		virtual void Terminate() override;
 	private:
-		DynamicRHI* mDynamicRHI = nullptr;
 		bool mbIsLoaded = false;
 	};
 }

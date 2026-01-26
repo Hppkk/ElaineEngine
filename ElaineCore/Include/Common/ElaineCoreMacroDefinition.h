@@ -17,12 +17,6 @@ namespace Elaine
 #define WSTR_NAME(VAL) L#VAL
 #endif // !WSTR_NAME
 
-
-#ifndef REGISTERCOMFACTORY
-#define REGISTERCOMFACTORY(comType) ComponentFactory* factory = new comType##Factory();\
-	ComponentFactoryManager::instance()->registerComFactory(#comType, factory);
-#endif // !REGISTERCOMFACTORY
-
 	template<typename Enum>
 	constexpr bool EnumHasAnyFlags(Enum Flags, Enum Contains)
 	{

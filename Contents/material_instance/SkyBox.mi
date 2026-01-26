@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "origin": "material/skybox.material",
+
+  "textures": {
+    "CubeMap": "texture/sky/sky.tex"
+  },
+
+  "scalars": {
+    "Exposure": 1.0
+  }
+}

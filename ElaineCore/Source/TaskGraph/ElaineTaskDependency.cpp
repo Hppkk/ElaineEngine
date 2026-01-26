@@ -14,7 +14,7 @@ namespace TaskGraph
 
 	}
 
-	void TaskDependency::AddDependency(GraphTaskPtr InTask)
+	void TaskDependency::AddResourceEvent(GraphTaskPtr InTask)
 	{
 		mDependency.push_back(InTask);
 		InTask->mDependency->mSubsequentTasks.push_back(mTask->shared_from_this());

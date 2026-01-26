@@ -5,7 +5,7 @@
 namespace Elaine
 {
 	class RenderableObject;
-	class EGameObject;
+	class GameObject;
 	class RenderQueueSet;
 
 	class ElaineCoreExport SceneNode
@@ -15,14 +15,14 @@ namespace Elaine
 		~SceneNode();
 		const AxisAlignedBox&		getWorldAABB() const { return m_WorldBoundingBox; }
 		const AxisAlignedBox&		getLocalAABB() const { return m_LocalBoundBox; }
-		const Vector3&				getWorldPosition() const { return m_WorldPosition; }
-		const Vector3&				getWorldScale() const { return m_WorldScale; }
-		const Vector3&				getWorldRotation() const { return m_WorldRotation; }
+		const Vector3&				GetWorldPosition() const { return m_WorldPosition; }
+		const Vector3&				GetWorldScale() const { return m_WorldScale; }
+		const Vector3&				GetWorldRotation() const { return m_WorldRotation; }
 		const Quaternion&			getWorldQuaternion() const { return m_WorldQuaternion; }
-		const Matrix4x4&			getWorldMatrix();
-		void						setWorldPosition(const Vector3& pos);
-		void						setWorldScale(const Vector3& scale);
-		void						setWorldRotation(const Vector3& rotation);
+		const Matrix4x4&			GetWorldMatrix();
+		void						SetPosition(const Vector3& pos);
+		void						SetScale(const Vector3& scale);
+		void						SetRotation(const Vector3& rotation);
 		void						setWorldQuaternion(const Quaternion& rotation);
 		void						update(bool updateChild = true, bool notifyParent = true);
 		void						updateBindingBox();

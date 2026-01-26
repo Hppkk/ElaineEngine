@@ -11,7 +11,6 @@ namespace Elaine
 	class _RHIPrivate;
 
 	_RHIPrivate* _GRHI = nullptr;
-	RenderModule* _GRenderModule = nullptr;
 	EBarrier* G_GfxBarrier = nullptr;
 	EBarrier* G_RenderBarrier = nullptr;
 	ThreadWrap* G_GfxThread = nullptr;
@@ -28,12 +27,28 @@ namespace Elaine
 		void _Initilize(const RHI_PARAM_DESC& InDesc)
 		{
 			_RHIType = InDesc.RHIType;
-			_DynamicRHI = _GRenderModule->LoadDynamicRHI(InDesc);
+			switch (InDesc.RHIType)
+			{
+			case Elaine::Vulkan:
+				_DynamicRHI = new VulkanRHI::VulkanDynamicRHI();
+				_DynamicRHI->Initialize(InDesc);
+				break;
+			case Elaine::Dx11:
+				break;
+			case Elaine::Dx12:
+				break;
+			case Elaine::Metal:
+				break;
+			case Elaine::OpenGl:
+				break;
+			default:
+				break;
+			}
 		}
 
 		void _Destroy()
 		{
-			
+			_DynamicRHI = nullptr;
 		}
 		RHITYPE GetType() const { return _RHIType; }
 		DynamicRHI* GetDynamicRHI() const { return _DynamicRHI; }
@@ -52,14 +67,13 @@ namespace Elaine
 
 	bool InitEngineRHI(const RHI_PARAM_DESC& InDesc)
 	{
-		_GRenderModule = new RenderModule();
 		_GRHI = new _RHIPrivate();
 		_GRHI->_Initilize(InDesc);
 		G_GfxBarrier = new EBarrier();
 		G_RenderBarrier = new EBarrier();
-		G_GfxThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIThread_Gfx, GraphicThreadMain);
-		G_ComputeThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIThread_Compute, ComputeThreadMain);
-		G_TransfThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIThread_Transf, TransfThreadMain);
+		G_GfxThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIGraphicThread, GraphicThreadMain);
+		G_ComputeThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIComputeThread, ComputeThreadMain);
+		G_TransfThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHITransferThread, TransfThreadMain);
 		return true;
 	}
 
@@ -68,7 +82,6 @@ namespace Elaine
 
 		_GRHI->_Destroy();
 		SAFE_DELETE(_GRHI);
-		SAFE_DELETE(_GRenderModule);
 		return true;
 	}
 
@@ -81,9 +94,9 @@ namespace Elaine
 			G_GfxBarrier->Wait();
 			RHICommandListManager* RHICmdListMgr = GfxCommandCtx->GetRHICommandListMgr();
 			RHICmdListMgr->SwapCommands();
-			GfxCommandCtx->RHIBeginFrame();
+			//GfxCommandCtx->RHIBeginFrame();
 			RHICmdListMgr->ExecuteCommands();
-			GfxCommandCtx->RHIEndFrame();
+			//GfxCommandCtx->RHIEndFrame();
 			G_RenderBarrier->Signal();
 		}
 	}

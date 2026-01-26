@@ -3,7 +3,7 @@ project(ElanieEngine)
 set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 1)
 
-set(_Use_Volk_  OFF)
+set(_Use_Volk_  1)
 
 set(CMAKE_CONFIGURATION_TYPES EditorDebug EditorRelease RuntimeDebug RuntimeRelease)
 set(CMAKE_SHARED_LINKER_FLAGS_EDITORDEBUG ${CMAKE_SHARED_LINKER_FLAGS_DEBUG})
@@ -37,10 +37,10 @@ if(MSVC)
     add_definitions(-D_UNICODE)
     # set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT  "EditAndContinue")
 
-    set(CMAKE_CXX_FLAGS_EDITORDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /ZI -D_HAS_EDITOR_ -D_DEBUG")
-    set(CMAKE_CXX_FLAGS_EDITORRELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /Zi -D_HAS_EDITOR_ -D_NODEBUG")
-    set(CMAKE_CXX_FLAGS_RUNTIMEDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MDd /ZI -D_DEBUG")
-    set(CMAKE_CXX_FLAGS_RUNTIMERELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD /Zi -D_NODEBUG")
+    set(CMAKE_CXX_FLAGS_EDITORDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /JMC /MDd /Zi -D_HAS_EDITOR_ -D_DEBUG")
+    set(CMAKE_CXX_FLAGS_EDITORRELEASE "${CMAKE_CXX_FLAGS_RELEASE} /JMC /MD /Zi -D_HAS_EDITOR_ -D_NODEBUG")
+    set(CMAKE_CXX_FLAGS_RUNTIMEDEBUG "${CMAKE_CXX_FLAGS_DEBUG} /JMC /MDd /ZI -D_DEBUG")
+    set(CMAKE_CXX_FLAGS_RUNTIMERELEASE "${CMAKE_CXX_FLAGS_RELEASE} /JMC /MD /Zi -D_NODEBUG")
 elseif(UNIX)
     set(CMAKE_CXX_COMPILER "g++")
     set(PlatformTarget Linux)
@@ -81,7 +81,7 @@ set(THIRD_PARTY_DIR
 set(ENGINE_INCLUDE_DIR 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/Common 
- ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/component 
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/GamePlay 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/JobSystem
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/math
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/render 
@@ -89,7 +89,7 @@ set(ENGINE_INCLUDE_DIR
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineCore/Include/platform 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/common 
- ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/component 
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/GamePlay 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineReflection/Public
 )
 
@@ -98,3 +98,4 @@ add_subdirectory(ElaineCore)
 add_subdirectory(ElaineEditor)
 add_subdirectory(ElaineEngine)
 add_subdirectory(Samples)
+add_subdirectory(ElaineBuildTool)

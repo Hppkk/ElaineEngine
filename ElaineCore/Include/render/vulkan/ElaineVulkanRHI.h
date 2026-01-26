@@ -1,8 +1,11 @@
 #pragma once
 #include "render/common/ElaineRHI.h"
 #include "render/vulkan/ElaineVulkanTypes.h"
+#ifdef USE_VOLK
+#include "Volk/volk.h"
+#else
 #include "vulkan.h"
-#include "GLFW/glfw3.h"
+#endif
 
 namespace VulkanRHI
 {
@@ -13,8 +16,10 @@ namespace VulkanRHI
 	class VulkanRenderPass;
 	class VulkanTexture;
 	class VulkanTextureView;
-
+#ifndef USE_VOLK
 	extern PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR;
+	extern PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion;
+#endif
 
 	class ElaineCoreExport VulkanDynamicRHI :public Elaine::DynamicRHI
 	{

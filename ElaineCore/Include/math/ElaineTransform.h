@@ -7,22 +7,28 @@ namespace Elaine
 {
 	class Transform
 	{
-	public:
-        Vector3    m_position       = Vector3::ZERO;
-        Vector3    m_scale          = Vector3::UNIT_SCALE;
-        Quaternion m_rotation       = Quaternion::IDENTITY;
     public:
         Transform() = default;
-        Transform(const Vector3& position, const Quaternion& rotation, const Vector3& scale) :
-            m_position{ position }, m_scale{ scale }, m_rotation{ rotation }
+        Transform(const Vector3& InPosition, const Quaternion& InRotation, const Vector3& InScale) :
+            mPosition{ InPosition }, mScale{ InScale }, mRotation{ InRotation }
         {
         }
 
-        Matrix4x4 getMatrix() const
+        const Matrix4x4& GetMatrix() const
         {
-            Matrix4x4 temp;
-            temp.makeTransform(m_position, m_scale, m_rotation);
-            return temp;
+            if (mDirty)
+            {
+                mMatrix.makeTransform(mPosition, mScale, mRotation);
+                mDirty = false;
+            }
+
+            return mMatrix;
         }
+    public:
+        mutable bool mDirty = true;
+        mutable Matrix4x4 mMatrix;
+        Vector3 mPosition = Vector3::ZERO;
+        Vector3 mScale = Vector3::UNIT_SCALE;
+        Quaternion mRotation = Quaternion::IDENTITY;
 	};
 }

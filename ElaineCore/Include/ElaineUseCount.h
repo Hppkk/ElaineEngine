@@ -7,34 +7,18 @@ namespace Elaine
 	{
 	public:
 		DefaultDeleter() = default;
-		DefaultDeleter(T* rhs)
-		{
-			_ptr = rhs;
-		}
 
-		~DefaultDeleter()
-		{
-			//_delete();
+		void operator()(T* _Ptr) const noexcept
+		{ 
+			SAFE_DELETE(_Ptr);
 		}
-
-		void _delete()
-		{
-			SAFE_DELETE(_ptr);
-		}
-
-		T* _ptr = nullptr;
 	};
 
 	class _UseCountBase
 	{
 	public:
-		_UseCountBase()
-		{
-		}
-
-		virtual ~_UseCountBase()
-		{	
-		}
+		virtual void Destroy() = 0;
+		virtual ~_UseCountBase() = default;
 
 		void _Incref() noexcept
 		{
@@ -43,30 +27,34 @@ namespace Elaine
 
 		void _Decref() noexcept
 		{
-			_InterlockedDecrement(reinterpret_cast<volatile long*>(&_Used));
+			if (_InterlockedDecrement(reinterpret_cast<volatile long*>(&_Used)) == 0)
+			{
+				Destroy();
+				delete this;
+			}
 		}
 
-		_UseCountBase(const _UseCountBase& rhs)
-		{
-			_Used = rhs._Used;
-		}
-
-		_UseCountBase& operator=(const _UseCountBase& rhs)
-		{
-			_Used = rhs._Used;
-			return *this;
-		}
-
-		//_UseCountBase& operator=(const _UseCountBase& rhs);
-		//_UseCountBase& operator=(const _UseCountBase&& rhs);
-
-
-		unsigned long getUseCount()
+		unsigned int getUseCount()
 		{
 			return _Used;
 		}
 
 	public:
-		unsigned long	_Used = 0;
+		unsigned int _Used = 0;
+	};
+
+	template<typename T, typename Deleter>
+	struct UseCount : _UseCountBase
+	{
+		T* Ptr;
+		Deleter Del;
+
+		UseCount(T* p) : Ptr(p) {}
+
+		void Destroy() override
+		{
+			Del(Ptr);
+			delete this;
+		}
 	};
 }

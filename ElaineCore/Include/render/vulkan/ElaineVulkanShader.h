@@ -84,6 +84,7 @@ namespace VulkanRHI
 		const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return mDescriptorSetLayouts; }
 		const std::vector<VkDescriptorSet>& GetDescriptorSet() const { return mDescriptorSets; }
 		const std::vector<VkVertexInputAttributeDescription>& GetVertexInputAttributeDescriptions()const { return mInputAttributeDescriptions; }
+		const std::vector<VkVertexInputBindingDescription>& GetVertexInputBindingDescription() const { return mVertexInputBindingDescs; }
 		void GetDescriptorSetLayouts(std::vector<VkDescriptorSetLayout>& InOutDescriptorSetLayouts);
 		const SPVCodeDesc& GetSPVCodeDesc() const { return mSPVCodeDesc; }
 		VkShaderStageFlagBits GetVkShaderStageFlag() { return mShaderStageFlag; }
@@ -102,6 +103,7 @@ namespace VulkanRHI
 		std::vector<VkDescriptorSet> mDescriptorSets;
 		std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
 		std::vector<VkVertexInputAttributeDescription> mInputAttributeDescriptions;
+		std::vector<VkVertexInputBindingDescription> mVertexInputBindingDescs;
 		VulkanPipeline* mPipeline = nullptr;
 		bool mbCompiled = false;
 		friend class VulkanShaderCompileManager;

@@ -4,3 +4,6 @@
 [submodule "ThirdParty/cJSON"]
 	path = ThirdParty/cJSON
 	url = https://github.com/DaveGamble/cJSON.git
+[submodule "ThirdParty/cppast"]
+	path = ThirdParty/cppast
+	url = git@github.com:standardese/cppast.git

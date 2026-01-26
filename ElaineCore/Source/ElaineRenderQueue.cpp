@@ -21,7 +21,7 @@ namespace Elaine
 		}
 	}
 
-	void RenderQueue::UpdateRenderQueue(Pass* InPass, RenderableObject* InObject, RenderQueuePriority InPriority)
+	void RenderQueue::UpdateRenderQueue(ShaderPass* InPass, RenderProxy* InObject, RenderQueuePriority InPriority)
 	{
 		auto Iter = mRenderableObjects.find(InPriority);
 		if (Iter == mRenderableObjects.end())
@@ -40,12 +40,10 @@ namespace Elaine
 		{
 			for (auto&& CurrElement : CurrRenderableObjects.second)
 			{
-				GRAPHICS_PIPELINE_STATE_DESC& RenderGfxState = CurrElement.mRenderPass->GetGfxState();
-				//InRHICommandList->BeginRenderPass(RenderGfxState);
-				InRHICommandList->BindGfxPipeline(CurrElement.mRenderPass->GetRHIPipeline());
+				RHI_DRAW_RESOURCE_BINDING& RenderGfxState = CurrElement.mRenderObject->GetResourceBinding();
+				InRHICommandList->BindGfxPipeline(CurrElement.mRenderPass->GetPipelineRHI());
 				InRHICommandList->BindDrawData(&RenderGfxState);
-				InRHICommandList->DrawPrimitive(0, 36, 1);
-				//InRHICommandList->EndRenderPass();
+				InRHICommandList->DrawPrimitive(RenderGfxState.mFirstIndex, RenderGfxState.mVertexCount, RenderGfxState.mInstanceCount);
 			}
 		}
 	}
@@ -63,6 +61,7 @@ namespace Elaine
 	RenderQueueSet::RenderQueueSet()
 	{
 		mRenderQueues[RenderQueue_Normal] = new RenderQueue(RenderQueue_Normal);
+		mRenderQueues[RenderQueue_Shadow] = new RenderQueue(RenderQueue_Shadow);
 		mRenderQueues[RenderQueue_Sky] = new RenderQueue(RenderQueue_Sky);
 		mRenderQueues[RenderQueue_Transparent] = new RenderQueue(RenderQueue_Transparent);
 		mRenderQueues[RenderQueue_Screen] = new RenderQueue(RenderQueue_Screen);
@@ -87,7 +86,7 @@ namespace Elaine
 		InRenderQueue->RecordRenderCommand(InRHICommandList);
 	}
 
-	void RenderQueueSet::UpdateRenderQueue(RenderQueue* InRenderQueue, RenderableObject* InObject, RenderQueuePriority InPriority)
+	void RenderQueueSet::UpdateRenderQueue(RenderQueue* InRenderQueue, RenderProxy* InObject, RenderQueuePriority InPriority)
 	{
 		//InRenderQueue->UpdateRenderQueue(InObject, InPriority);
 	}

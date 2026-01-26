@@ -7,26 +7,13 @@ namespace Elaine
 {
 	LogSystem::LogSystem()
 	{
-        auto sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 
+        spdlog::set_level(spdlog::level::trace);
+        spdlog::set_pattern("%^[%Y-%m-%d %H:%M:%S][%l]:%v%$");
+        m_logger = spdlog::stdout_color_mt("Elaine");
+        m_logger->flush_on(spdlog::level::err);
 
-        sink->set_level(spdlog::level::trace);
-        sink->set_pattern("[%^%l%$] %v");
-
-        const spdlog::sinks_init_list sink_list = { sink };
-
-        spdlog::init_thread_pool(8192, 1);
-
-        m_logger = std::make_shared<spdlog::async_logger>("muggle_logger",
-            sink_list.begin(),
-            sink_list.end(),
-            spdlog::thread_pool(),
-            spdlog::async_overflow_policy::block);
-        m_logger->set_level(spdlog::level::trace);
-
-        spdlog::register_logger(m_logger);
-
-        m_logFile.open(Root::instance()->getExePath() + "/ElaineLog.txt");
+        m_logFile.open(Root::instance()->GetAppPath() + "/ElaineLog.txt");
 	}
 
 	LogSystem::~LogSystem()

@@ -23,4 +23,26 @@ namespace Elaine
 		size_t mContentSize = 0;
 		PixelFormat mFormat = PF_Unknown;
 	}; 
+
+	enum class TextureUsage
+	{
+		Color,
+		Normal,
+		Data,
+		HDR,
+		RenderTarget
+	};
+
+	struct TextureDesc
+	{
+		int mNumMips = 1;
+		TextureDimension mDimension = TextureDimension::Texture2D;
+		TextureUsage mUsage = TextureUsage::Color;
+		PixelFormat mFormat = PF_Unknown;
+		uint32 mWidth = 0;
+		uint32 mHeight = 0;
+		uint32 mDepth = 1;
+
+		bool mbSRGB = false;
+	};
 }

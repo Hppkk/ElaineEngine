@@ -30,6 +30,8 @@ namespace Elaine
         void                    SetAspect(float InAspect);
         void                    SetProjectionType(ProjectionType InType);
         void                    SetFOV(float InFov);
+        void                    SetNearPlane(float InNear);
+        void                    SetFarPlane(float InFar);
         const Vector3&          GetPosition();
         const Quaternion&       GetRotation();
         const Vector3&          GetForward();

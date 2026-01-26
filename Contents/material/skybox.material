@@ -1,0 +1,42 @@
+{
+  "version": "1.0.0",
+
+  "macros": [ "USE_SKYBOX" ],
+
+  "renderqueue": "background",
+
+  "textures": {
+    "CubeMap": "texture/sky/sky.tex"
+  },
+
+  "shaderpass": [
+    {
+      "name": "Sky",
+
+      "shaders": {
+        "vs": "sky.vs",
+        "ps": "sky.ps"
+      },
+
+      "macros": {
+        "PASS_SKY": 1
+      },
+
+      "depthstate": {
+        "test": true,
+        "write": true,
+        "func": "less_equal"
+      },
+
+      "raster": {
+        "cull": "front",
+        "fill": "solid",
+        "frontccw": false
+      },
+
+      "blend": {
+        "enable": false
+      }
+    }
+  ]
+}

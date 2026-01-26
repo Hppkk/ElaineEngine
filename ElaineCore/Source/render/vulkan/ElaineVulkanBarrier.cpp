@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanBarrier.h"
 #include "render/vulkan/ElaineVulkanCommandBuffer.h"
 #include "render/vulkan/ElaineVulkanQueue.h"
@@ -214,5 +214,7 @@ namespace VulkanRHI
 	{
 		VulkanSetImageLayout(InCmdBuffer, InTexture->getHandle(), InTexture->GetImageLayout(), InNewLayout, InSubresourceRange);
 		InTexture->SetImageLayout(InNewLayout);
+		// 同步更新 RHI 层的 mAccess，确保两者一致
+		InTexture->SetAccess(VkImageLayoutToERHIAccess(InNewLayout));
 	}
 }

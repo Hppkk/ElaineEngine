@@ -1,6 +1,10 @@
-#pragma once
+﻿#pragma once
 #include "render/common/ElaineRHIProtocol.h"
+#ifdef USE_VOLK
+#include "Volk/volk.h"
+#else
 #include "vulkan.h"
+#endif
 
 
 using namespace Elaine;
@@ -261,5 +265,176 @@ namespace VulkanRHI
             break;
         }
         return VK_INDEX_TYPE_UINT16;
+    }
+
+    //=============================================================================
+    // RenderTarget Action to Vulkan Load/Store Op conversion
+    //=============================================================================
+    inline VkAttachmentLoadOp GetVkLoadOp(ERenderTargetActions Action)
+    {
+        switch (GetRenderTargetLoadAction(Action))
+        {
+        case ERenderTargetLoadAction::ELoad: return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case ERenderTargetLoadAction::EClear: return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case ERenderTargetLoadAction::ENoAction: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        }
+    }
+
+    inline VkAttachmentStoreOp GetVkStoreOp(ERenderTargetActions Action)
+    {
+        switch (GetRenderTargetStoreAction(Action))
+        {
+        case ERenderTargetStoreAction::EStore: return VK_ATTACHMENT_STORE_OP_STORE;
+        case ERenderTargetStoreAction::ENoAction: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        }
+    }
+
+    inline VkAttachmentLoadOp GetVkDepthLoadOp(EDepthStencilTargetActions Action)
+    {
+        switch (GetDepthTargetLoadAction(Action))
+        {
+        case ERenderTargetLoadAction::ELoad: return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case ERenderTargetLoadAction::EClear: return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case ERenderTargetLoadAction::ENoAction: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        }
+    }
+
+    inline VkAttachmentStoreOp GetVkDepthStoreOp(EDepthStencilTargetActions Action)
+    {
+        switch (GetDepthTargetStoreAction(Action))
+        {
+        case ERenderTargetStoreAction::EStore: return VK_ATTACHMENT_STORE_OP_STORE;
+        case ERenderTargetStoreAction::ENoAction: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        }
+    }
+
+    inline VkAttachmentLoadOp GetVkStencilLoadOp(EDepthStencilTargetActions Action)
+    {
+        switch (GetStencilTargetLoadAction(Action))
+        {
+        case ERenderTargetLoadAction::ELoad: return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case ERenderTargetLoadAction::EClear: return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case ERenderTargetLoadAction::ENoAction: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        }
+    }
+
+    inline VkAttachmentStoreOp GetVkStencilStoreOp(EDepthStencilTargetActions Action)
+    {
+        switch (GetStencilTargetStoreAction(Action))
+        {
+        case ERenderTargetStoreAction::EStore: return VK_ATTACHMENT_STORE_OP_STORE;
+        case ERenderTargetStoreAction::ENoAction: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        default: return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        }
+    }
+
+    //=============================================================================
+    // ERHIAccess to Vulkan type conversions (for barriers)
+    //=============================================================================
+    inline VkImageLayout ERHIAccessToVkImageLayout(ERHIAccess Access)
+    {
+        // 只处理最主要的状态标志
+        if (EnumHasAnyFlags(Access, ERHIAccess::RTV))
+            return VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::DSVWrite))
+            return VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::DSVRead))
+            return VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::SRVMask))
+            return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::UAVMask))
+            return VK_IMAGE_LAYOUT_GENERAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::CopySrc))
+            return VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::CopyDest))
+            return VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        if (EnumHasAnyFlags(Access, ERHIAccess::Present))
+            return VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        
+        return VK_IMAGE_LAYOUT_UNDEFINED;
+    }
+
+    inline ERHIAccess VkImageLayoutToERHIAccess(VkImageLayout Layout)
+    {
+        switch (Layout)
+        {
+        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
+            return ERHIAccess::RTV;
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
+            return ERHIAccess::DSVWrite;
+        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL:
+            return ERHIAccess::DSVRead;
+        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
+            return ERHIAccess::SRVGraphics;
+        case VK_IMAGE_LAYOUT_GENERAL:
+            return ERHIAccess::UAVGraphics;
+        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
+            return ERHIAccess::CopySrc;
+        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
+            return ERHIAccess::CopyDest;
+        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
+            return ERHIAccess::Present;
+        case VK_IMAGE_LAYOUT_UNDEFINED:
+        default:
+            return ERHIAccess::Unknown;
+        }
+    }
+
+    inline VkAccessFlags ERHIAccessToVkAccessFlags(ERHIAccess Access)
+    {
+        VkAccessFlags Result = 0;
+        
+        if (EnumHasAnyFlags(Access, ERHIAccess::RTV))
+            Result |= VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::DSVWrite))
+            Result |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::DSVRead))
+            Result |= VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::SRVMask))
+            Result |= VK_ACCESS_SHADER_READ_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::UAVMask))
+            Result |= VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::CopySrc))
+            Result |= VK_ACCESS_TRANSFER_READ_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::CopyDest))
+            Result |= VK_ACCESS_TRANSFER_WRITE_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::VertexOrIndexBuffer))
+            Result |= VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::IndirectArgs))
+            Result |= VK_ACCESS_INDIRECT_COMMAND_READ_BIT;
+        
+        return Result;
+    }
+
+    inline VkPipelineStageFlags ERHIAccessToVkPipelineStageFlags(ERHIAccess Access)
+    {
+        VkPipelineStageFlags Result = 0;
+        
+        if (EnumHasAnyFlags(Access, ERHIAccess::RTV))
+            Result |= VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::DSVWrite | ERHIAccess::DSVRead))
+            Result |= VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::SRVGraphics | ERHIAccess::UAVGraphics))
+            Result |= VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::SRVCompute | ERHIAccess::UAVCompute))
+            Result |= VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::CopySrc | ERHIAccess::CopyDest))
+            Result |= VK_PIPELINE_STAGE_TRANSFER_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::VertexOrIndexBuffer))
+            Result |= VK_PIPELINE_STAGE_VERTEX_INPUT_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::IndirectArgs))
+            Result |= VK_PIPELINE_STAGE_DRAW_INDIRECT_BIT;
+        if (EnumHasAnyFlags(Access, ERHIAccess::Present))
+            Result |= VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        
+        if (Result == 0)
+            Result = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        
+        return Result;
     }
 }

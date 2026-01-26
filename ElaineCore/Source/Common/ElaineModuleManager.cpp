@@ -1,6 +1,8 @@
 #include <ElainePrecompiledHeader.h>
 #include <ElaineModuleManager.h>
 #include <ElaineModuleBase.h>
+#include <ElaineResourceModule.h>
+#include <common/ElaineRenderModule.h>
 
 namespace Elaine
 {
@@ -17,19 +19,21 @@ namespace Elaine
 
 	void ModuleManager::Initialize()
 	{
-		//file open ModuleSupport.txt
-		//RegisterModule()
+		//TODO : file open ModuleSupport.txt
+		RegisterModule(MF_ResourceModule, new ResourceModule());
+		RegisterModule(MF_RenderModule, new RenderModule());
 	}
 
-	void ModuleManager::RegisterModule(ModuleFeatures InFeature, ModuleBase* InModule)
+	void ModuleManager::RegisterModule(ModuleFeature InFeature, ModuleBase* InModule)
 	{
 		if (InModule == nullptr)
 			return;
 
 		mModuleFeatures.emplace(InFeature, InModule);
+		InModule->Initialize();
 	}
 
-	void ModuleManager::UnregisterModule(ModuleFeatures InFeature)
+	void ModuleManager::UnregisterModule(ModuleFeature InFeature)
 	{
 		auto Iter = mModuleFeatures.find(InFeature);
 		if (Iter != mModuleFeatures.end())

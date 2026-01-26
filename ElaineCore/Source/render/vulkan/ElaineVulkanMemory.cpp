@@ -1716,9 +1716,9 @@ namespace VulkanRHI
 		else
 		{
 			OutAllocated = mHeapInfos[mPrimaryHeapIndex].mUsedSize;
-			if (mDevice->GetOptionalExtensions().HasMemoryBudget && (Root::instance()->getTimer()->getSeconds() - mMemoryUpdateTime >= 1.0))
+			if (mDevice->GetOptionalExtensions().HasMemoryBudget && (Root::instance()->GetTimer()->getSeconds() - mMemoryUpdateTime >= 1.0))
 			{
-				mMemoryUpdateTime = Root::instance()->getTimer()->getSeconds();
+				mMemoryUpdateTime = Root::instance()->GetTimer()->getSeconds();
 				UpdateMemoryProperties();
 			}
 			OutLimit = GetBaseHeapSize(mPrimaryHeapIndex);
@@ -2488,9 +2488,11 @@ namespace VulkanRHI
 		Memory::MemoryZero(MemoryReqs2);
 		MemoryReqs2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR;
 		MemoryReqs2.pNext = &DedMemoryReqs;
-
+#ifdef USE_VOLK
+		vkGetImageMemoryRequirements2KHR(mDeivce->GetDevice(), &ImageMemoryReqs2, &MemoryReqs2);
+#else
 		VulkanRHI::vkGetImageMemoryRequirements2KHR(mDeivce->GetDevice(), &ImageMemoryReqs2, &MemoryReqs2);
-
+#endif
 		bool bUseDedicated = DedMemoryReqs.prefersDedicatedAllocation != VK_FALSE || DedMemoryReqs.requiresDedicatedAllocation != VK_FALSE;
 		if (bUseDedicated)
 		{

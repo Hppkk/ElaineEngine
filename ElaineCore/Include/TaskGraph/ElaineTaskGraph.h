@@ -13,8 +13,11 @@ namespace TaskGraph
 		void DependencyTask(GraphTaskDesc& InTask);
 		void SubsequentTask(GraphTaskDesc& InTask);
 
+		GraphTaskDesc DependencyTask(TaskFunction&& InTask, bool InAsync = true);
+		void SubsequentTask(TaskFunction&& InTask, bool InAsync = true);
+
 		TaskFunction mTaskFunction;
-		NamedThread mExecutedThread = NamedThread::AnyThread;
+		Elaine::NamedThread mExecutedThread = Elaine::NamedThread::AnyThread;
 		std::vector<GraphTaskDesc> mSubsequentTasks;
 	};
 
@@ -37,6 +40,7 @@ namespace TaskGraph
 			2. Convenient creation mechanism.
 			3. Optimize thread locks.
 			4. A mechanism to notify the client whether the current task chain has been executed.
+			5. More convenient to create interfaces.
 	*/
 	class ElaineCoreExport TaskGraph : public Elaine::Singleton<TaskGraph>
 	{
@@ -45,9 +49,9 @@ namespace TaskGraph
 		~TaskGraph();
 		void Initialize();
 
-		GraphTask* CreateAndDispatchWhenReady(const GraphTaskCreateDesc& InTask);
-		GraphTask* CreateAndDispatchWhenReady(const TaskFunction& InTask, NamedThread InExecutedThread = NamedThread::AnyThread);
-		GraphTask* CreateTask(const TaskFunction& InTask, NamedThread InExecutedThread = NamedThread::AnyThread);
+		GraphTaskPtr CreateAndDispatchWhenReady(const GraphTaskCreateDesc& InTask);
+		GraphTaskPtr CreateAndDispatchWhenReady(const TaskFunction& InTask, Elaine::NamedThread InExecutedThread = Elaine::NamedThread::AnyThread);
+		GraphTaskPtr CreateTask(const TaskFunction& InTask, Elaine::NamedThread InExecutedThread = Elaine::NamedThread::AnyThread);
 		void Dispatch(GraphTaskPtr InTask);
 		Worker* GetWorker(Elaine::NamedThread InNamedThread) const;
 		Worker* FindIdleWorker();

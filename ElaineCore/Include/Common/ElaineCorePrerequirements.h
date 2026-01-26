@@ -1,5 +1,6 @@
 #pragma once
 #include "ElainePatform.h"
+#include "ElaineCoreMacroDefinition.h"
 
 namespace Elaine
 {

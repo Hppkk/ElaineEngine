@@ -1,4 +1,5 @@
 #pragma once
+#include "ElaineCorePrerequirements.h"
 
 namespace Elaine
 {

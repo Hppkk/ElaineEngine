@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanDescriptorSet.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "render/vulkan/ElaineVulkanUniformBuffer.h"
@@ -85,10 +85,20 @@ namespace VulkanRHI
 
     void VulkanDescriptorSetManager::WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet)
     {
+        VkBuffer Buffer = InUniformBuffer->GetHandle();
+        VkDeviceSize Offset = InUniformBuffer->GetOffset();
+        VkDeviceSize Range = InUniformBuffer->GetBufferSize();
+        
+        // 检查绑定是否变化，避免重复更新导致验证错误
+        if (InDescriptorSet->IsSameBufferBinding(Buffer, Offset, Range))
+        {
+            return;  // 绑定未变化，跳过更新
+        }
+        
         VkDescriptorBufferInfo BufferInfo{};
-        BufferInfo.buffer = InUniformBuffer->GetHandle();
-        BufferInfo.offset = InUniformBuffer->GetOffset();
-        BufferInfo.range = InUniformBuffer->GetBufferSize();
+        BufferInfo.buffer = Buffer;
+        BufferInfo.offset = Offset;
+        BufferInfo.range = Range;
         VkWriteDescriptorSet DescriptorWrite{};
         DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         DescriptorWrite.dstSet = InDescriptorSet->mHandle;
@@ -100,13 +110,24 @@ namespace VulkanRHI
         DescriptorWrite.pImageInfo = RHI_NULL_HANDLE; 
         DescriptorWrite.pTexelBufferView = RHI_NULL_HANDLE;
         vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &DescriptorWrite, 0, RHI_NULL_HANDLE);
+        
+        // 记录绑定状态
+        InDescriptorSet->SetBoundBuffer(Buffer, Offset, Range);
     }
 
     void VulkanDescriptorSetManager::WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet)
     {
+        VkImageView ImageView = InImage->GetTextureView().mView;
+        
+        // 检查绑定是否变化，避免重复更新导致验证错误 (VUID-vkUpdateDescriptorSets-None-03047)
+        if (InDescriptorSet->IsSameImageBinding(ImageView, InSampler))
+        {
+            return;  // 绑定未变化，跳过更新
+        }
+        
         VkDescriptorImageInfo ImageInfo{};
         ImageInfo.imageLayout = InImage->GetImageLayout();
-        ImageInfo.imageView = InImage->GetTextureView().mView;
+        ImageInfo.imageView = ImageView;
         ImageInfo.sampler = InSampler;
         VkWriteDescriptorSet DescriptorWrite{};
         DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -119,6 +140,9 @@ namespace VulkanRHI
         DescriptorWrite.pImageInfo = &ImageInfo;
         DescriptorWrite.pTexelBufferView = RHI_NULL_HANDLE;
         vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &DescriptorWrite, 0, RHI_NULL_HANDLE);
+        
+        // 记录绑定状态
+        InDescriptorSet->SetBoundImage(ImageView, InSampler);
     }
 
     VulkanDescriptorSetManager::~VulkanDescriptorSetManager()
@@ -140,7 +164,148 @@ namespace VulkanRHI
     VulkanDescriptorSet::VulkanDescriptorSet(int32 InSet, bool InEmpty)
         : mSet(InSet)
         , mbEmpty(InEmpty)
+        , mDirty(true)
+        , mBoundImageView(VK_NULL_HANDLE)
+        , mBoundSampler(VK_NULL_HANDLE)
+        , mBoundBuffer(VK_NULL_HANDLE)
+        , mBoundBufferOffset(0)
+        , mBoundBufferRange(0)
     {
+    }
 
+    void VulkanDescriptorSet::SetBoundImage(VkImageView InView, VkSampler InSampler)
+    {
+        mBoundImageView = InView;
+        mBoundSampler = InSampler;
+        mDirty = false;
+    }
+
+    bool VulkanDescriptorSet::IsSameImageBinding(VkImageView InView, VkSampler InSampler) const
+    {
+        return !mDirty && mBoundImageView == InView && mBoundSampler == InSampler;
+    }
+
+    void VulkanDescriptorSet::SetBoundBuffer(VkBuffer InBuffer, VkDeviceSize InOffset, VkDeviceSize InRange)
+    {
+        mBoundBuffer = InBuffer;
+        mBoundBufferOffset = InOffset;
+        mBoundBufferRange = InRange;
+        mDirty = false;
+    }
+
+    bool VulkanDescriptorSet::IsSameBufferBinding(VkBuffer InBuffer, VkDeviceSize InOffset, VkDeviceSize InRange) const
+    {
+        return !mDirty && mBoundBuffer == InBuffer && mBoundBufferOffset == InOffset && mBoundBufferRange == InRange;
+    }
+
+    //=============================================================================
+    // VulkanFrameDescriptorAllocator Implementation
+    //=============================================================================
+
+    VulkanFrameDescriptorAllocator::VulkanFrameDescriptorAllocator(
+        VulkanDevice* InDevice, 
+        uint32 InFrameCount, 
+        VulkanDescriptorSetManager* InManager)
+        : mDevice(InDevice)
+        , mManager(InManager)
+        , mFrameCount(InFrameCount)
+    {
+        // 为每帧创建独立的 DescriptorPool
+        mFramePools.resize(InFrameCount);
+        mAllocatedSets.resize(InFrameCount);
+        mCurrentAllocIndex.resize(InFrameCount, 0);
+
+        for (uint32 i = 0; i < InFrameCount; ++i)
+        {
+            mFramePools[i] = new VulkanDescriptorPool(InDevice, 32);
+        }
+    }
+
+    VulkanFrameDescriptorAllocator::~VulkanFrameDescriptorAllocator()
+    {
+        for (auto* Pool : mFramePools)
+        {
+            SAFE_DELETE(Pool);
+        }
+        mFramePools.clear();
+
+        for (auto& FrameSets : mAllocatedSets)
+        {
+            for (auto* Set : FrameSets)
+            {
+                SAFE_DELETE(Set);
+            }
+            FrameSets.clear();
+        }
+        mAllocatedSets.clear();
+    }
+
+    VulkanDescriptorSet* VulkanFrameDescriptorAllocator::AllocateForFrame(
+        uint32 InFrameIndex, 
+        VkDescriptorSetLayout InLayout, 
+        int32 InSetIndex)
+    {
+        if (InFrameIndex >= mFrameCount)
+        {
+            return nullptr;
+        }
+
+        auto& FrameSets = mAllocatedSets[InFrameIndex];
+        uint32& AllocIndex = mCurrentAllocIndex[InFrameIndex];
+
+        // 尝试复用已分配的 DescriptorSet
+        if (AllocIndex < FrameSets.size())
+        {
+            VulkanDescriptorSet* ExistingSet = FrameSets[AllocIndex];
+            ExistingSet->MarkDirty();  // 标记为需要更新
+            ++AllocIndex;
+            return ExistingSet;
+        }
+
+        // 需要分配新的 DescriptorSet
+        VulkanDescriptorSet* NewSet = new VulkanDescriptorSet(InSetIndex, false);
+
+        VkDescriptorSetAllocateInfo AllocInfo = {};
+        AllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        AllocInfo.descriptorSetCount = 1;
+        AllocInfo.pSetLayouts = &InLayout;
+
+        VulkanDescriptorPool* Pool = mFramePools[InFrameIndex];
+        if (!Pool->CanAllocate())
+        {
+            // Pool 已满，创建新的 Pool
+            // 直接替换 TODO 
+            delete Pool;
+            mFramePools[InFrameIndex] = new VulkanDescriptorPool(mDevice, 64);
+            Pool = mFramePools[InFrameIndex];
+        }
+
+        if (Pool->AllocateDescriptorSets(AllocInfo, &NewSet->mHandle))
+        {
+            FrameSets.push_back(NewSet);
+            ++AllocIndex;
+            return NewSet;
+        }
+
+        // 分配失败
+        delete NewSet;
+        return nullptr;
+    }
+
+    void VulkanFrameDescriptorAllocator::ResetFrame(uint32 InFrameIndex)
+    {
+        if (InFrameIndex >= mFrameCount)
+        {
+            return;
+        }
+
+        // 重置分配索引，下一帧从头开始复用
+        mCurrentAllocIndex[InFrameIndex] = 0;
+
+        // 将所有该帧的 DescriptorSet 标记为 dirty，以便重新写入
+        for (auto* Set : mAllocatedSets[InFrameIndex])
+        {
+            Set->MarkDirty();
+        }
     }
 }

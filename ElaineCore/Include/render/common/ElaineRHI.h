@@ -20,7 +20,7 @@ namespace Elaine
         uint32 Width = 1920;
         uint32 Height = 1080;
         RHITYPE RHIType = Vulkan;
-        bool UseRHIThread = false;
+        bool UseRHIThread = true;
     };
 
     enum EM_RHICommand
@@ -33,9 +33,23 @@ namespace Elaine
         UpdateCommonUniformBuffer,
         BeginRenderPass,
         EndRenderPass,
+        BeginFrame,
+        EndFrame,
+        BeginScene,
+        EndScene,
+        SetScissorRect,
+        DrawIndexedPrimitive,
+        SetStreamSource,
+        CopyTexture,
+        BindUniformBuffer,
         BindGfxPipeline,
         BindDrawData,
         ResizeWindow,
+        ResourceBarrier,
+        SetViewport,
+        SetSwapchain,
+        AcquireSwapchainImage,
+        PresentSwapchain,
         DrawPrimitive,
         DrawIndex,
         DrawInstance,

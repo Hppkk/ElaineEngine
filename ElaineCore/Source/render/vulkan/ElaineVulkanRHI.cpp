@@ -1,6 +1,5 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanRHI.h"
-#include "render/ElaineWindowSystem.h"
 #include "render/vulkan/ElaineVulkanUtil.h"
 #include "render/vulkan/ElaineVulkanInstance.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
@@ -13,16 +12,21 @@
 #include "render/vulkan/ElaineVulkanSwapChain.h"
 #include "render/vulkan/ElaineVulkanShader.h"
 #include "render/vulkan/ElaineVulkanTexture.h"
+#ifdef USE_VOLK
 #ifdef WIN32
 #include "vulkan_win32.h"
 #elif ELAINE_PLATFORM == ELAINE_PLATFORM_ANDROID 
 #include "vulkan_android.h"
 #endif
+#endif
 
 namespace VulkanRHI
 {
 	VulkanDynamicRHI* GVulkanDynamicRHI = nullptr;
-	PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR;
+#ifndef USE_VOLK
+	PFN_vkGetImageMemoryRequirements2KHR vkGetImageMemoryRequirements2KHR = nullptr;
+	PFN_vkEnumerateInstanceVersion vkEnumerateInstanceVersion = nullptr;
+#endif
 
 	VulkanDynamicRHI* GetVulkanDynamicRHI()
 	{
@@ -41,6 +45,19 @@ namespace VulkanRHI
 
 	void VulkanDynamicRHI::Initialize(const Elaine::RHI_PARAM_DESC& InDesc)
 	{
+#ifndef USE_VOLK
+		{
+			VulkanRHI::vkEnumerateInstanceVersion = (PFN_vkEnumerateInstanceVersion)vkGetInstanceProcAddr(nullptr, "vkEnumerateInstanceVersion");
+		}
+#endif
+#ifdef USE_VOLK
+		if (volkInitialize() != VK_SUCCESS)
+		{
+			LOG_ERROR("VulkanRHI: Can not find vulkan loader.");
+			return;
+		}
+#endif
+
 		mWindowHandle = InDesc.WindowHandle;
 
 		mInstance = new VulkanInstance();
@@ -51,10 +68,11 @@ namespace VulkanRHI
 
 		mDevice = new VulkanDevice(mPhyDevice);
 		mDevice->Initialize();
-
+#ifndef USE_VOLK
 		{
 			VulkanRHI::vkGetImageMemoryRequirements2KHR = (PFN_vkGetImageMemoryRequirements2KHR)vkGetInstanceProcAddr(mInstance->GetInstance(), "vkGetImageMemoryRequirements2KHR");
 		}
+#endif
 
 #if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 		VkWin32SurfaceCreateInfoKHR SurfaceCreateInfo;
@@ -111,8 +129,8 @@ namespace VulkanRHI
 		ColorAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		ColorAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 		ColorAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		ColorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		ColorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;// VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		ColorAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		ColorAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
 		VkAttachmentDescription DepthAttachmentDescription;
 		Memory::MemoryZero(DepthAttachmentDescription);
@@ -123,7 +141,7 @@ namespace VulkanRHI
 		DepthAttachmentDescription.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
 		DepthAttachmentDescription.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
 		DepthAttachmentDescription.stencilStoreOp = VK_ATTACHMENT_STORE_OP_STORE;
-		DepthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+		DepthAttachmentDescription.initialLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 		DepthAttachmentDescription.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
 		std::vector<VkAttachmentDescription> AttachmentDescriptions{ ColorAttachmentDescription ,DepthAttachmentDescription };
@@ -160,10 +178,6 @@ namespace VulkanRHI
 		RenderPassCreateInfo.pDependencies = &SubpassDependency;
 
 		mDefaultRenderPass = new VulkanRenderPass(mDevice, RenderPassCreateInfo);
-
-
-
-		mViewport = new VulkanViewport(mDevice, mWindowHandle, InDesc.Width, InDesc.Height, false, PF_R8G8B8A8);
 
 		new VulkanShaderCompileManager(mDevice);
 

@@ -15,6 +15,25 @@ namespace TaskGraph
         mSubsequentTasks.emplace_back(InTask);
     }
 
+    GraphTaskDesc GraphTaskDesc::DependencyTask(TaskFunction&& InTask, bool InAsync)
+    {
+        GraphTaskDesc Desc;
+        if(!InAsync)
+            Desc.mExecutedThread = mExecutedThread;
+        Desc.mTaskFunction = InTask;
+        Desc.DependencyTask(*this);
+        return Desc;
+    }
+
+    void GraphTaskDesc::SubsequentTask(TaskFunction&& InTask, bool InAsync)
+    {
+        GraphTaskDesc Desc;
+        if (!InAsync)
+            Desc.mExecutedThread = mExecutedThread;
+        Desc.mTaskFunction = InTask;
+        SubsequentTask(Desc);
+    }
+
     TaskGraph::TaskGraph()
     {
 
@@ -46,7 +65,7 @@ namespace TaskGraph
         }
     }
 
-    GraphTask* TaskGraph::CreateAndDispatchWhenReady(const GraphTaskCreateDesc& InTask)
+    GraphTaskPtr TaskGraph::CreateAndDispatchWhenReady(const GraphTaskCreateDesc& InTask)
     {
         std::vector<GraphTaskPtr> CreatedTasks;
         for (auto&& TaskCreateDesc : InTask.mDirectTasks)
@@ -63,18 +82,19 @@ namespace TaskGraph
         return nullptr;
     }
 
-    GraphTask* TaskGraph::CreateAndDispatchWhenReady(const TaskFunction& InTask, NamedThread InExecutedThread)
+    GraphTaskPtr TaskGraph::CreateAndDispatchWhenReady(const TaskFunction& InTask, Elaine::NamedThread InExecutedThread)
     {
         GraphTaskPtr GraphTaskIns = std::make_shared<GraphTask>(InTask, InExecutedThread);
         //mTasks.emplace(GraphTaskIns);
         Dispatch(GraphTaskIns);
         //TODO: notify to client.
-        return nullptr;
+        return GraphTaskIns;
     }
 
-    GraphTask* TaskGraph::CreateTask(const TaskFunction& InTask, NamedThread InExecutedThread)
+    GraphTaskPtr TaskGraph::CreateTask(const TaskFunction& InTask, Elaine::NamedThread InExecutedThread)
     {
-        return nullptr;
+        GraphTaskPtr GraphTaskIns = std::make_shared<GraphTask>(InTask, InExecutedThread);
+        return GraphTaskIns;
     }
 
     void TaskGraph::Dispatch(GraphTaskPtr InTask)
@@ -94,7 +114,7 @@ namespace TaskGraph
     {
         uint32_t MinTaskCount = UINT32_MAX;
         Worker* IdleWorker = nullptr;
-        for (int Index = 0; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
+        for (int Index = 6; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
             if (mWorkers[Index] == nullptr)
                 continue;

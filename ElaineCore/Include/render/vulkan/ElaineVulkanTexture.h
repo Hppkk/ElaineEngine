@@ -1,10 +1,11 @@
-#pragma once
+﻿#pragma once
 #include "render/common/ElaineRHIProtocol.h"
 #include "render/vulkan/ElaineVulkanMemory.h"
 #include "render/vulkan/ElaineVulkanCommandContext.h"
 
 namespace VulkanRHI
 {
+	class VulkanSwapChain;
 	class ElaineCoreExport VulkanTextureView
 	{
 	public:
@@ -27,6 +28,8 @@ namespace VulkanRHI
 	{
 	public:
 		VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc);
+		// 用于包装已有的 VkImage（如 Swapchain 图像）
+		VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkImage InExistingImage);
 		~VulkanTexture();
 		static void GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat,
 			VkFormat* OutViewFormat, bool bForceLinearTexture = false);
@@ -56,9 +59,18 @@ namespace VulkanRHI
 		void SetImageLayout(VkImageLayout InVkImageLayout) { mImageLayout = InVkImageLayout; }
 		void InternalMoveSurface(VulkanDevice& InDevice, VulkanCommandContext& Context, VulkanAllocation& DestAllocation);
 		void DestroySurface();
-
-		const RHITextureDesc& GetDesc() const { return mDesc; }
+		VkFormat GetVkFormat() const { return mViewFormat; }
 		const VulkanTextureView& GetTextureView() const { return mDefaultView; }
+		bool IsSwapchainImage() const { return mbIsSwapchainImage; }
+		void SetIsSwapchainImage(bool bIsSwapchain) { mbIsSwapchainImage = bIsSwapchain; }
+
+		bool IsProxy() const { return mbIsProxy; }
+		void SetProxy(bool bProxy, VulkanSwapChain* Chain) 
+		{ 
+			mbIsProxy = bProxy; 
+			mOwningSwapchain = Chain; 
+		}
+		VulkanSwapChain* GetOwningSwapchain() const { return mOwningSwapchain; }
 	private:
 		VkImage						mHandle = VK_NULL_HANDLE;
 		VulkanDevice*				mDevice;
@@ -72,11 +84,15 @@ namespace VulkanRHI
 		VkImageAspectFlags			mPartialAspectMask;
 		VkImageLayout				mImageLayout;
 		VulkanCpuReadbackBuffer*	mCpuReadbackBuffer;
-		RHITextureDesc				mDesc;
 		// View with all mips/layers
 		VulkanTextureView			mDefaultView;
 		// View with all mips/layers, but if it's a Depth/Stencil, only the Depth view
 		VulkanTextureView*			mPartialView;
+		// 是否拥有 VkImage 所有权（Swapchain 图像为 false）
+		bool						mbOwnsImage = true;
+		bool						mbIsSwapchainImage = false;
+		bool						mbIsProxy = false;
+		VulkanSwapChain*			mOwningSwapchain = nullptr;
 	};
 
 

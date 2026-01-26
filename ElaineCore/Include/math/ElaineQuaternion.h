@@ -6,7 +6,7 @@ namespace Elaine
 	class Matrix3x3;
 	class Vector3;
 
-	class Quaternion
+	class ElaineCoreExport Quaternion
 	{
 	public:
         Quaternion() = default;

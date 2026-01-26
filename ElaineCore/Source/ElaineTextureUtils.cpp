@@ -11,6 +11,7 @@ namespace Elaine
 	{
 		//stbi_set_flip_vertically_on_load(true);
 	}
+
 	bool TextureUtils::LoadTextureFromFile(const std::string& InPath, TextureData& OutTexture)
 	{
 		//todo 
@@ -30,7 +31,7 @@ namespace Elaine
 		return true;
 	}
 
-	bool TextureUtils::LoadTexture3DFromFile(Texture* InTexResource, TextureData& OutTexture)
+	bool TextureUtils::LoadTextureArrayFromFile(const std::vector<std::string>& InPaths, TextureData& OutTexture)
 	{
 		size_t LayerSize = 0u;
 
@@ -38,7 +39,7 @@ namespace Elaine
 		{
 			//todo 
 			int texChannels = 0;
-			stbi_uc* PImageContent = stbi_load((Root::instance()->getResourcePath() + InTexResource->GetCubeMapPath((TextureCubeMapFace)Index)).c_str(), &OutTexture.mWidth, &OutTexture.mHeight, &texChannels, STBI_rgb_alpha);
+			stbi_uc* PImageContent = stbi_load((Root::instance()->GetResourcePath() + InPaths[(TextureCubeMapFace)Index]).c_str(), &OutTexture.mWidth, &OutTexture.mHeight, &texChannels, STBI_rgb_alpha);
 			if (!PImageContent)
 			{
 				LOG_INFO("Load texture failed.");

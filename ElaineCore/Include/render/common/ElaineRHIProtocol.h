@@ -1,20 +1,12 @@
-#pragma once
+ï»¿#pragma once
 #include "render/common/ElaineRHITypes.h"
 #include "ElaineVector2.h"
 #include "ElaineVector3.h"
 
 namespace Elaine
 {
-	//enum RHICommand
-	//{
-	//	CreateBuffer,
-	//	DestroyBuffer,
-	//	CreateTexture,
-	//	DestroyTexture,
-	//	CopyBuffer,
-	//	Draw,
-
-	//};
+	class RHITexture;
+	class RHIBuffer;
 
 #define MAX_RENDER_TARGET_COUNT 8
 
@@ -90,6 +82,8 @@ namespace Elaine
 		WritableMask = WriteOnlyMask | UAVMask | BVHWrite
 	};
 
+	ENUM_OPERATORS(ERHIAccess);
+
 	struct Rect
 	{
 		int32 MinX = 0;
@@ -111,27 +105,27 @@ namespace Elaine
 
 	struct ViewportBounds
 	{
-		float	TopLeftX = .0f;
-		float	TopLeftY = .0f;
-		float	Width = .0f;
-		float	Height = .0f;
-		float	MinDepth = .0f;
-		float	MaxDepth = 1.0f;
+		float TopLeftX = .0f;
+		float TopLeftY = .0f;
+		float Width = .0f;
+		float Height = .0f;
+		float MinDepth = .0f;
+		float MaxDepth = 1.0f;
 	};
 
 	struct ResolveParams
 	{
 		/** used to specify face when resolving to a cube map texture */
-		ECubeFace mCubeFace;
+		ECubeFace mCubeFace = CubeFace_MAX;
 		/** resolve RECT bounded -1 for fullscreen */
 		Rect mRect;
 		Rect mDestRect;
 		/** The mip index to resolve in both source and dest. */
-		int32 mMipIndex;
+		int32 mMipIndex = 0;
 		/** Array index to resolve in the source. */
-		int32 mSourceArrayIndex;
+		int32 mSourceArrayIndex = 0;
 		/** Array index to resolve in the dest. */
-		int32 mDestArrayIndex;
+		int32 mDestArrayIndex = 0;
 		/** States to transition to at the end of the resolve operation. */
 		ERHIAccess mSourceAccessFinal = ERHIAccess::SRVMask;
 		ERHIAccess mDestAccessFinal = ERHIAccess::SRVMask;
@@ -144,7 +138,7 @@ namespace Elaine
 		Patch,
 		Line,
 		Point,
-		//Quad,
+		Quad,
 
 		Num,
 		NumBits = 2,
@@ -308,6 +302,8 @@ namespace Elaine
 		AnyDynamic = (Dynamic | Volatile),
 	};
 
+	ENUM_OPERATORS(BufferUsageFlags)
+
 	enum class ClearDepthStencil
 	{
 		Depth,
@@ -360,10 +356,6 @@ namespace Elaine
 
 		return GpuVendorId::Unknown;
 	}
-
-
-
-
 
 	enum EPrimitiveType
 	{
@@ -517,7 +509,7 @@ namespace Elaine
 
 	struct RHITextureDesc
 	{
-		TextureCreateFlags mFlags;
+		TextureCreateFlags mFlags = TextureCreateFlags::ShaderResource;
 		/** Pixel format used to create RHI texture. */
 		PixelFormat mFormat = PF_Unknown;
 
@@ -536,10 +528,13 @@ namespace Elaine
 		uint8 mNumMips = 1;
 
 		/** Number of samples in the texture. >1 for MSAA. */
-		uint8 mNumSamples : 5;
+		uint8 mNumSamples : 5 = 1;
 
 		/** Texture dimension to use when creating the RHI texture. */
-		TextureDimension mDimension : 3;
+		TextureDimension mDimension : 3 = TextureDimension::Texture2D;
+		
+		/** Whether the texture should use sRGB format */
+		bool isSRGB = false;
 	};
 
 	struct RHICopyTextureInfo
@@ -569,6 +564,19 @@ namespace Elaine
 		uint32 SourceMipIndex = 0;
 		uint32 DestMipIndex = 0;
 		uint32 NumMips = 1;
+	};
+
+	//=============================================================================
+	// RHI Resource Barrier Descriptor
+	//=============================================================================
+	struct RHIResourceBarrierDesc
+	{
+		RHITexture* Texture = nullptr;      // çº¹ç†èµ„æº (ä¸ Buffer äº’æ–¥)
+		RHIBuffer* Buffer = nullptr;        // ç¼“å†²åŒºèµ„æº (ä¸ Texture äº’æ–¥)
+		ERHIAccess StateBefore = ERHIAccess::Unknown;  // è½¬æ¢å‰çŠ¶æ€
+		ERHIAccess StateAfter = ERHIAccess::Unknown;   // è½¬æ¢åçŠ¶æ€
+		uint32 SubresourceIndex = ~0u;      // å­èµ„æºç´¢å¼•ï¼Œ~0u è¡¨ç¤ºå…¨éƒ¨å­èµ„æº
+		bool bSplitBarrier = false;         // æ˜¯å¦æ˜¯åˆ†å‰²å±éšœ
 	};
 
 	struct ElaineCoreExport PixelFormatInfo
@@ -652,22 +660,240 @@ namespace Elaine
 		return (ERenderTargetStoreAction)((uint8)Action & ((1 << (uint8)ERenderTargetActions::LoadOpMask) - 1));
 	}
 
+	// æ·±åº¦ç›®æ ‡ Load/Store Action è¾…åŠ©å‡½æ•°
+	inline ERenderTargetLoadAction GetDepthTargetLoadAction(EDepthStencilTargetActions Action)
+	{
+		ERenderTargetActions DepthActions = GetDepthActions(Action);
+		return GetLoadAction(DepthActions);
+	}
+
+	inline ERenderTargetStoreAction GetDepthTargetStoreAction(EDepthStencilTargetActions Action)
+	{
+		ERenderTargetActions DepthActions = GetDepthActions(Action);
+		return GetStoreAction(DepthActions);
+	}
+
+	// æ¨¡æ¿ç›®æ ‡ Load/Store Action è¾…åŠ©å‡½æ•°
+	inline ERenderTargetLoadAction GetStencilTargetLoadAction(EDepthStencilTargetActions Action)
+	{
+		ERenderTargetActions StencilActions = GetStencilActions(Action);
+		return GetLoadAction(StencilActions);
+	}
+
+	inline ERenderTargetStoreAction GetStencilTargetStoreAction(EDepthStencilTargetActions Action)
+	{
+		ERenderTargetActions StencilActions = GetStencilActions(Action);
+		return GetStoreAction(StencilActions);
+	}
+
+	// é¢œè‰²ç›®æ ‡ Load/Store Action è¾…åŠ©å‡½æ•°
+	inline ERenderTargetLoadAction GetRenderTargetLoadAction(ERenderTargetActions Action)
+	{
+		return GetLoadAction(Action);
+	}
+
+	inline ERenderTargetStoreAction GetRenderTargetStoreAction(ERenderTargetActions Action)
+	{
+		return GetStoreAction(Action);
+	}
+
 	struct GraphicsPipelineRenderTargetsInfo
 	{
 		uint32															RenderTargetsEnabled = 0;
-		std::array<uint8, MaxSimultaneousRenderTargets>				RenderTargetFormats;
-		std::array<TextureCreateFlags, MaxSimultaneousRenderTargets>	RenderTargetFlags;
-		PixelFormat													DepthStencilTargetFormat = PF_Unknown;
+		std::array<uint8, MaxSimultaneousRenderTargets>					RenderTargetFormats { };
+		std::array<TextureCreateFlags, MaxSimultaneousRenderTargets>	RenderTargetFlags { };
+		PixelFormat														DepthStencilTargetFormat = PF_Unknown;
 		TextureCreateFlags												DepthStencilTargetFlag = TextureCreateFlags::None;
 		ERenderTargetLoadAction											DepthTargetLoadAction = ERenderTargetLoadAction::ENoAction;
 		ERenderTargetStoreAction										DepthTargetStoreAction = ERenderTargetStoreAction::ENoAction;
 		ERenderTargetLoadAction											StencilTargetLoadAction = ERenderTargetLoadAction::ENoAction;
 		ERenderTargetStoreAction										StencilTargetStoreAction = ERenderTargetStoreAction::ENoAction;
-		ExclusiveDepthStencil											DepthStencilAccess;
+		ExclusiveDepthStencil											DepthStencilAccess = ExclusiveDepthStencil::DepthRead_StencilRead;
 		uint16															NumSamples = 0;
 		uint8															MultiViewCount = 0;
 		bool															bHasFragmentDensityAttachment = false;
 	};
+
+	//-----------------------------------------------
+	// RHI Resource Define
+	//-----------------------------------------------
+	class RHIResource : public RHIResourceRef<RHIResource>
+	{
+	public:
+		RHIResource(RHIResourceType InType = RRT_None) :mType(InType) {}
+		virtual ~RHIResource() = default;
+		RHIResourceType mType = RRT_None;
+	};
+
+	class RHIBuffer : public RHIResource
+	{
+	public:
+		RHIBuffer() :RHIResource(RRT_Buffer) {}
+	};
+
+	class RHITexture : public RHIResource
+	{
+	public:
+		RHITexture(const RHITextureDesc& InDesc) :RHIResource(RRT_Texture) { mDesc = InDesc; }
+		PixelFormat GetFormat() const { return mDesc.mFormat; }
+		TextureCreateFlags GetFlags() const { return mDesc.mFlags; }
+		uint16 GetNumSamples() const { return mDesc.mNumSamples; }
+		const RHITextureDesc& GetDesc() const { return mDesc; }
+		uint32_t GetWidth() const { return (uint32_t)mDesc.mExtent.x; }
+		uint32_t GetHeight() const { return (uint32_t)mDesc.mExtent.y; }
+	public:
+		RHITextureDesc mDesc;
+	protected:
+		ERHIAccess mAccess = ERHIAccess::Unknown;
+	public:
+		void SetAccess(ERHIAccess InAccess) { mAccess = InAccess; }
+		ERHIAccess GetAccess() const { return mAccess; }
+	};
+
+	class RHISampler : public RHIResource {};
+
+	class RHIPipeline : public RHIResource
+	{
+	public:
+		RHIPipeline() : RHIResource(RRT_Pipeline) {}
+	};
+
+	class RHIShader : public RHIResource
+	{
+	public:
+		RHIShader() {}
+		const std::string& GetShaderString() { return mShaderString; }
+	protected:
+		std::string mShaderString;
+		std::string mShaderPath;
+	};
+
+	class RHIRenderQuery :public RHIResource {};
+
+	class RHIGPUFence :public RHIResource
+	{
+	public:
+		RHIGPUFence() :RHIResource(RRT_GPUFence) {}
+	};
+
+	class RHIGraphicsPipelineState : public RHIResource
+	{
+	public:
+		RHIGraphicsPipelineState() : RHIResource(RRT_GraphicsPipelineState) {}
+
+		inline void SetSortKey(uint64 InSortKey) { mSortKey = InSortKey; }
+		inline uint64 GetSortKey() const { return mSortKey; }
+
+	private:
+		uint64 mSortKey = 0;
+	};
+
+	/**
+	 * Uniform Buffer Semantics
+	 */
+	enum class RHIUniformSlot : uint8
+	{
+		// set=0: æ¯å¸§å¸¸é‡ï¼ˆView/Projection/Lightç­‰ï¼‰
+		PerFrame = 0,
+		// set=1: æè´¨å‚æ•°
+		PerMaterial = 1,
+		// set=2: ç‰©ä½“å‚æ•°ï¼ˆWorldçŸ©é˜µç­‰ï¼‰
+		PerObject = 2,
+		// è‡ªå®šä¹‰æ§½ä½
+		Custom0 = 3,
+		Custom1 = 4,
+		Custom2 = 5,
+		Custom3 = 6,
+
+		Count,
+		Invalid = 0xFF
+	};
+
+	/**
+	 * Uniform Buffer åˆ›å»ºæè¿°ç¬¦
+	 */
+	struct RHIUniformBufferDesc
+	{
+		RHIUniformSlot Slot = RHIUniformSlot::PerObject;
+		size_t Size = 0;
+		const void* InitialData = nullptr;
+		bool Dynamic = true;  // æ˜¯å¦é¢‘ç¹æ›´æ–°
+	};
+
+	/**
+	 * RHI Uniform Buffer
+	 * æ‰©å±•äº†è¯­ä¹‰æ§½ä½æ”¯æŒï¼Œä¿æŒå‘åå…¼å®¹
+	 */
+	class RHIUniformBuffer : public RHIResource
+	{
+	public:
+		// å‘åå…¼å®¹ï¼šæ— æ§½ä½çš„æ„é€ 
+		RHIUniformBuffer() 
+			: RHIResource(RRT_UniformBuffer)
+			, mSlot(RHIUniformSlot::Invalid) {}
+		
+		// å¸¦æ§½ä½çš„æ„é€ 
+		explicit RHIUniformBuffer(RHIUniformSlot InSlot) 
+			: RHIResource(RRT_UniformBuffer)
+			, mSlot(InSlot) {}
+		
+		RHIUniformSlot GetSlot() const { return mSlot; }
+		void SetSlot(RHIUniformSlot InSlot) { mSlot = InSlot; }
+		
+	protected:
+		RHIUniformSlot mSlot = RHIUniformSlot::Invalid;
+	};
+
+	class RHIViewport :public RHIResource
+	{
+	public:
+		RHIViewport() :RHIResource(RRT_Viewport) {}
+	};
+
+	class RHISwapchain : public RHIResource
+	{
+	public:
+		RHISwapchain() : RHIResource(RRT_Swapchain) {}
+		
+		// Only return texture
+		virtual RHITexture* AcquireNextTexture() = 0;
+		
+		// Do not call in render thread.
+		virtual RHITexture* AcquireAndGetBackBuffer(void** OutSemaphore = nullptr) = 0;
+		
+		virtual void Resize(uint32 InWidth, uint32 InHeight) = 0;
+		virtual void GetSize(uint32& OutWidth, uint32& OutHeight) = 0;
+		virtual RHITexture* GetDepthStencilTexture() { return nullptr; }
+	};
+
+	struct LinearColor
+	{
+		LinearColor(float r, float g, float b, float a)
+		{
+			RGBA[0] = r;
+			RGBA[1] = g;
+			RGBA[2] = b;
+			RGBA[3] = a;
+
+		}
+		union
+		{
+			struct
+			{
+				float R, G, B, A;
+			};
+			float RGBA[4];
+		};
+	};
+
+	//RHI Resource Ptr
+
+	using RHIBufferPtr = RHISmartPtr<RHIBuffer>;
+	using RHITexturePtr = RHISmartPtr<RHITexture>;
+	using RHIPipelinePtr = RHISmartPtr<RHIPipeline>;
+	using RHIShaderPtr = RHISmartPtr<RHIShader>;
+	using RHIUniformBufferPtr = RHISmartPtr<RHIUniformBuffer>;
+	using RHIViewportPtr = RHISmartPtr<RHIViewport>;
 
 	struct RHIRenderPassInfo
 	{
@@ -678,6 +904,7 @@ namespace Elaine
 			int32                ArraySlice = -1;
 			uint8                MipIndex = 0;
 			ERenderTargetActions Action = ERenderTargetActions::DontLoad_DontStore;
+			LinearColor          ClearColor = LinearColor(0, 0, 0, 1);  // Clear color for this target
 		};
 		std::array<ColorEntry, MaxSimultaneousRenderTargets> ColorRenderTargets;
 
@@ -686,9 +913,14 @@ namespace Elaine
 			RHITexture* DepthStencilTarget = nullptr;
 			RHITexture* ResolveTarget = nullptr;
 			EDepthStencilTargetActions Action = EDepthStencilTargetActions::DontLoad_DontStore;
-			ExclusiveDepthStencil ExclusiveDepthStencil;
+			ExclusiveDepthStencil ExclusiveDepthStencil = ExclusiveDepthStencil::DepthWrite_StencilWrite;
+			float ClearDepth = 1.0f;     // Clear depth value
+			uint32 ClearStencil = 0;     // Clear stencil value
 		};
 		DepthStencilEntry DepthStencilRenderTarget;
+
+		// Number of color render targets actually used
+		uint32 NumColorRenderTargets = 0;
 
 		// Controls the area for a multisample resolve or raster UAV (i.e. no fixed-function targets) operation.
 		Rect ResolveRect;
@@ -930,17 +1162,17 @@ namespace Elaine
 
 	enum RHICullMode
 	{
-		CULL_NONE, //ÎŞÌŞ³ı
-		CULL_FRONT, //ÌŞ³ıÕıÃæ
-		CULL_BACK, //ÌŞ³ı±³Ãæ
-		CULL_ALL, //ÕıÃæºÍ±³ÃæÈ«¶¼ÌŞ³ı
+		CULL_NONE, //æ— å‰”é™¤
+		CULL_FRONT, //å‰”é™¤æ­£é¢
+		CULL_BACK, //å‰”é™¤èƒŒé¢
+		CULL_ALL, //æ­£é¢å’ŒèƒŒé¢å…¨éƒ½å‰”é™¤
 	};
 
 	enum RHIPolygonMode
 	{
-		POLYGON_FILL, //»æÖÆÊµĞÄÈı½ÇĞÎ
-		POLYGON_LINE, //»æÖÆÈı½ÇĞÎµÄÏß¿ò
-		POLYGON_POINT, //»æÖÆÈı½ÇĞÎµÄ¶¥µã
+		POLYGON_FILL, //ç»˜åˆ¶å®å¿ƒä¸‰è§’å½¢
+		POLYGON_LINE, //ç»˜åˆ¶ä¸‰è§’å½¢çš„çº¿æ¡†
+		POLYGON_POINT, //ç»˜åˆ¶ä¸‰è§’å½¢çš„é¡¶ç‚¹
 	};
 
 	enum RHIMultiSampleCount
@@ -956,31 +1188,59 @@ namespace Elaine
 
 	enum RHICompareOp
 	{
-		COMPARE_OP_NEVER,					//Ò»¶¨²»Í¨¹ı²âÊÔ
-		COMPARE_OP_LESS,					//±íÊ¾ÈôĞÂÆ¬¶ÎµÄÉî¶ÈÖµĞ¡ÓÚÉî¶ÈÄ£°å¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_EQUAL,					//±íÊ¾ÈôĞÂÆ¬¶ÎµÄÉî¶ÈÖµµÈÓÚDS¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_LESS_OR_EQUAL,			//±íÊ¾ÈôĞÂÉî¶ÈÖµĞ¡ÓÚµÈÓÚDS¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_GREATER,					//±íÊ¾ÈôĞÂÉî¶ÈÖµ´óÓÚDS¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_NOT_EQUAL,				//±íÊ¾ÈôĞÂÉî¶ÈÖµ²»µÈÓÚDS¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_GREATER_OR_EQUAL,		//±íÊ¾ÈôĞÂÉî¶ÈÖµ´óÓÚµÈÓÚDS¸½¼şÖĞÒÑÓĞµÄÉî¶ÈÖµÊ±£¬Í¨¹ıÉî¶È²âÊÔ
-		COMPARE_OP_ALWAYS,					//±íÊ¾ÎŞÂÛÉî¶ÈÖµÈçºÎ£¬Ò»¶¨Í¨¹ıÉî¶È²âÊÔ
+		COMPARE_OP_NEVER,					//ä¸€å®šä¸é€šè¿‡æµ‹è¯•
+		COMPARE_OP_LESS,					//è¡¨ç¤ºè‹¥æ–°ç‰‡æ®µçš„æ·±åº¦å€¼å°äºæ·±åº¦æ¨¡æ¿é™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_EQUAL,					//è¡¨ç¤ºè‹¥æ–°ç‰‡æ®µçš„æ·±åº¦å€¼ç­‰äºDSé™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_LESS_OR_EQUAL,			//è¡¨ç¤ºè‹¥æ–°æ·±åº¦å€¼å°äºç­‰äºDSé™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_GREATER,					//è¡¨ç¤ºè‹¥æ–°æ·±åº¦å€¼å¤§äºDSé™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_NOT_EQUAL,				//è¡¨ç¤ºè‹¥æ–°æ·±åº¦å€¼ä¸ç­‰äºDSé™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_GREATER_OR_EQUAL,		//è¡¨ç¤ºè‹¥æ–°æ·±åº¦å€¼å¤§äºç­‰äºDSé™„ä»¶ä¸­å·²æœ‰çš„æ·±åº¦å€¼æ—¶ï¼Œé€šè¿‡æ·±åº¦æµ‹è¯•
+		COMPARE_OP_ALWAYS,					//è¡¨ç¤ºæ— è®ºæ·±åº¦å€¼å¦‚ä½•ï¼Œä¸€å®šé€šè¿‡æ·±åº¦æµ‹è¯•
 	};
 
 	enum RHIStencilOp
 	{
-		STENCIL_OP_KEEP,						//±íÊ¾²»¸Ä±äÄ£°å»º³åÖĞÔ­ÓĞµÄÊıÖµ
-		STENCIL_OP_ZERO,						//±íÊ¾Ê¹ÓÃ0×÷ÎªĞ´ÈëÖµ
-		STENCIL_OP_REPLACE,						//±íÊ¾Ê¹ÓÃreference×÷ÎªĞ´ÈëÖµ
-		STENCIL_OP_INCREMENT_AND_CLAMP,			//±íÊ¾Ê¹ÓÃDS¸½¼şÖĞÔ­ÓĞÊıÖµ + 1×÷ÎªĞ´ÈëÖµ£¬²¢Ç¯ÖÆµ½255
-		STENCIL_OP_DECREMENT_AND_CLAMP,			//±íÊ¾Ê¹ÓÃDS¸½¼şÖĞÔ­ÓĞÊıÖµ - 1×÷ÎªĞ´ÈëÖµ£¬²¢Ç¯ÖÆµ½0
-		STENCIL_OP_INVERT,						//±íÊ¾½«DS¸½¼şÖĞÔ­ÓĞÊıÖµ°´Î»È¡·´£¬ÒÔ¸ÃÊıÖµÎªĞ´ÈëÖµ
-		STENCIL_OP_INCREMENT_AND_WRAP,			//±íÊ¾Ê¹ÓÃDS¸½¼şÖĞÔ­ÓĞÊıÖµ + 1×÷ÎªĞ´ÈëÖµ£¬ÈôÔ­ÓĞÊıÖµÎª255£¬Ğ´ÈëÖµÎª0
-		STENCIL_OP_DECREMENT_AND_WRAP,			//±íÊ¾Ê¹ÓÃDS¸½¼şÖĞÔ­ÓĞÊıÖµ - 1×÷ÎªĞ´ÈëÖµ£¬ÈôÔ­ÓĞÊıÖµÎª0£¬Ğ´ÈëÖµÎª255
+		STENCIL_OP_KEEP,						//è¡¨ç¤ºä¸æ”¹å˜æ¨¡æ¿ç¼“å†²ä¸­åŸæœ‰çš„æ•°å€¼
+		STENCIL_OP_ZERO,						//è¡¨ç¤ºä½¿ç”¨0ä½œä¸ºå†™å…¥å€¼
+		STENCIL_OP_REPLACE,						//è¡¨ç¤ºä½¿ç”¨referenceä½œä¸ºå†™å…¥å€¼
+		STENCIL_OP_INCREMENT_AND_CLAMP,			//è¡¨ç¤ºä½¿ç”¨DSé™„ä»¶ä¸­åŸæœ‰æ•°å€¼ + 1ä½œä¸ºå†™å…¥å€¼ï¼Œå¹¶é’³åˆ¶åˆ°255
+		STENCIL_OP_DECREMENT_AND_CLAMP,			//è¡¨ç¤ºä½¿ç”¨DSé™„ä»¶ä¸­åŸæœ‰æ•°å€¼ - 1ä½œä¸ºå†™å…¥å€¼ï¼Œå¹¶é’³åˆ¶åˆ°0
+		STENCIL_OP_INVERT,						//è¡¨ç¤ºå°†DSé™„ä»¶ä¸­åŸæœ‰æ•°å€¼æŒ‰ä½å–åï¼Œä»¥è¯¥æ•°å€¼ä¸ºå†™å…¥å€¼
+		STENCIL_OP_INCREMENT_AND_WRAP,			//è¡¨ç¤ºä½¿ç”¨DSé™„ä»¶ä¸­åŸæœ‰æ•°å€¼ + 1ä½œä¸ºå†™å…¥å€¼ï¼Œè‹¥åŸæœ‰æ•°å€¼ä¸º255ï¼Œå†™å…¥å€¼ä¸º0
+		STENCIL_OP_DECREMENT_AND_WRAP,			//è¡¨ç¤ºä½¿ç”¨DSé™„ä»¶ä¸­åŸæœ‰æ•°å€¼ - 1ä½œä¸ºå†™å…¥å€¼ï¼Œè‹¥åŸæœ‰æ•°å€¼ä¸º0ï¼Œå†™å…¥å€¼ä¸º255
 	};
 
 #define RHI_STREAM_MAX 4
 #define RHI_MAX_VS_BUFFER_COUNT 2
 #define RHI_MAX_PS_BUFFER_COUNT 8
+
+	/**
+	 * é‡‡æ ·å™¨ç±»å‹æšä¸¾
+	 * - ä¸Šå±‚åªéœ€æŒ‡å®šç±»å‹ï¼ŒRHIå±‚å†…éƒ¨ç®¡ç†å®é™…çš„Samplerå¯¹è±¡
+	 * - é¢„å®šä¹‰å¸¸ç”¨é‡‡æ ·æ¨¡å¼ï¼Œè¦†ç›–99%ä½¿ç”¨åœºæ™¯
+	 */
+	enum RHISamplerType : uint8
+	{
+		// ===== åŸºç¡€ç»„åˆ =====
+		SAMPLER_LINEAR_CLAMP,        // çº¿æ€§è¿‡æ»¤ + Clampè¾¹ç•Œ (é»˜è®¤)
+		SAMPLER_LINEAR_REPEAT,       // çº¿æ€§è¿‡æ»¤ + Repeatè¾¹ç•Œ
+		SAMPLER_LINEAR_MIRROR,       // çº¿æ€§è¿‡æ»¤ + Mirrorè¾¹ç•Œ
+		SAMPLER_NEAREST_CLAMP,       // æœ€è¿‘é‚» + Clamp
+		SAMPLER_NEAREST_REPEAT,      // æœ€è¿‘é‚» + Repeat
+
+		// ===== å„å‘å¼‚æ€§è¿‡æ»¤ =====
+		SAMPLER_ANISO_CLAMP,         // å„å‘å¼‚æ€§ + Clamp (é«˜è´¨é‡)
+		SAMPLER_ANISO_REPEAT,        // å„å‘å¼‚æ€§ + Repeat
+
+		// ===== ç‰¹æ®Šç”¨é€” =====
+		SAMPLER_SHADOW,              // é˜´å½±è´´å›¾ (æ·±åº¦æ¯”è¾ƒ)
+		SAMPLER_CUBEMAP,             // ç«‹æ–¹ä½“è´´å›¾ (ä¸‰çº¿æ€§ + Clamp)
+		SAMPLER_UI,                  // UIçº¹ç† (ç‚¹é‡‡æ · + Clamp)
+		SAMPLER_DEPTH,               // æ·±åº¦çº¹ç†é‡‡æ ·
+
+		SAMPLER_TYPE_COUNT,
+		SAMPLER_DEFAULT = SAMPLER_LINEAR_CLAMP
+	};
 
 	enum RHI_TEXTURE_REG
 	{
@@ -1040,7 +1300,7 @@ namespace Elaine
 		STREAM_CUSTOMBUFFER1,
 		STREAM_CUSTOMBUFFER2,
 		STREAM_CUSTOMBUFFER3,
-		STREAM_INDEXBUFFER,
+		//STREAM_INDEXBUFFER,
 		STREAM_INPUT_MAX,
 	};
 
@@ -1099,6 +1359,92 @@ namespace Elaine
 		RHIBuffer*		mPsBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
 	};
 
+	/**
+	 * èµ„æºç»‘å®šæè¿°ç¬¦ (æ¯æ¬¡ç»˜åˆ¶å˜åŒ–çš„æ•°æ®)
+	 * - ä¸Pipeline Stateåˆ†ç¦»,æé«˜æ¸²æŸ“æ•ˆç‡
+	 * - åŒ…å«é¡¶ç‚¹/ç´¢å¼•ç¼“å†²ã€çº¹ç†ã€Uniformç¼“å†²ç­‰
+	 */
+	struct RHI_DRAW_RESOURCE_BINDING
+	{
+		// ========== é¡¶ç‚¹/ç´¢å¼•æ•°æ® ==========
+		RHIDrawData			mDrawData;
+		RHIBuffer*			mIndexBuffer = nullptr;
+		size_t				mIndexOffset = 0;
+		RHIIndexType		mIndexType = INDEX_TYPE_UINT16;
+		
+		// ========== ç»˜åˆ¶å‚æ•° ==========
+		uint32				mIndexCount = 0;
+		uint32				mVertexCount = 0;
+		uint32				mInstanceCount = 1;
+		uint32				mFirstVertex = 0;
+		uint32				mFirstInstance = 0;
+		uint32				mFirstIndex = 0;
+		int32				mVertexOffset = 0;
+
+		// ========== çº¹ç†ç»‘å®š (æŒ‰æ§½ä½è®¾ç½®) ==========
+		RHITexture*			mTextures[RTR_TEXTURE_MAX] = { nullptr };
+		RHISamplerType		mSamplerTypes[RTR_TEXTURE_MAX] = { SAMPLER_DEFAULT };  // ä¸Šå±‚åªæŒ‡å®šç±»å‹
+		uint32				mTextureCount = 0;  // å®é™…ä½¿ç”¨çš„çº¹ç†æ•°é‡
+
+		// ========== Uniformç¼“å†² (æŒ‰Shaderé˜¶æ®µ) ==========
+		RHIUniformBuffer*	mVSUniformBuffers[RHI_MAX_VS_BUFFER_COUNT] = { nullptr };
+		RHIUniformBuffer*	mPSUniformBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
+		RHIUniformBuffer*	mGSUniformBuffer = nullptr;
+		RHIUniformBuffer*	mCommonUniformBuffer = nullptr;
+		
+		// ========== æ¸²æŸ“ç›®æ ‡ (å¯é€‰,é€šå¸¸åœ¨RenderPasså±‚è®¾ç½®) ==========
+		RHITexture*			mRenderTargets[MAX_RENDER_TARGET_COUNT] = { nullptr };
+		RHITexture*			mDepthStencilTarget = nullptr;
+		uint32				mRenderTargetCount = 0;
+
+		// ========== è¾…åŠ©æ–¹æ³• ==========
+		void SetTexture(uint32 InSlot, RHITexture* InTexture, RHISamplerType InSamplerType = SAMPLER_DEFAULT)
+		{
+			if (InSlot < RTR_TEXTURE_MAX)
+			{
+				mTextures[InSlot] = InTexture;
+				mSamplerTypes[InSlot] = InSamplerType;
+				if (InSlot >= mTextureCount)
+					mTextureCount = InSlot + 1;
+			}
+		}
+
+		void SetVSUniformBuffer(uint32 InSlot, RHIUniformBuffer* InBuffer)
+		{
+			if (InSlot < RHI_MAX_VS_BUFFER_COUNT)
+				mVSUniformBuffers[InSlot] = InBuffer;
+		}
+
+		void SetPSUniformBuffer(uint32 InSlot, RHIUniformBuffer* InBuffer)
+		{
+			if (InSlot < RHI_MAX_PS_BUFFER_COUNT)
+				mPSUniformBuffers[InSlot] = InBuffer;
+		}
+
+		void Reset()
+		{
+			mDrawData = { };
+			mIndexBuffer = nullptr;
+			mIndexOffset = 0;
+			mIndexCount = 0;
+			mVertexCount = 0;
+			mInstanceCount = 1;
+			mFirstVertex = 0;
+			mFirstInstance = 0;
+			mFirstIndex = 0;
+			mVertexOffset = 0;
+			mTextureCount = 0;
+			mRenderTargetCount = 0;
+			mGSUniformBuffer = nullptr;
+			mCommonUniformBuffer = nullptr;
+			for (int i = 0; i < RTR_TEXTURE_MAX; ++i) { mTextures[i] = nullptr; mSamplerTypes[i] = SAMPLER_DEFAULT; }
+			for (int i = 0; i < RHI_MAX_VS_BUFFER_COUNT; ++i) mVSUniformBuffers[i] = nullptr;
+			for (int i = 0; i < RHI_MAX_PS_BUFFER_COUNT; ++i) mPSUniformBuffers[i] = nullptr;
+			for (int i = 0; i < MAX_RENDER_TARGET_COUNT; ++i) mRenderTargets[i] = nullptr;
+			mDepthStencilTarget = nullptr;
+		}
+	};
+
 	struct GRAPHICS_PIPELINE_STATE_DESC
 	{
 		std::string						mVSShaderCode;
@@ -1109,35 +1455,31 @@ namespace Elaine
 		//RHIShader*						mPSShader;
 		RHIVertexBufferDataDesc			mVertexAttribute;
 		RHIIndexType					mIndexType = INDEX_TYPE_UINT16;
-		RHIDrawData*					mRHIDrawData = nullptr;
 		EPrimitiveType					mPrimitiveType = PT_TriangleList;
-		PixelFormat						mRenderTargetFormats[MAX_RENDER_TARGET_COUNT];
+		// æ¸²æŸ“ç›®æ ‡æ ¼å¼ (ç”¨äºPipelineåˆ›å»º)
+		PixelFormat						mRenderTargetFormats[MAX_RENDER_TARGET_COUNT] = { PF_Unknown };
 		TextureCreateFlags				mRenderTargetFlags[MAX_RENDER_TARGET_COUNT];
-		PixelFormat						mDepthStencilTargetFormat;
+		PixelFormat						mDepthStencilTargetFormat = PF_Unknown;
 		TextureCreateFlags				mDepthStencilTargetFlag;
 		ERenderTargetLoadAction			mDepthTargetLoadAction;
 		ERenderTargetStoreAction		mDepthTargetStoreAction;
 		ERenderTargetLoadAction			mStencilTargetLoadAction;
 		ERenderTargetStoreAction		mStencilTargetStoreAction;
 		ExclusiveDepthStencil			mDepthStencilAccess;
-		RHISampler**					mSamples = nullptr;
-		RHITexture*						mTextures[16];
-		RHITexture*						mRenderTarget[MAX_RENDER_TARGET_COUNT] = { nullptr };
-		RHIUniformBuffer*				mUniformBuffer = nullptr;
-		uint16							mNumSamples = 0;
-		uint8							mMultiViewCount = 1;
-		bool							mbTessellation = false;
-		bool							mbUseMultiViewport = false;
-		bool							mbUseDefultViewPort = true;
 		std::vector<ViewportBounds>		mViewBounds;
 		std::vector<RHIRectScissor2D>	mScissors;
 		uint64							mStateHash = 0;
 		RHICullMode						mCullMode = CULL_BACK;
 		RHIPolygonMode					mPolygonMode = POLYGON_FILL;
 		RHIMultiSampleCount				mMultiSampleCount = SAMPLE_COUNT_1;
+		RHICompareOp					mDepthOp = COMPARE_OP_LESS;
+		uint16							mNumSamples = 0;
+		uint8							mMultiViewCount = 1;
+		bool							mbTessellation = false;
+		bool							mbUseMultiViewport = false;
+		bool							mbUseDefultViewPort = true;
 		bool							mbDepthTestEnable = true;
 		bool							mbDepthWriteEnable = true;
-		RHICompareOp					mDepthOp = COMPARE_OP_LESS;
 		bool							mStencilTestEnable = false;
 		bool							mbEnableColorBlend = false;
 		//SubPassInfo					mSubpass; todo for some support subpass
@@ -1148,5 +1490,3 @@ namespace Elaine
 
 	};
 }
-
-

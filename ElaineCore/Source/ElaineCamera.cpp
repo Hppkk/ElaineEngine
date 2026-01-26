@@ -249,4 +249,22 @@ namespace Elaine
         mAspect = InAspect;
         mbCacheOutOfData = true;
     }
+
+    void Camera::SetNearPlane(float InNear)
+    {
+        if (mNear == InNear)
+            return;
+
+        mNear = InNear;
+        mbCacheOutOfData = true;
+    }
+
+    void Camera::SetFarPlane(float InFar)
+    {
+        if (mFar == InFar)
+            return;
+
+        mFar = InFar;
+        mbCacheOutOfData = true;
+    }
 }

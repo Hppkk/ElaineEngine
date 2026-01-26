@@ -1,6 +1,10 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/common/ElaineRenderModule.h"
 #include "render/vulkan/ElaineVulkanRHI.h"
+#include "ElaineRenderSystem.h"
+#include "ElaineUniformGPUManager.h"
+#include "ElaineShaderPassManager.h"
+#include "ElaineRenderGraph.h"
 
 namespace Elaine
 {
@@ -14,30 +18,24 @@ namespace Elaine
 
 	}
 
-	DynamicRHI* RenderModule::LoadDynamicRHI(const RHI_PARAM_DESC& InDesc)
+	void RenderModule::LoadDynamicRHI(const RHI_PARAM_DESC& InDesc)
 	{
 		if (mbIsLoaded)
-			return mDynamicRHI;
-
+			return;
 		mbIsLoaded = true;
+		RenderSystem::instance()->Initialize(InDesc);
+	}
 
-		switch (InDesc.RHIType)
-		{
-		case Elaine::Vulkan:
-			mDynamicRHI = new VulkanRHI::VulkanDynamicRHI();
-			mDynamicRHI->Initialize(InDesc);
-			break;
-		case Elaine::Dx11:
-			break;
-		case Elaine::Dx12:
-			break;
-		case Elaine::Metal:
-			break;
-		case Elaine::OpenGl:
-			break;
-		default:
-			break;
-		}
-		return mDynamicRHI;
+	void RenderModule::Initialize()
+	{
+		SemanticsRegister::Initialize();
+		new RenderSystem();
+		new ShaderPassManager();
+		new RenderGraph::RenderDependencyGraph();
+	}
+
+	void RenderModule::Terminate()
+	{
+
 	}
 }

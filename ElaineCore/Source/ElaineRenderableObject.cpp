@@ -14,7 +14,6 @@ namespace Elaine
 	{
 		m_SceneNode->removeRenderObject(this);
 		m_SceneNode->getParentNode()->detachChildNode(m_SceneNode);
-		m_SceneManager->destroySceneNode(m_SceneNode);
 		m_SceneNode = nullptr;
 	}
 
@@ -30,12 +29,12 @@ namespace Elaine
 
 	const Vector3& RenderableObject::GetWorldPosition() const
 	{
-		return m_SceneNode->getWorldPosition();
+		return m_SceneNode->GetWorldPosition();
 	}
 
 	const Vector3& RenderableObject::GetWorldScale() const
 	{
-		return m_SceneNode->getWorldScale();
+		return m_SceneNode->GetWorldScale();
 	}
 
 	const Quaternion& RenderableObject::GetWorldRotation() const
@@ -45,12 +44,12 @@ namespace Elaine
 
 	void RenderableObject::SetWorldPosition(const Vector3& pos)
 	{
-		m_SceneNode->setWorldPosition(pos);
+		m_SceneNode->SetPosition(pos);
 	}
 
 	void RenderableObject::SetWorldScale(const Vector3& scale)
 	{
-		m_SceneNode->setWorldScale(scale);
+		m_SceneNode->SetScale(scale);
 	}
 
 	void RenderableObject::SetWorldRotation(const Quaternion& rotation)
@@ -68,7 +67,7 @@ namespace Elaine
 
 	const Matrix4x4& RenderableObject::GetWorldMatrix()
 	{
-		return m_SceneNode->getWorldMatrix();
+		return m_SceneNode->GetWorldMatrix();
 	}
 
 	void RenderableObject::UpdateWorldMatrix()

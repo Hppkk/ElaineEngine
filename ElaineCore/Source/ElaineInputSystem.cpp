@@ -5,6 +5,6 @@ namespace Elaine
 {
 	void InputSystem::PollEvent()
 	{
-		glfwPollEvents();
+		
 	}
 }

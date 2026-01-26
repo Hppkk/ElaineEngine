@@ -3,7 +3,7 @@
 
 namespace Elaine
 {
-	class Vector2
+	class ElaineCoreExport Vector2
 	{
 	public:
 		Vector2() = default;

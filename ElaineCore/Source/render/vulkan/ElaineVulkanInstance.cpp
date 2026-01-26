@@ -16,7 +16,7 @@ namespace VulkanRHI
     {
         CreateInstance();
 
-        if (Root::instance()->isEnableVulkanValidationLayer())
+        if (Root::instance()->IsEnableVulkanValidationLayer())
         {
             VkDebugUtilsMessengerCreateInfoEXT createInfo;
             PopulateDebugMessengerCreateInfo(createInfo);
@@ -54,7 +54,7 @@ namespace VulkanRHI
 
     void VulkanInstance::CreateInstance()
     {
-        if (Elaine::Root::instance()->isEnableVulkanValidationLayer())
+        if (Elaine::Root::instance()->IsEnableVulkanValidationLayer())
         {
             if (!CheckValidationLayerSupport())
             {
@@ -62,7 +62,20 @@ namespace VulkanRHI
             }
         }
 
-        mVersion = VK_API_VERSION_1_3;
+        uint32_t InstanceVersion = VK_API_VERSION_1_0;
+#ifdef USE_VOLK
+        vkEnumerateInstanceVersion(&InstanceVersion);
+#else
+        if (VulkanRHI::vkEnumerateInstanceVersion)
+        {
+            VulkanRHI::vkEnumerateInstanceVersion(&InstanceVersion);
+        }
+#endif
+
+        uint32_t TargetVersion = VK_API_VERSION_1_3;
+        mVersion = (InstanceVersion < TargetVersion) ? InstanceVersion : TargetVersion;
+        LOG_INFO("VulkanRHI: Version {}.{}.", VK_VERSION_MAJOR(mVersion), VK_VERSION_MINOR(mVersion));
+
         // app info
         VkApplicationInfo appInfo{};
         appInfo.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
@@ -82,7 +95,7 @@ namespace VulkanRHI
         instance_create_info.ppEnabledExtensionNames = extensions.data();
 
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
-        if (Elaine::Root::instance()->isEnableVulkanValidationLayer())
+        if (Elaine::Root::instance()->IsEnableVulkanValidationLayer())
         {
             instance_create_info.enabledLayerCount = static_cast<uint32_t>(mLayers.size());
             instance_create_info.ppEnabledLayerNames = mLayers.data();
@@ -100,6 +113,10 @@ namespace VulkanRHI
         {
             LOG_ERROR("VulkanRHI: vulkan create instance failed!");
         }
+
+#ifdef USE_VOLK
+        volkLoadInstance(mHandle);
+#endif
     }
 
     std::vector<const char*> VulkanInstance::GetRequiredExtensions()
@@ -111,7 +128,7 @@ namespace VulkanRHI
 
         std::vector<const char*> extensions{ "VK_KHR_surface" ,"VK_KHR_win32_surface"};
 
-        if (Elaine::Root::instance()->isEnableVulkanValidationLayer() || mEnableDebugUtilsLabel)
+        if (Elaine::Root::instance()->IsEnableVulkanValidationLayer() || mEnableDebugUtilsLabel)
         {
             extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
         }
@@ -123,12 +140,12 @@ namespace VulkanRHI
         return extensions;
     }
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(VkDebugUtilsMessageSeverityFlagBitsEXT,
+    static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugMessager(VkDebugUtilsMessageSeverityFlagBitsEXT,
         VkDebugUtilsMessageTypeFlagsEXT,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
         void*)
     {
-        LOG_DEBUG("VulkanRHI: Validation Layer Messmage: " + pCallbackData->pMessage);
+        LOG_DEBUG("VulkanRHI: Validation Layer Messmage: {}", pCallbackData->pMessage);
         return VK_FALSE;
     }
 
@@ -141,7 +158,7 @@ namespace VulkanRHI
             | VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT;
         createInfo.messageType =
             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        createInfo.pfnUserCallback = debugCallback;
+        createInfo.pfnUserCallback = VulkanDebugMessager;
     }
 
     VkResult VulkanInstance::CreateDebugUtilsMessengerEXT(VkInstance instance,

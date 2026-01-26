@@ -3,16 +3,14 @@
 #include "ElaineSingleton.h"
 #include "ElaineTimer.h"
 #include "ElaineSceneManager.h"
-#include "render/common/ElaineRHI.h"
+#include "common/ElaineRHI.h"
+#include "ElaineThreadManager.h"
+#include "ElaineRenderView.h"
+#include "ElaineRenderPipeline.h"
+#include "ElaineBarrier.h"
 
 namespace Elaine
 {
-	//enum EngineMode
-	//{
-	//	em_Editor,
-	//	em_Runtime,
-	//};
-
 	//enum ThreadMode
 	//{
 	//	tm_Thread0, //逻辑渲染同一个线程
@@ -24,44 +22,60 @@ namespace Elaine
 	public:
 		Root();
 		~Root();
-		void					initilize(const RHI_PARAM_DESC& InDesc);
-		//EngineMode				GetEngineMode()const { return m_RuntimeMode; }
-		std::string&			getExePath() const { return m_sAppPath; }
-		std::string&			getResourcePath()const { return m_sResourcePath; }
-		float					calculateDeltaTime();
-		void					calculateFPS(float dt);
-		int						getFPS() { return m_fps; }
-		Timer*					getTimer() { return m_timer; }
-		void					beginFrame(float dt);
-		void					fixedUpdate(float dt);
-		void					endFrame(float dt);
+		void					Initialize(const RHI_PARAM_DESC& InDesc);
+		void					PostInitialize();
+		std::string&			GetAppPath() const { return mAppPath; }
+		std::string&			GetResourcePath()const { return mResourcePath; }
+		float					CalculateDeltaTime();
+		float					GetDeltaTime() const { return mDeltaTime; }
+		void					CalculateFPS(float dt);
+		int						GetFPS() const { return mFPS; }
+		Timer*					GetTimer() { return mTimer; }
+		void					PreFrame(float dt);
+		void					BeginFrame(float dt);
+		void					FixedUpdate(float dt);
+		void					EndFrame(float dt);
+		void					PostFrame(float dt);
 		void					RenderOneFrame();
-		RenderSystem*			getRenderSystem() { return m_pRenderSystem; }
-		SceneManager*			getSceneManager(const String& name);
-		SceneManager*			getMainSceneManager();
-		SceneManager*			createSceneManager(const String& name);
-		RHITYPE					getRenderRHI() { return m_RHIType;}
-		bool					isEnableVulkanValidationLayer() { return m_bEnableVulkanValidationLayer;}
+		void					TickTime();
+		SceneManager*			GetSceneManager(const String& name);
+		SceneManager*			GetMainSceneManager();
+		SceneManager*			CreateSceneManager(const String& name);
+		void					DestroySceneManager(SceneManager* InSceneManager);
+
+		RHITYPE					GetRHIType() const { return mRHIType;}
+		bool					IsEnableVulkanValidationLayer() const { return mbEnableVulkanValidationLayer;}
+		bool					CheckThread(NamedThread InNamedThread);
+		void					RegisterRenderView(RenderView* InRenderView);
+		void					UnregisterRenderView(RenderView* InRenderView);
 	private:
 		// shutdown
-		void					terminate();
-		void					readConfig(const std::string& file);
+		void					Terminate();
+		void					LoadConfig(const std::string& InPath);
 	private:
-		//EngineMode								m_RuntimeMode = em_Editor;
-		//ThreadMode								m_ThreadMode = tm_Thread1;
-		mutable std::string						m_sAppPath;
-		mutable std::string						m_sResourcePath;
-		std::chrono::steady_clock::time_point	m_last_tick_time_point = std::chrono::steady_clock::now();
-		const float								s_fps_alpha = 1.f / 100;
-		int										m_fps = 0;
-		float									m_average_duration = 0.f;
-		int										m_frame_count = 0;
-		Timer*									m_timer = nullptr;
-		RenderSystem*							m_pRenderSystem = nullptr;
-		std::map<String, SceneManager*>			m_SceneMgrs;
-		SceneManager*							m_MainSceneMgr = nullptr;
-		RHITYPE									m_RHIType = Vulkan;
-		bool									m_bEnableVulkanValidationLayer = true;
+		mutable std::string						mAppPath;
+		mutable std::string						mResourcePath;
+		std::chrono::steady_clock::time_point	mLastTickTimePoint = std::chrono::steady_clock::now();
+		const float								mFPSAlpha = 1.f / 100;
+		std::atomic_int							mFPS = 0;
+		float									mAverageDuration = 0.f;
+		std::atomic_int							mFrameCount = 0;
+		float									mDeltaTime = 0.0f;
+		Timer*									mTimer = nullptr;
+		std::set<SceneManager*>					mSceneMgrs;
+		std::set<RenderView*>					mRenderViews;
+		SceneManager*							mMainSceneMgr = nullptr;
+		RHITYPE									mRHIType = Vulkan;
+		bool									mbEnableVulkanValidationLayer = true;
+		ThreadWrap*								mRenderThread = nullptr;
+		RenderPipeline*							mRenderPipeline[RP_Count] = {};
+		std::atomic<bool>						mbInitialize = false;
 	};
 
+#ifndef CheckInThread
+#define CheckInThread(InThreadName) Root::instance()->CheckThread(InThreadName);
+#endif
+
+	extern ElaineCoreExport EBarrier* LogicToRender_Barrier;
+	extern ElaineCoreExport EBarrier* RenderToLogic_Barrier;
 }

@@ -2,10 +2,9 @@
 
 namespace Editor
 {
-	EditorBase::EditorBase(EditorManagerBase* InOwner)
+    EditorPanel::EditorPanel(const char* title, bool visible)
+		: mTitle(title), mVisible(visible)
 	{
-	}
-	EditorBase::~EditorBase()
-	{
+		mContext = EditorGlobalContext::instance();
 	}
 }

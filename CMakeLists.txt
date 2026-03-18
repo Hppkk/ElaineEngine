@@ -91,6 +91,7 @@ set(ENGINE_INCLUDE_DIR
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/common 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Include/GamePlay 
  ${CMAKE_CURRENT_SOURCE_DIR}/ElaineReflection/Public
+ ${CMAKE_CURRENT_SOURCE_DIR}/ElaineEngine/Generated
 )
 
 add_subdirectory(ElaineReflection)

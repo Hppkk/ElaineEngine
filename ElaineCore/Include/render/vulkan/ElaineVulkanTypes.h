@@ -28,14 +28,18 @@ namespace VulkanRHI
 
     struct VulkanCpuReadbackBuffer
     {
-        VkBuffer Buffer;
-        uint32 MipOffsets[MAX_TEXTURE_MIP_COUNT];
-        uint32 MipSize[MAX_TEXTURE_MIP_COUNT];
+        VkBuffer Buffer = VK_NULL_HANDLE;
+        uint32 MipOffsets[MAX_TEXTURE_MIP_COUNT] = {};
+        uint32 MipSize[MAX_TEXTURE_MIP_COUNT] = {};
+        void* MappedPointer = nullptr;
+        uint32 TotalSize = 0;
+        bool bReady = false;
     };
 
     struct VulkanImageCreateInfo
     {
         VkImageCreateInfo mImageCreateInfo;
+        VkExternalMemoryImageCreateInfoKHR mExternalMemImageCreateInfo;
         VkImageFormatListCreateInfoKHR mImageFormatListCreateInfo;
         VkFormat mFormatsUsed[2];
     };

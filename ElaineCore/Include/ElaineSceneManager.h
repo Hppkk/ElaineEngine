@@ -3,6 +3,8 @@
 #include "render/common/ElaineRHICommandList.h"
 #include "RenderProxy/ElaineRenderProxy.h"
 #include "ElaineRenderFrameData.h"
+#include "math/ElaineRay.h"
+#include "ElaineVector2.h"
 
 namespace Elaine
 {
@@ -32,6 +34,20 @@ namespace Elaine
 		
 		void PrepareRenderData(Camera* InCamera);
 		RenderFrameData& GetRenderFrameData();
+
+		//=========================================================================
+		// Scene Query (Editor / Gameplay)
+		//=========================================================================
+		struct RaycastResult
+		{
+			RenderProxy* Proxy = nullptr;
+			float Distance = FLT_MAX;
+		};
+
+		RaycastResult Raycast(const Ray& InRay, float MaxDistance = FLT_MAX);
+		
+		// NDC-based box selection
+		std::vector<RenderProxy*> BoxIntersect(const Vector2& InMinNDC, const Vector2& InMaxNDC, const Matrix4x4& ViewProj);
 
 		//=========================================================================
 		// Camera 管理（渲染线程）

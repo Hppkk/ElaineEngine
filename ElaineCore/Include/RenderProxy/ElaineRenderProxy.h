@@ -24,6 +24,9 @@ namespace Elaine
     class ElaineCoreExport RenderProxy
     {
     public:
+		// For SceneQuery identification
+		void* mUserData = nullptr;
+		uint32_t mUserType = 0;
         RenderProxy();
         virtual ~RenderProxy() = default;
 

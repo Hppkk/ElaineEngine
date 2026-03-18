@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "platform/ElainePlatformWindow.h"
+#include "ElaineInputSystem.h"
 
 #if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 #include <shlwapi.h>
@@ -309,6 +310,52 @@ namespace Elaine
                 MINMAXINFO* mmi = reinterpret_cast<MINMAXINFO*>(lParam);
                 mmi->ptMinTrackSize.x = 1;
                 mmi->ptMinTrackSize.y = 1;
+            }
+            return 0;
+
+        case WM_KEYDOWN:
+        case WM_SYSKEYDOWN:
+            InputSystem::instance()->OnKeyPressed(static_cast<EKeyCode>(wParam));
+            return 0;
+
+        case WM_KEYUP:
+        case WM_SYSKEYUP:
+            InputSystem::instance()->OnKeyReleased(static_cast<EKeyCode>(wParam));
+            return 0;
+
+        case WM_LBUTTONDOWN:
+            InputSystem::instance()->OnMouseButtonPressed(EMouseButton::Left);
+            return 0;
+        case WM_LBUTTONUP:
+            InputSystem::instance()->OnMouseButtonReleased(EMouseButton::Left);
+            return 0;
+
+        case WM_RBUTTONDOWN:
+            InputSystem::instance()->OnMouseButtonPressed(EMouseButton::Right);
+            return 0;
+        case WM_RBUTTONUP:
+            InputSystem::instance()->OnMouseButtonReleased(EMouseButton::Right);
+            return 0;
+
+        case WM_MBUTTONDOWN:
+            InputSystem::instance()->OnMouseButtonPressed(EMouseButton::Middle);
+            return 0;
+        case WM_MBUTTONUP:
+            InputSystem::instance()->OnMouseButtonReleased(EMouseButton::Middle);
+            return 0;
+
+        case WM_MOUSEMOVE:
+            {
+                float x = static_cast<float>(LOWORD(lParam));
+                float y = static_cast<float>(HIWORD(lParam));
+                InputSystem::instance()->OnMouseMove(x, y);
+            }
+            return 0;
+
+        case WM_MOUSEWHEEL:
+            {
+                float yOffset = static_cast<float>(GET_WHEEL_DELTA_WPARAM(wParam)) / WHEEL_DELTA;
+                InputSystem::instance()->OnMouseScroll(0.0f, yOffset);
             }
             return 0;
         }

@@ -43,6 +43,6 @@ namespace Elaine
 
 #ifndef ENQUEUE_RENDER_COMMAND
 #define ENQUEUE_RENDER_COMMAND(Name) \
-    RenderSystem::instance()->GetRenderCommandQueue()->Enqueue
+    Elaine::RenderSystem::instance()->GetRenderCommandQueue()->Enqueue
 #endif
 }

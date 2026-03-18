@@ -66,6 +66,10 @@ namespace Elaine
 				AcquiredBackBuffer = Swapchain->AcquireNextTexture();
 			}
 		}
+		else if (Target)
+		{
+			AcquiredBackBuffer = Target->GetTarget();
+		}
 
 		auto& RG = *RenderGraph::RenderDependencyGraph::instance();
 

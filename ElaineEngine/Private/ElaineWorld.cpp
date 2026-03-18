@@ -8,6 +8,8 @@
 #include "ElaineDataStream.h"
 #include "ElaineGameObjectInfoMgr.h"
 #include "ElaineRenderCommandQueue.h"
+#include "math/ElaineDynamicBVH.h"
+#include "math/ElaineISpatialObject.h"
 
 namespace Elaine
 {
@@ -16,6 +18,7 @@ namespace Elaine
         mLevelManager = new LevelManager();
         mTickManager = new TickManager();
         mGameObjectMgr = new GameObjectMgr(this);
+        mSceneBVH = new DynamicBVH();
 
         ENQUEUE_RENDER_COMMAND(CreateSceneManager)([this](RenderContext& Context)
             {
@@ -32,6 +35,7 @@ namespace Elaine
 
         mSceneManager = nullptr;
 
+        SAFE_DELETE(mSceneBVH);
         SAFE_DELETE(mGameObjectMgr);
         SAFE_DELETE(mLevelManager);
         SAFE_DELETE(mTickManager);
@@ -228,5 +232,23 @@ namespace Elaine
         InObject->OnRegisterWorld(this);
         //InObject->RegisterComponents(); // ���� RenderProxy, PhysicsBody
         mActiveGameObjects.push_back(InObject);
+        mSceneBVH->InsertObject(InObject);
+    }
+
+    ISpatialObject* World::Raycast(const Ray& InRay, float MaxDistance) const
+    {
+        if (mSceneBVH)
+        {
+            auto Result = mSceneBVH->Raycast(InRay, MaxDistance);
+            return Result.Object;
+        }
+        return nullptr;
+    }
+
+    std::vector<ISpatialObject*> World::BoxIntersect(const AxisAlignedBox& InBox) const
+    {
+        if (mSceneBVH)
+            return mSceneBVH->BoxIntersect(InBox);
+        return {};
     }
 }

@@ -61,6 +61,27 @@ namespace VulkanRHI
 		void DestroySurface();
 		VkFormat GetVkFormat() const { return mViewFormat; }
 		const VulkanTextureView& GetTextureView() const { return mDefaultView; }
+
+		// 获取 Win32 共享内存 HANDLE（用于 Vulkan <-> DX11 纹理共享）
+		void* GetSharedMemoryHandle() const override;
+		VkExternalMemoryHandleTypeFlagBits GetExternalHandleType() const { return mExternalHandleType; }
+
+		// CPU Readback 接口（staging buffer 方案）
+		void InitReadbackResources() override;
+		void CopyToReadbackBuffer() override;
+		bool ReadbackPixels(void* OutData, uint32& OutRowPitch) override;
+		bool IsReadbackReady() const override;
+		void DestroyReadbackResources();
+
+		// 查询驱动支持的外部内存 Handle 类型
+		static VkExternalMemoryHandleTypeFlagBits QuerySupportedExternalHandleType(
+			VulkanDevice* InDevice,
+			VkFormat Format,
+			VkImageType ImageType,
+			VkImageTiling Tiling,
+			VkImageUsageFlags Usage,
+			VkImageCreateFlags CreateFlags);
+
 		bool IsSwapchainImage() const { return mbIsSwapchainImage; }
 		void SetIsSwapchainImage(bool bIsSwapchain) { mbIsSwapchainImage = bIsSwapchain; }
 
@@ -91,6 +112,8 @@ namespace VulkanRHI
 		// 是否拥有 VkImage 所有权（Swapchain 图像为 false）
 		bool						mbOwnsImage = true;
 		bool						mbIsSwapchainImage = false;
+		mutable HANDLE				mSharedHandle = nullptr;
+		VkExternalMemoryHandleTypeFlagBits mExternalHandleType = (VkExternalMemoryHandleTypeFlagBits)0;
 		bool						mbIsProxy = false;
 		VulkanSwapChain*			mOwningSwapchain = nullptr;
 	};

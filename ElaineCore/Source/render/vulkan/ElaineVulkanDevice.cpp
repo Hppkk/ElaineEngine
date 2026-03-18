@@ -159,8 +159,15 @@ namespace VulkanRHI
 
 		for (auto& Extension : mVulkanPhyDevice->GetDeviceExtensions())
 		{
-			if (std::string(Extension.extensionName) == VK_KHR_SWAPCHAIN_EXTENSION_NAME)
+			std::string ExtName(Extension.extensionName);
+			if (ExtName == VK_KHR_SWAPCHAIN_EXTENSION_NAME)
 				mDeviceExtensions.push_back(Extension.extensionName);
+			else if (ExtName == VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME)
+				mDeviceExtensions.push_back(Extension.extensionName);
+#if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
+			else if (ExtName == VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME)
+				mDeviceExtensions.push_back(Extension.extensionName);
+#endif
 		}
 
 		LOG_INFO("VulkanDevice: Enabled Device Extensions:");

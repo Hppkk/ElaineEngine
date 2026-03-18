@@ -3,9 +3,11 @@
 #include "GamePlay/ElaineComponent.h"
 #include "GamePlay/ElaineGameObjectMgr.h"
 #include "GamePlay/ElaineTransformComponent.h"
+#include "GamePlay/ElaineMeshComponent.h"
 #include "ElaineDataStream.h"
 #include "ElaineGameObjectInfoMgr.h"
 #include "ElaineWorld.h"
+#include "math/ElaineDynamicBVH.h"
 
 namespace Elaine
 {
@@ -203,6 +205,7 @@ namespace Elaine
 		{
 			NewComponent->Initialize(nullptr);
 		}
+		mComponents.emplace(InType, NewComponent);
 
 		return NewComponent;
 	}
@@ -259,19 +262,21 @@ namespace Elaine
 
 	void GameObject::AddWorldOffset(const Vector3& InDelta, bool InRecursive)
 	{
-		//if (mTransformCom)
-		//{
-		//	mTransformCom->AddWorldOffset(InDelta);
-		//}
+		if (mTransformCom)
+		{
+			//mTransformCom->AddWorldOffset(InDelta);
+            if (mWorld && mWorld->GetSceneBVH())
+                mWorld->GetSceneBVH()->UpdateObject(this);
+		}
 
-		//if (InRecursive)
-		//{
-		//	for (auto* child : mChildren)
-		//	{
-		//		if (child)
-		//			child->AddWorldOffset(InDelta, true);
-		//	}
-		//}
+		if (InRecursive)
+		{
+			for (auto* child : mChildren)
+			{
+				if (child)
+					child->AddWorldOffset(InDelta, true);
+			}
+		}
 	}
 
 	void GameObject::Destroy()
@@ -377,16 +382,19 @@ namespace Elaine
 	void GameObject::SetPosition(const Vector3& InPosition)
 	{
 		mTransformCom->SetPosition(InPosition);
+        if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
 	void GameObject::SetScale(const Vector3& InScale)
 	{
 		mTransformCom->SetScale(InScale);
+        if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
 	void GameObject::SetQuaternion(const Quaternion& InRotation)
 	{
 		mTransformCom->SetRotation(InRotation);
+        if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
 	void GameObject::UpdateNode(bool childUpdate /*= true*/, bool notifyParent /*= true*/)
@@ -401,13 +409,45 @@ namespace Elaine
 		{
 			Com.second->OnRegisterWorld(InWorld);
 		}
+
+        if (mWorld && mWorld->GetSceneBVH())
+            mWorld->GetSceneBVH()->InsertObject(this);
 	}
 
 	void GameObject::OnUnregisterWorld()
 	{
+        if (mWorld && mWorld->GetSceneBVH() && mBVHNodeID != -1)
+            mWorld->GetSceneBVH()->RemoveObject(this);
+
 		for (auto&& Com : mComponents)
 		{
 			Com.second->OnUnregisterWorld();
 		}
+        mWorld = nullptr;
+	}
+
+	AxisAlignedBox GameObject::GetBoundingBox() const
+	{
+		// Accumulate AABB from visual/physical components
+		AxisAlignedBox Box;
+		Box.setNull();
+
+		// Check logic for finding mesh component
+		for (auto& Pair : mComponents)
+		{
+			//if (MeshComponent* MeshComp = dynamic_cast<MeshComponent*>(Pair.second))
+			//{
+			//	Box.merge(MeshComp->GetBoundingBox()); 
+			//}
+		}
+
+		if (Box.isNull())
+		{
+			// Fallback if no specific component provides bounds: create small bound around position
+			Vector3 Pos = GetWorldPosition();
+			//Box.setExtents(Pos - Vector3(0.5f, 0.5f, 0.5f), Pos + Vector3(0.5f, 0.5f, 0.5f));
+		}
+
+		return Box;
 	}
 }

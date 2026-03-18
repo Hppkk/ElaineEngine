@@ -16,19 +16,14 @@ add_library(ElaineReflection ${DIR_SRCS})
 target_include_directories(
     ElaineReflection 
     PUBLIC 
-        Public/
-    PRIVATE
-        ../ThirdParty/libclang/include)
+        Public/)
 
-target_link_libraries(
+# Need nlohmann/json for serialization (header-only)
+target_include_directories(
     ElaineReflection
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/libclang/bin/libclang.lib)
+        ${CMAKE_SOURCE_DIR}/ThirdParty/json/include
+        ${CMAKE_SOURCE_DIR}/ThirdParty)
 
-add_custom_command(
-    TARGET ElaineReflection PRE_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy
-        "${CMAKE_CURRENT_SOURCE_DIR}/../ThirdParty/libclang/bin/libclang.dll"
-        $<TARGET_FILE_DIR:ElaineReflection>
-)
+target_sources(ElaineReflection PRIVATE ${DIR_INC})
 

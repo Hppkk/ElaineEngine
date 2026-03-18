@@ -40,3 +40,6 @@
 **/*.pdb
 /Build/CMakeFiles
 /Build
+/Binaries/Win64/EditorDebug
+/ElaineEditor/Generated
+/ElaineEngine/Generated

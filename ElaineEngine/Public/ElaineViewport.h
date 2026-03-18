@@ -7,6 +7,7 @@ namespace Elaine
     class CameraComponent;
     class World;
     class RenderView;
+    class OffscreenRenderTarget;
 
     struct ViewportDesc
     {
@@ -27,6 +28,8 @@ namespace Elaine
         void OnTargetResized(int InTargetW, int InTargetH);
         void Update();
         RenderView* GetRenderView() const { return mRenderView; }
+        RenderTarget* GetTarget() const { return mTarget; }
+        CameraComponent* GetCamera() const { return mCamera; }
 
     private:
         RenderTarget* mTarget = nullptr;

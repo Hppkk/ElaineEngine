@@ -220,4 +220,102 @@ namespace Elaine
 		if (InCamera)
 			mShadowCameras.push_back(InCamera);
 	}
+
+	//=============================================================================
+	// Scene Query
+	//=============================================================================
+	static bool IntersectRayAABB(const Ray& InRay, const AxisAlignedBox& InAABB, float& OutDistance)
+	{
+		if (InAABB.isNull()) return false;
+		if (InAABB.m_extent == AxisAlignedBox::Extent_Infinite) { OutDistance = 0.0f; return true; }
+
+		Vector3 invDir = Vector3(
+			InRay.GetDirection().x != 0.0f ? 1.0f / InRay.GetDirection().x : FLT_MAX,
+			InRay.GetDirection().y != 0.0f ? 1.0f / InRay.GetDirection().y : FLT_MAX,
+			InRay.GetDirection().z != 0.0f ? 1.0f / InRay.GetDirection().z : FLT_MAX
+		);
+
+		float t1 = (InAABB.getMin().x - InRay.GetOrigin().x) * invDir.x;
+		float t2 = (InAABB.getMax().x - InRay.GetOrigin().x) * invDir.x;
+		float tMinX = std::min(t1, t2);
+		float tMaxX = std::max(t1, t2);
+
+		t1 = (InAABB.getMin().y - InRay.GetOrigin().y) * invDir.y;
+		t2 = (InAABB.getMax().y - InRay.GetOrigin().y) * invDir.y;
+		float tMinY = std::min(t1, t2);
+		float tMaxY = std::max(t1, t2);
+
+		t1 = (InAABB.getMin().z - InRay.GetOrigin().z) * invDir.z;
+		t2 = (InAABB.getMax().z - InRay.GetOrigin().z) * invDir.z;
+		float tMinZ = std::min(t1, t2);
+		float tMaxZ = std::max(t1, t2);
+
+		OutDistance = std::max(std::max(tMinX, tMinY), tMinZ);
+		float tMax = std::min(std::min(tMaxX, tMaxY), tMaxZ);
+
+		if (tMax < 0.0f || OutDistance > tMax) return false;
+		
+		// If ray origin is inside box, tMin will be negative, we might want to clamp to 0 or leave it to user
+		if (OutDistance < 0.0f) OutDistance = 0.0f; 
+		
+		return true;
+	}
+
+	SceneManager::RaycastResult SceneManager::Raycast(const Ray& InRay, float MaxDistance)
+	{
+		RaycastResult BestResult;
+		BestResult.Distance = MaxDistance;
+
+		for (RenderProxy* Proxy : mRenderProxys)
+		{
+			if (!Proxy || !Proxy->IsVisible() || Proxy->GetType() != EProxyType::StaticMesh)
+				continue;
+
+			// Check against Proxy World AABB
+			float HitDistance = FLT_MAX;
+			if (IntersectRayAABB(InRay, Proxy->GetWorldAABB(), HitDistance))
+			{
+				if (HitDistance < BestResult.Distance)
+				{
+					BestResult.Distance = HitDistance;
+					BestResult.Proxy = Proxy;
+				}
+			}
+		}
+
+		return BestResult;
+	}
+
+	std::vector<RenderProxy*> SceneManager::BoxIntersect(const Vector2& InMinNDC, const Vector2& InMaxNDC, const Matrix4x4& ViewProj)
+	{
+		std::vector<RenderProxy*> Results;
+
+		for (RenderProxy* Proxy : mRenderProxys)
+		{
+			if (!Proxy || !Proxy->IsVisible() || Proxy->GetType() != EProxyType::StaticMesh)
+				continue;
+
+			const AxisAlignedBox& AABB = Proxy->GetWorldAABB();
+			if (AABB.isNull()) continue;
+
+			// Project AABB center to NDC
+			Vector3 Center = AABB.getCenter();
+			Vector4 ProjCenter = ViewProj * Vector4(Center.x, Center.y, Center.z, 1.0f);
+			if (ProjCenter.w > 0.0f)
+			{
+				ProjCenter.x /= ProjCenter.w;
+				ProjCenter.y /= ProjCenter.w;
+
+				// Simple check: is center inside NDC Box Selection Area?
+				// (A more accurate approach is to project all 8 corners and check min/max)
+				if (ProjCenter.x >= InMinNDC.x && ProjCenter.x <= InMaxNDC.x &&
+					ProjCenter.y >= InMinNDC.y && ProjCenter.y <= InMaxNDC.y)
+				{
+					Results.push_back(Proxy);
+				}
+			}
+		}
+
+		return Results;
+	}
 }

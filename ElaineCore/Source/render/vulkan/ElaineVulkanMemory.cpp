@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanMemory.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "render/vulkan/ElaineVulkanPhysicalDevice.h"
@@ -992,7 +992,7 @@ namespace VulkanRHI
 
 	}
 
-	bool VulkanResourceHeap::AllocateDedicatedImage(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, uint32 Size, uint32 Alignment, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line)
+	bool VulkanResourceHeap::AllocateDedicatedImage(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, uint32 Size, uint32 Alignment, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType)
 	{
 		std::lock_guard<std::recursive_mutex> Lock(mMtx);
 		uint32 AllocationSize = Size;
@@ -1000,7 +1000,7 @@ namespace VulkanRHI
 		Memory::MemoryZero(DedicatedAllocInfo);
 		DedicatedAllocInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
 		DedicatedAllocInfo.image = Image;
-		VulkanDeviceMemoryAllocation* DeviceMemoryAllocation = mOwner->mDeivce->GetDeviceMemoryManager()->Alloc(true, AllocationSize, mMemoryTypeIndex, &DedicatedAllocInfo, 1.f, bExternal, File, Line);
+		VulkanDeviceMemoryAllocation* DeviceMemoryAllocation = mOwner->mDeivce->GetDeviceMemoryManager()->Alloc(true, AllocationSize, mMemoryTypeIndex, &DedicatedAllocInfo, 1.f, bExternal, File, Line, externalHandleType);
 		if (!DeviceMemoryAllocation)
 		{
 			return false;
@@ -1770,7 +1770,7 @@ namespace VulkanRHI
 	}
 
 	// bCanFail means an allocation failing is not a fatal error, just returns nullptr
-	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line)
+	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType)
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMtx);
 		if (!DedicatedAllocateInfo)
@@ -1816,15 +1816,37 @@ namespace VulkanRHI
 		{
 			Memory::MemoryZero(VulkanExportMemoryAllocateInfoKHR);
 			VulkanExportMemoryAllocateInfoKHR.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO_KHR;
+
+			// 使用传入的 handle 类型，如果没有传入则使用默认值
+			VkExternalMemoryHandleTypeFlagBits handleType = externalHandleType;
+			if (handleType == (VkExternalMemoryHandleTypeFlagBits)0)
+			{
 #if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
-			Memory::MemoryZero(VulkanExportMemoryWin32HandleInfoKHR);
-			VulkanExportMemoryWin32HandleInfoKHR.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
-			VulkanExportMemoryWin32HandleInfoKHR.pNext = Info.pNext;
-			VulkanExportMemoryWin32HandleInfoKHR.pAttributes = NULL;
-			VulkanExportMemoryWin32HandleInfoKHR.dwAccess = GENERIC_ALL;
-			VulkanExportMemoryWin32HandleInfoKHR.name = (LPCWSTR)nullptr;
-			VulkanExportMemoryAllocateInfoKHR.pNext =  nullptr;
-			VulkanExportMemoryAllocateInfoKHR.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_KMT_BIT;
+				handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT;
+#else
+				handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
+#endif
+			}
+
+#if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
+			// NT handle 类型需要 VkExportMemoryWin32HandleInfoKHR
+			const bool bIsNTHandle = (handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT ||
+				handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT);
+			if (bIsNTHandle)
+			{
+				Memory::MemoryZero(VulkanExportMemoryWin32HandleInfoKHR);
+				VulkanExportMemoryWin32HandleInfoKHR.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_WIN32_HANDLE_INFO_KHR;
+				VulkanExportMemoryWin32HandleInfoKHR.pNext = Info.pNext;  // chain to rest of pNext
+				VulkanExportMemoryWin32HandleInfoKHR.pAttributes = NULL;
+				VulkanExportMemoryWin32HandleInfoKHR.dwAccess = GENERIC_ALL;
+				VulkanExportMemoryWin32HandleInfoKHR.name = (LPCWSTR)nullptr;
+				VulkanExportMemoryAllocateInfoKHR.pNext = &VulkanExportMemoryWin32HandleInfoKHR;  // link Win32HandleInfo
+			}
+			else
+			{
+				VulkanExportMemoryAllocateInfoKHR.pNext = Info.pNext;
+			}
+			VulkanExportMemoryAllocateInfoKHR.handleTypes = handleType;
 #else
 			VulkanExportMemoryAllocateInfoKHR.pNext = Info.pNext;
 			VulkanExportMemoryAllocateInfoKHR.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
@@ -1880,11 +1902,11 @@ namespace VulkanRHI
 		return NewAllocation;
 	}
 
-	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeBits, VkMemoryPropertyFlags MemoryPropertyFlags, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line)
+	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeBits, VkMemoryPropertyFlags MemoryPropertyFlags, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType)
 	{
 		uint32 MemoryTypeIndex = ~0;
 		GetMemoryTypeFromProperties(MemoryTypeBits, MemoryPropertyFlags, &MemoryTypeIndex);
-		return Alloc(bCanFail, AllocationSize, MemoryTypeIndex, DedicatedAllocateInfo, Priority, bExternal, File, Line);
+		return Alloc(bCanFail, AllocationSize, MemoryTypeIndex, DedicatedAllocateInfo, Priority, bExternal, File, Line, externalHandleType);
 	}
 
 	// Sets the Allocation to nullptr
@@ -2472,7 +2494,7 @@ namespace VulkanRHI
 		return true;
 	}
 
-	bool VulkanMemoryManager::AllocateDedicatedImageMemory(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line)
+	bool VulkanMemoryManager::AllocateDedicatedImageMemory(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType)
 	{
 		VkImageMemoryRequirementsInfo2KHR ImageMemoryReqs2;
 		Memory::MemoryZero(ImageMemoryReqs2);
@@ -2489,7 +2511,7 @@ namespace VulkanRHI
 		MemoryReqs2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2_KHR;
 		MemoryReqs2.pNext = &DedMemoryReqs;
 #ifdef USE_VOLK
-		vkGetImageMemoryRequirements2KHR(mDeivce->GetDevice(), &ImageMemoryReqs2, &MemoryReqs2);
+		vkGetImageMemoryRequirements2(mDeivce->GetDevice(), &ImageMemoryReqs2, &MemoryReqs2);
 #else
 		VulkanRHI::vkGetImageMemoryRequirements2KHR(mDeivce->GetDevice(), &ImageMemoryReqs2, &MemoryReqs2);
 #endif
@@ -2503,12 +2525,12 @@ namespace VulkanRHI
 			{
 				LOG_FATAL("VulkanRHI: Missing memory type index ");
 			}
-			if (!mResourceTypeHeaps[TypeIndex]->AllocateDedicatedImage(OutAllocation, AllocationOwner, Image, MemoryReqs.size, MemoryReqs.alignment, MetaType, bExternal, File, Line))
+			if (!mResourceTypeHeaps[TypeIndex]->AllocateDedicatedImage(OutAllocation, AllocationOwner, Image, MemoryReqs.size, MemoryReqs.alignment, MetaType, bExternal, File, Line, externalHandleType))
 			{
 
 				if (VK_SUCCESS == mDeviceMemoryManager->GetMemoryTypeFromPropertiesExcluding(MemoryReqs.memoryTypeBits, MemoryPropertyFlags, TypeIndex, &TypeIndex))
 				{
-					if (mResourceTypeHeaps[TypeIndex]->AllocateDedicatedImage(OutAllocation, AllocationOwner, Image, MemoryReqs.size, MemoryReqs.alignment, MetaType, bExternal, File, Line))
+					if (mResourceTypeHeaps[TypeIndex]->AllocateDedicatedImage(OutAllocation, AllocationOwner, Image, MemoryReqs.size, MemoryReqs.alignment, MetaType, bExternal, File, Line, externalHandleType))
 					{
 						return true;
 					}

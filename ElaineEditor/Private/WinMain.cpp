@@ -1,18 +1,6 @@
-#include "ElaineRoot.h"
-#include "ElaineEditor.h"
+﻿#include "ElaineEditor.h"
 #include "ElaineEngine.h"
-#include "ElaineWorld.h"
-#include "ElaineGameObject.h"
-#include "ElaineMeshComponent.h"
-#include "ElaineCameraComponent.h"
-#include "ElaineSkyComponent.h"
-
-#if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
-#include <Windows.h>
-#include <shlwapi.h>
-#pragma comment(lib, "shlwapi.lib")
-#endif // ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
-
+#include "ElainePlatformWindow.h"
 
 namespace Editor
 {
@@ -39,23 +27,16 @@ extern "C" {
         case WM_ENTERSIZEMOVE:
             return 0;
 
-            // WM_EXITSIZEMOVE is sent when the user releases the resize bars.
-            // Here we reset everything based on the new window dimensions.
         case WM_EXITSIZEMOVE:
             return 0;
 
-            // WM_DESTROY is sent when the window is being destroyed.
         case WM_DESTROY:
             PostQuitMessage(0);
             return 0;
 
-            // The WM_MENUCHAR message is sent when a menu is active and the user presses 
-            // a key that does not correspond to any mnemonic or accelerator key. 
         case WM_MENUCHAR:
-            // Don't beep when we alt-enter.
             return MAKELRESULT(0, MNC_CLOSE);
 
-            // Catch this message so to prevent the window from becoming too small.
         case WM_GETMINMAXINFO:
             ((MINMAXINFO*)lParam)->ptMinTrackSize.x = 200;
             ((MINMAXINFO*)lParam)->ptMinTrackSize.y = 200;
@@ -76,76 +57,17 @@ extern "C" {
         return DefWindowProc(hWnd, msg, wParam, lParam);
 	}
 
-	bool InitMainWindow()
-	{
-		wchar_t ExePath[MAX_PATH];
-		GetModuleFileNameW(NULL, ExePath, MAX_PATH);
-		PathRemoveFileSpecW(ExePath);
-		std::wstring IconPath = std::wstring(ExePath) + L"\\..\\..\\icons\\ElaineEngine.ico";
-
-		HICON hIcon = (HICON)LoadImage(
-			NULL,
-			IconPath.c_str(),
-			IMAGE_ICON,
-			32,
-			32,
-			LR_LOADFROMFILE | LR_DEFAULTSIZE
-		);
-
-		WNDCLASSEXW wc { };
-		wc.style = CS_HREDRAW | CS_VREDRAW;
-		wc.lpfnWndProc = WndProc;
-		wc.cbClsExtra = 0;
-		wc.cbWndExtra = 0;
-		wc.hInstance = GetModuleHandleW(0);
-		wc.hIcon = hIcon;
-		wc.hCursor = LoadCursor(0, IDC_ARROW);
-		wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
-		wc.lpszMenuName = 0;
-		wc.lpszClassName = L"ElaineEditor";
-		wc.cbSize = sizeof(WNDCLASSEXW);
-		
-		if (!RegisterClassExW(&wc))
-		{
-			MessageBox(0, L"RegisterClass Failed.", 0, 0);
-			return false;
-		}
-
-		RECT R = { 0, 0, G_WIN_WIDTH, G_WIN_HEIGHT };
-		AdjustWindowRect(&R, WS_OVERLAPPEDWINDOW, false);
-		int width = R.right - R.left;
-		int height = R.bottom - R.top;
-
-		G_WIN_HANDLE = CreateWindowExW(0, wc.lpszClassName, L"ElaineEditor", WS_OVERLAPPEDWINDOW | SW_SHOWDEFAULT, CW_USEDEFAULT,
-			CW_USEDEFAULT, G_WIN_WIDTH, G_WIN_HEIGHT, HWND(0), HMENU(0), wc.hInstance, NULL);
-		if (!G_WIN_HANDLE)
-		{
-			MessageBox(0, L"CreateWindow Failed.", 0, 0);
-			return false;
-		}
-
-		ShowWindow(G_WIN_HANDLE, SW_SHOW);
-		UpdateWindow(G_WIN_HANDLE);
-
-
-
-		if (hIcon != NULL)
-		{
-			SendMessage(G_WIN_HANDLE, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
-		}
-
-		return true;
-	}
-
 	int main(int argc, char** argv)
 	{
-		//InitMainWindow();
-		
+		// --- Create window using PlatformWindow ---
 		Elaine::WindowDesc CreateDesc{};
 		CreateDesc.title = "ElaineEditor";
+		CreateDesc.width = 1600;
+		CreateDesc.height = 900;
 		Elaine::PlatformWindow* NewWindow = new Elaine::PlatformWindow();
 		NewWindow->create(CreateDesc);
 
+		// --- Create engine ---
 		Elaine::ElaineEngine* NewEngine = new Elaine::ElaineEngine();
 		Elaine::RHI_PARAM_DESC INIT_DESC;
 		INIT_DESC.Height = G_WIN_HEIGHT;
@@ -154,59 +76,18 @@ extern "C" {
 		INIT_DESC.UseRHIThread = true;
 		INIT_DESC.WindowHandle = NewWindow->getNativeHandle();
 		NewEngine->Initialize(INIT_DESC);
-		NewWindow->createSwapchain();
 		NewEngine->PostInitialize();
 
-		//TEST
-		Elaine::World* Test = NewEngine->CreateWorld();
-		Elaine::GameObject* Scene = Test->CreateGameObject();
-		Elaine::CameraComponent* NewCamera = Scene->AddComponentType<Elaine::CameraComponent>("CameraComponent");
-		Elaine::SkyComponent* NewSky = Test->CreateGameObject()->AddComponentType<Elaine::SkyComponent>("SkyComponent");
-		//NewSky->SetMaterial("material_instance/SkyBox.mi");
-		Elaine::StaticMeshComponent* NewCom = Test->CreateGameObject()->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
-		NewCom->ChangeMesh("");
-
-		Elaine::ViewportDesc Desc;
-		Elaine::Viewport* MainView = NewEngine->CreateViewport(Desc);
-		MainView->SetTarget(NewWindow);
-		MainView->SetWorld(Test);
-		MainView->SetCamera(NewCamera);
-		NewEngine->RegisterViewport(MainView);
-
+		// --- Create editor (场景/视口/离屏渲染 由 EditorGlobalContext 管理) ---
 		ElaineEditor* NewEditor = new ElaineEditor(NewEngine);
-		NewEditor->Initialize();
-		NewEditor->SetWindow(NewWindow);
+		NewEditor->Initialize(NewWindow);
 		NewEditor->Run();
 
-		//NewEngine->UnregisterViewport(MainView);
-		//NewEngine->DestroyViewport(MainView);
-
-		//{
-		//	Elaine::World* Test = NewEngine->CreateWorld();
-		//	Elaine::StaticMeshComponent* NewCom = Test->CreateGameObject()->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
-		//	NewCom->ChangeMesh("");
-		//}
-		//
-		//
-		//MSG msg = { 0 };
-		//while (msg.message != WM_QUIT)
-		//{
-		//	if (PeekMessage(&msg, 0, 0, 0, PM_REMOVE))
-		//	{
-		//		TranslateMessage(&msg);
-		//		DispatchMessage(&msg);
-		//		NewEditor->Tick();
-		//	}
-		//	else
-		//	{ 
-		//		
-		//	}
-		//}
-
-		//delete NewEditor;
-		//delete NewEngine;
+		delete NewEditor;
+		delete NewEngine;
 		return 0;
 	}
+
 #ifdef __cplusplus
 }
 #endif // __cplusplus

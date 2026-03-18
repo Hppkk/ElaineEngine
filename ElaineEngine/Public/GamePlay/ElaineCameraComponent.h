@@ -4,49 +4,49 @@
 #include "math/ElaineVector3.h"
 #include "ElaineCamera.h"
 #include "GamePlay/ElaineComponentFactory.h"
+#include "ElaineReflectionDefines.h"
+#include "ElaineCameraComponent.generated.h"
 
 namespace Elaine
 {
-	class Camera; // 渲染线程对象
+	class Camera;
 
 	class ElaineEngineExport CameraComponentInfo : public ComponentInfo
 	{
 	public:
 	};
 
-	//=============================================================================
-	// CameraComponent - 逻辑线程相机组件
-	// 镜像 Camera 的所有接口，通过 RenderCommand 同步到渲染线程
-	//=============================================================================
+	ECLASS(DisplayName = "Camera")
 	class ElaineEngineExport CameraComponent : public Component
 	{
+		GENERATED_BODY()
 	public:
 		CameraComponent(GameObject* InObject);
 		virtual ~CameraComponent();
 
-		//=========================================================================
-		// Component 生命周期
-		//=========================================================================
 		virtual void OnCreate() override;
 		virtual void OnDestroy() override;
 		virtual void OnUpdate(float DeltaTime) override;
 
-		//=========================================================================
-		// 逻辑线程接口（镜像 Camera 的所有接口）
-		//=========================================================================
+		EFUNCTION(Category="Camera")
 		void SetPosition(const Vector3& Position);
+		EFUNCTION(Category="Camera")
 		void SetRotation(const Vector3& Rotation);
+		EFUNCTION(Category="Camera")
 		void SetRotation(const Quaternion& Rotation);
+		EFUNCTION(Category="Camera")
 		void LookAt(const Vector3& Target);
+		EFUNCTION(Category="Camera")
 		void SetFOV(float FOV);
+		EFUNCTION(Category="Camera")
 		void SetAspect(float Aspect);
+		EFUNCTION(Category="Camera")
 		void SetNearPlane(float Near);
+		EFUNCTION(Category="Camera")
 		void SetFarPlane(float Far);
+		EFUNCTION(Category="Camera")
 		void SetProjectionType(ProjectionType Type);
 
-		//=========================================================================
-		// 逻辑线程查询接口
-		//=========================================================================
 		const Vector3& GetPosition() const { return mPosition; }
 		const Quaternion& GetRotation() const { return mRotation; }
 		const Vector3& GetForward() const { return mForward; }
@@ -54,38 +54,46 @@ namespace Elaine
 		const Vector3& GetRight() const { return mRight; }
 		float GetFOV() const { return mFOV; }
 		float GetAspect() const { return mAspect; }
+		ProjectionType GetProjectionType() const { return mProjectionType; }
 		const Name& GetType() const override;
 
-		//=========================================================================
-		// 渲染线程 Camera 访问（仅供渲染系统内部使用）
-		//=========================================================================
 		Camera* GetRenderThreadCamera() const { return mRenderCamera; }
 
+		const Matrix4x4& GetViewMatrix() const;
+		const Matrix4x4& GetProjMatrix() const;
+		const Matrix4x4& GetViewProjMatrix() const;
+
 	private:
-		//=========================================================================
-		// 逻辑线程数据（Game Thread 拥有）
-		//=========================================================================
+		EPROPERTY(DisplayName="Position", Category="Camera", Tooltip="Camera world position")
 		Vector3 mPosition = Vector3::ZERO;
+		EPROPERTY(DisplayName="Rotation", Category="Camera", Tooltip="Camera rotation quaternion")
 		Quaternion mRotation = Quaternion::IDENTITY;
 		Vector3 mForward = Vector3::UNIT_Z;
 		Vector3 mUp = Vector3::UNIT_Y;
 		Vector3 mRight = Vector3::UNIT_X;
+		EPROPERTY(DisplayName="FOV", Category="Camera", Tooltip="Field of view in degrees", Min=1.0, Max=179.0)
 		float mFOV = 60.0f;
+		EPROPERTY(DisplayName="Near Plane", Category="Camera", Tooltip="Near clipping plane distance", Min=0.01, Max=100.0)
 		float mNear = 0.1f;
+		EPROPERTY(DisplayName="Far Plane", Category="Camera", Tooltip="Far clipping plane distance", Min=10.0, Max=100000.0)
 		float mFar = 1000.0f;
+		EPROPERTY(DisplayName="Aspect Ratio", Category="Camera", Tooltip="Width/Height ratio")
 		float mAspect = 16.0f / 9.0f;
+		EPROPERTY(DisplayName="Projection", Category="Camera", Tooltip="Projection type")
 		ProjectionType mProjectionType = ProjectionType::Prespective;
 
-		//=========================================================================
-		// 渲染线程 Camera 指针（只读，不要在 Game Thread 访问其成员）
-		//=========================================================================
 		Camera* mRenderCamera = nullptr;
 
-		//=========================================================================
-		// 辅助方法
-		//=========================================================================
+		mutable Matrix4x4 mViewMatrix{ Matrix4x4::IDENTITY };
+		mutable Matrix4x4 mProjMatrix{ Matrix4x4::IDENTITY };
+		mutable Matrix4x4 mViewProjMatrix{ Matrix4x4::IDENTITY };
+		mutable bool mbCacheViewOutOfData = true;
+		mutable bool mbCacheOutOfData = true;
+
 		void SendUpdateToRenderThread();
 		void UpdateLocalAxes();
+		void UpdateViewParams() const;
+		void CalculateProjMatrix() const;
 	};
 
 	DEFINE_COM_FACTORY(CameraComponent);

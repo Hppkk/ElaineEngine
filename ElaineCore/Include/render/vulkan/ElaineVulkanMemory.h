@@ -388,8 +388,8 @@ namespace VulkanRHI
 		VkResult GetMemoryTypeFromPropertiesExcluding(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32 ExcludeTypeIndex, uint32* OutTypeIndex);
 		const VkPhysicalDeviceMemoryProperties& GetMemoryProperties() const;
 		// bCanFail means an allocation failing is not a fatal error, just returns nullptr
-		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line);
-		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeBits, VkMemoryPropertyFlags MemoryPropertyFlags, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line);
+		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
+		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeBits, VkMemoryPropertyFlags MemoryPropertyFlags, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
 
 		// Sets the Allocation to nullptr
 		void Free(VulkanDeviceMemoryAllocation*& Allocation);
@@ -647,7 +647,7 @@ namespace VulkanRHI
 
 		bool TryRealloc(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VulkanMemoryType Type, uint32 Size, uint32 Alignment, VulkanAllocationMetaType MetaType);
 		bool AllocateResource(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VulkanMemoryType Type, uint32 Size, uint32 Alignment, bool bMapAllocation, bool bForceSeparateAllocation, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line);
-		bool AllocateDedicatedImage(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, uint32 Size, uint32 Alignment, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line);
+		bool AllocateDedicatedImage(VulkanAllocation& OutAllocation, VulkanEvictable* AllocationOwner, VkImage Image, uint32 Size, uint32 Alignment, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
 
 		friend class VulkanMemoryManager;
 		friend class VulkanSubResourceAllocator;
@@ -787,7 +787,7 @@ namespace VulkanRHI
 		bool AllocateBufferPooled(VulkanAllocation& Allocation, VulkanEvictable* AllocationOwner, uint32 Size, uint32 MinAlignment, VkBufferUsageFlags BufferUsageFlags, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, const char* File, uint32 Line);
 		bool AllocateImageMemory(VulkanAllocation& Allocation, VulkanEvictable* AllocationOwner, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line);
 		bool AllocateBufferMemory(VulkanAllocation& Allocation, VulkanEvictable* AllocationOwner, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line);
-		bool AllocateDedicatedImageMemory(VulkanAllocation& Allocation, VulkanEvictable* AllocationOwner, VkImage Image, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line);
+		bool AllocateDedicatedImageMemory(VulkanAllocation& Allocation, VulkanEvictable* AllocationOwner, VkImage Image, const VkMemoryRequirements& MemoryReqs, VkMemoryPropertyFlags MemoryPropertyFlags, VulkanAllocationMetaType MetaType, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
 
 		void RegisterSubresourceAllocator(VulkanSubResourceAllocator* SubresourceAllocator);
 		void UnregisterSubresourceAllocator(VulkanSubResourceAllocator* SubresourceAllocator);

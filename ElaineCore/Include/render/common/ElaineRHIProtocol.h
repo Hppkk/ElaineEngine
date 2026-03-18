@@ -741,6 +741,13 @@ namespace Elaine
 		const RHITextureDesc& GetDesc() const { return mDesc; }
 		uint32_t GetWidth() const { return (uint32_t)mDesc.mExtent.x; }
 		uint32_t GetHeight() const { return (uint32_t)mDesc.mExtent.y; }
+		virtual void* GetSharedMemoryHandle() const { return nullptr; }
+
+		// CPU Readback 接口（staging buffer 方案）
+		virtual void InitReadbackResources() {}
+		virtual void CopyToReadbackBuffer() {}
+		virtual bool ReadbackPixels(void* OutData, uint32& OutRowPitch) { return false; }
+		virtual bool IsReadbackReady() const { return false; }
 	public:
 		RHITextureDesc mDesc;
 	protected:

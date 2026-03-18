@@ -1,5 +1,6 @@
 #pragma once
 #include "ElaineCorePrerequirements.h"
+#include "Common/ElaineRHIProtocol.h"
 
 namespace Elaine
 {

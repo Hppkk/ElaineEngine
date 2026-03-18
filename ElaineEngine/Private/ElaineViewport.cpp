@@ -4,6 +4,7 @@
 #include "ElaineRenderCommandQueue.h"
 #include "ElaineWorld.h"
 #include "ElainePlatformWindow.h"
+#include "ElaineOffscreenRenderTarget.h"
 
 namespace Elaine
 {
@@ -31,8 +32,8 @@ namespace Elaine
         mTarget = InTarget;
 
         ENQUEUE_RENDER_COMMAND(SetTarget)([=](RenderContext& InContext)
-        {    
-            mRenderView->mRenderTarget = static_cast<PlatformWindow*>(mTarget)->GetSwapchainRenderTarget();
+        {
+            mRenderView->mRenderTarget = InTarget;
         });
     }
 

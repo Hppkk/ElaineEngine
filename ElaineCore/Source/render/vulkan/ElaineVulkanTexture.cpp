@@ -5,6 +5,9 @@
 #include "render/vulkan/ElaineVulkanUtil.h"
 #include "render/vulkan/ElaineVulkanCommandBuffer.h"
 #include "render/vulkan/ElaineVulkanQueue.h"
+#include "render/vulkan/ElaineVulkanBarrier.h"
+#include "render/ElaineRenderSystem.h"
+#define VULKAN_SUPPORTS_EXTERNAL_MEMORY 1
 
 namespace VulkanRHI
 {
@@ -87,9 +90,30 @@ namespace VulkanRHI
 		{
 			VulkanAllocationMetaType MetaType = (bRenderTarget || bUAV) ? VulkanAllocationMetaImageRenderTarget : VulkanAllocationMetaImageOther;
 
-			if (!InDevice->GetMemoryManager()->AllocateImageMemory(mAllocation, this, mMemRequirements, MemoryFlags, MetaType, bExternal, __FILE__, __LINE__))
+			if (bExternal)
 			{
-					
+				// 查询驱动支持的外部内存 Handle 类型
+				mExternalHandleType = QuerySupportedExternalHandleType(
+					InDevice,
+					ImageCreateInfo.mImageCreateInfo.format,
+					ImageCreateInfo.mImageCreateInfo.imageType,
+					ImageCreateInfo.mImageCreateInfo.tiling,
+					ImageCreateInfo.mImageCreateInfo.usage,
+					ImageCreateInfo.mImageCreateInfo.flags);
+
+				if (mExternalHandleType == (VkExternalMemoryHandleTypeFlagBits)0)
+				{
+					LOG_ERROR("VulkanTexture: No supported external memory handle type found for this format/usage");
+				}
+
+				// D3D11_TEXTURE handle type requires dedicated allocation
+				if (!InDevice->GetMemoryManager()->AllocateDedicatedImageMemory(mAllocation, this, mHandle, mMemRequirements, MemoryFlags, MetaType, bExternal, __FILE__, __LINE__, mExternalHandleType))
+				{
+					LOG_ERROR("VulkanTexture: Failed to allocate dedicated image memory for external texture");
+				}
+			}
+			else if (!InDevice->GetMemoryManager()->AllocateImageMemory(mAllocation, this, mMemRequirements, MemoryFlags, MetaType, bExternal, __FILE__, __LINE__))
+			{
 			}
 		}
 		mAllocation.BindImage(mDevice, mHandle);
@@ -369,10 +393,105 @@ namespace VulkanRHI
 		//}
 	}
 
-	
+	VkExternalMemoryHandleTypeFlagBits VulkanTexture::QuerySupportedExternalHandleType(
+		VulkanDevice* InDevice,
+		VkFormat Format,
+		VkImageType ImageType,
+		VkImageTiling Tiling,
+		VkImageUsageFlags Usage,
+		VkImageCreateFlags CreateFlags)
+	{
+#if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
+		// 按优先级尝试的 handle 类型列表
+		const VkExternalMemoryHandleTypeFlagBits CandidateTypes[] = {
+			VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_BIT,
+			VK_EXTERNAL_MEMORY_HANDLE_TYPE_D3D11_TEXTURE_KMT_BIT,
+			VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT,
+		};
+
+		for (auto HandleType : CandidateTypes)
+		{
+			VkPhysicalDeviceExternalImageFormatInfo ExternalImageFormatInfo = {};
+			ExternalImageFormatInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO;
+			ExternalImageFormatInfo.handleType = HandleType;
+
+			VkPhysicalDeviceImageFormatInfo2 ImageFormatInfo = {};
+			ImageFormatInfo.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_FORMAT_INFO_2;
+			ImageFormatInfo.pNext = &ExternalImageFormatInfo;
+			ImageFormatInfo.format = Format;
+			ImageFormatInfo.type = ImageType;
+			ImageFormatInfo.tiling = Tiling;
+			ImageFormatInfo.usage = Usage;
+			ImageFormatInfo.flags = CreateFlags;
+
+			VkExternalImageFormatProperties ExternalImageFormatProps = {};
+			ExternalImageFormatProps.sType = VK_STRUCTURE_TYPE_EXTERNAL_IMAGE_FORMAT_PROPERTIES;
+
+			VkImageFormatProperties2 ImageFormatProps = {};
+			ImageFormatProps.sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_PROPERTIES_2;
+			ImageFormatProps.pNext = &ExternalImageFormatProps;
+
+			VkResult Result = vkGetPhysicalDeviceImageFormatProperties2(
+				InDevice->GetPhyDevice()->GetPhysicalDeviceHandle(),
+				&ImageFormatInfo,
+				&ImageFormatProps);
+
+			if (Result == VK_SUCCESS)
+			{
+				const auto& ExtFeatures = ExternalImageFormatProps.externalMemoryProperties;
+				if (ExtFeatures.externalMemoryFeatures & VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT)
+				{
+					LOG_INFO("VulkanTexture: Using external memory handle type: 0x{:x}", (uint32)HandleType);
+					return HandleType;
+				}
+			}
+		}
+
+		LOG_ERROR("VulkanTexture: No exportable external memory handle type found");
+		return (VkExternalMemoryHandleTypeFlagBits)0;
+#else
+		return VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
+#endif
+	}
+
+	void* VulkanTexture::GetSharedMemoryHandle() const
+	{
+		if (mSharedHandle != nullptr)
+			return mSharedHandle;
+
+#if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
+		if (mExternalHandleType == (VkExternalMemoryHandleTypeFlagBits)0)
+		{
+			LOG_ERROR("VulkanTexture::GetSharedMemoryHandle - No external handle type configured");
+			return nullptr;
+		}
+
+		VkMemoryGetWin32HandleInfoKHR HandleInfo = {};
+		HandleInfo.sType = VK_STRUCTURE_TYPE_MEMORY_GET_WIN32_HANDLE_INFO_KHR;
+		HandleInfo.memory = mAllocation.GetDeviceMemoryHandle(mDevice);
+		HandleInfo.handleType = mExternalHandleType;
+
+		VkResult Result = vkGetMemoryWin32HandleKHR(mDevice->GetDevice(), &HandleInfo, &mSharedHandle);
+		if (Result != VK_SUCCESS)
+		{
+			LOG_ERROR("VulkanTexture::GetSharedMemoryHandle - Failed to get Win32 handle, VkResult: {}", (int)Result);
+			mSharedHandle = nullptr;
+		}
+#endif
+		return mSharedHandle;
+	}
 
 	VulkanTexture::~VulkanTexture()
 	{
+		DestroyReadbackResources();
+
+		// 关闭共享 HANDLE
+		if (mSharedHandle != nullptr)
+		{
+			CloseHandle(mSharedHandle);
+			mSharedHandle = nullptr;
+		}
+
 		// 总是销毁 View（由 VulkanTexture 创建）
 		mDefaultView.Destroy(*mDevice);
 		
@@ -393,11 +512,143 @@ namespace VulkanRHI
 		}
 	}
 
+	void VulkanTexture::InitReadbackResources()
+	{
+		if (mCpuReadbackBuffer == nullptr)
+		{
+			mCpuReadbackBuffer = new VulkanCpuReadbackBuffer();
+		}
+
+		if (mCpuReadbackBuffer->bReady)
+			return;
+
+		uint32 Width = GetWidth();
+		uint32 Height = GetHeight();
+		uint32 BytesPerPixel = GPixelFormats[GetFormat()].BlockBytes;
+		uint32 BufferSize = Width * Height * BytesPerPixel;
+
+		// 通过 StagingBufferManager 创建 host-visible staging buffer
+		VulkanStagingBuffer* StagingBuf = mDevice->GetStagingManager()->AcquireBuffer(
+			BufferSize,
+			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+			VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+
+		mCpuReadbackBuffer->Buffer = StagingBuf->GetHandle();
+		//mCpuReadbackBuffer->Allocation = StagingBuf->mAllocation;
+		mCpuReadbackBuffer->MappedPointer = StagingBuf->GetMappingPointer();
+		mCpuReadbackBuffer->TotalSize = BufferSize;
+		mCpuReadbackBuffer->MipOffsets[0] = 0;
+		mCpuReadbackBuffer->MipSize[0] = BufferSize;
+		mCpuReadbackBuffer->bReady = true;
+
+		// 注意：StagingBuffer 对象的生命周期由 StagingManager 管理，
+		// 但我们持有其 VkBuffer handle 和 Allocation。
+		// 不要通过 ReleaseBuffer 释放它，因为我们需要持久持有。
+	}
+
+	void VulkanTexture::CopyToReadbackBuffer()
+	{
+		if (mCpuReadbackBuffer == nullptr || !mCpuReadbackBuffer->bReady)
+			return;
+
+		if (mHandle == VK_NULL_HANDLE || mCpuReadbackBuffer->Buffer == VK_NULL_HANDLE)
+			return;
+
+		// 获取当前活跃的 command buffer（渲染线程）
+		VulkanCommandContext* VkCtx = static_cast<VulkanCommandContext*>(
+			RenderSystem::instance()->GetRHICommandContext());
+		VulkanCommandBuffer* CmdBuffer = VkCtx->GetCommandBufferManager()->GetActiveCmdBuffer();
+
+		if (!CmdBuffer || !CmdBuffer->HasBegun())
+			return;
+
+		uint32 Width = GetWidth();
+		uint32 Height = GetHeight();
+
+		// 保存当前布局
+		VkImageLayout OldLayout = GetImageLayout();
+
+		// Transition to TRANSFER_SRC_OPTIMAL
+		if (OldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(
+				GetFullAspectMask(), 0, 1, 0, 1);
+			VulkanSetImageLayout(CmdBuffer->GetHandle(), this,
+				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, SubRange);
+		}
+
+		// vkCmdCopyImageToBuffer
+		VkBufferImageCopy Region = {};
+		Region.bufferOffset = 0;
+		Region.bufferRowLength = 0;   // tightly packed
+		Region.bufferImageHeight = 0; // tightly packed
+		Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		Region.imageSubresource.mipLevel = 0;
+		Region.imageSubresource.baseArrayLayer = 0;
+		Region.imageSubresource.layerCount = 1;
+		Region.imageOffset = { 0, 0, 0 };
+		Region.imageExtent = { Width, Height, 1 };
+
+		vkCmdCopyImageToBuffer(CmdBuffer->GetHandle(),
+			mHandle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+			mCpuReadbackBuffer->Buffer, 1, &Region);
+
+		// Transition back to original layout
+		if (OldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
+		{
+			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(
+				GetFullAspectMask(), 0, 1, 0, 1);
+			VulkanSetImageLayout(CmdBuffer->GetHandle(), this,
+				OldLayout, SubRange);
+		}
+	}
+
+	bool VulkanTexture::ReadbackPixels(void* OutData, uint32& OutRowPitch)
+	{
+		if (mCpuReadbackBuffer == nullptr || !mCpuReadbackBuffer->bReady)
+			return false;
+
+		if (mCpuReadbackBuffer->MappedPointer == nullptr)
+			return false;
+
+		// Invalidate for CPU read (ensures GPU writes are visible)
+		//mCpuReadbackBuffer->Allocation.InvalidateMappedMemory(mDevice);
+
+		uint32 BytesPerPixel = GPixelFormats[GetFormat()].BlockBytes;
+		OutRowPitch = GetWidth() * BytesPerPixel;
+		Memory::MemoryCopy(OutData, mCpuReadbackBuffer->MappedPointer, mCpuReadbackBuffer->TotalSize);
+		return true;
+	}
+
+	bool VulkanTexture::IsReadbackReady() const
+	{
+		return mCpuReadbackBuffer != nullptr && mCpuReadbackBuffer->bReady;
+	}
+
+	void VulkanTexture::DestroyReadbackResources()
+	{
+		if (mCpuReadbackBuffer != nullptr)
+		{
+			if (mCpuReadbackBuffer->Buffer != VK_NULL_HANDLE && mCpuReadbackBuffer->bReady)
+			{
+				// 注意：VkBuffer 和 Allocation 由 StagingBufferManager 创建，
+				// 但我们没有释放回 manager。手动销毁。
+				vkDestroyBuffer(mDevice->GetDevice(), mCpuReadbackBuffer->Buffer, VULKAN_CPU_ALLOCATOR);
+				//mDevice->GetMemoryManager()->FreeVulkanAllocation(mCpuReadbackBuffer->Allocation);
+				mCpuReadbackBuffer->Buffer = VK_NULL_HANDLE;
+				mCpuReadbackBuffer->MappedPointer = nullptr;
+				mCpuReadbackBuffer->bReady = false;
+			}
+			delete mCpuReadbackBuffer;
+			mCpuReadbackBuffer = nullptr;
+		}
+	}
+
 	void VulkanTexture::GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat, VkFormat* OutViewFormat, bool bForceLinearTexture)
 	{
 		const VkPhysicalDeviceProperties& DeviceProps = InDevice->GetPhyDevice()->GetDeviceProperties();
 		//const PixelFormatInfo& FormatInfo = 
-		VkFormat TextureFormat = EngineToVkTextureFormat(InDesc.mFormat, true);
+		VkFormat TextureFormat = EngineToVkTextureFormat(InDesc.mFormat, InDesc.isSRGB);
 		const TextureCreateFlags Flags = InDesc.mFlags;
 		if (EnumHasAnyFlags(Flags, TextureCreateFlags::CPUReadback))
 		{
@@ -435,6 +686,10 @@ namespace VulkanRHI
 		if (OutViewFormat)
 		{
 			*OutViewFormat = srgbFormat;
+			if (EnumHasAnyFlags(Flags, TextureCreateFlags::External))
+			{
+				*OutViewFormat = nonSrgbFormat;
+			}
 		}
 		if (OutStorageFormat)
 		{
@@ -516,17 +771,24 @@ namespace VulkanRHI
 		}
 
 #if VULKAN_SUPPORTS_EXTERNAL_MEMORY
-		if (EnumHasAnyFlags(UEFlags, TexCreate_External))
+		if (EnumHasAnyFlags(Flags, TextureCreateFlags::External))
 		{
-			VkExternalMemoryImageCreateInfoKHR& ExternalMemImageCreateInfo = OutImageCreateInfo.ExternalMemImageCreateInfo;
-			ZeroVulkanStruct(ExternalMemImageCreateInfo, VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR);
-#if PLATFORM_WINDOWS
-			ExternalMemImageCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_WIN32_BIT_KHR;
-#else
-			ExternalMemImageCreateInfo.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT_KHR;
-#endif
+			// 先查询驱动支持的 handle 类型（用于设置 ImageCreateInfo）
+			VkExternalMemoryHandleTypeFlagBits SupportedHandleType = QuerySupportedExternalHandleType(
+				InDevice,
+				nonSrgbFormat,
+				ImageCreateInfo.imageType,
+				ImageCreateInfo.tiling,
+				ImageCreateInfo.usage,
+				ImageCreateInfo.flags);
+
+			VkExternalMemoryImageCreateInfoKHR& ExternalMemImageCreateInfo = OutInfo.mExternalMemImageCreateInfo;
+			Memory::MemoryZero(ExternalMemImageCreateInfo);
+			ExternalMemImageCreateInfo.sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO_KHR;
+			ExternalMemImageCreateInfo.handleTypes = SupportedHandleType;
 			ExternalMemImageCreateInfo.pNext = ImageCreateInfo.pNext;
 			ImageCreateInfo.pNext = &ExternalMemImageCreateInfo;
+			ImageCreateInfo.format = nonSrgbFormat;
 		}
 #endif // VULKAN_SUPPORTS_EXTERNAL_MEMORY
 

@@ -11,6 +11,10 @@ namespace Elaine
     struct TickTask;
     class GameObjectMgr;
     class SceneManager;
+    class DynamicBVH;
+    class Ray;
+    class AxisAlignedBox;
+    class ISpatialObject;
 
     class ElaineEngineExport World
     {
@@ -33,6 +37,12 @@ namespace Elaine
         GameObject* CreateGameObject();
         GameObjectMgr* GetGameObjectMgr() const { return mGameObjectMgr; };
         SceneManager* GetSceneManager() const { return mSceneManager; }
+        const std::vector<GameObject*>& GetGameObjects() const { return mActiveGameObjects; }
+
+        DynamicBVH* GetSceneBVH() const { return mSceneBVH; }
+        ISpatialObject* Raycast(const Ray& InRay, float MaxDistance = 3.402823466e+38F) const;
+        std::vector<ISpatialObject*> BoxIntersect(const AxisAlignedBox& InBox) const;
+
     private:
         void AddToWorld(GameObject* InObject);
     private:
@@ -42,6 +52,7 @@ namespace Elaine
         TickManager* mTickManager;
         GameObjectMgr* mGameObjectMgr;
         SceneManager* mSceneManager = nullptr;
+        DynamicBVH* mSceneBVH = nullptr;
 
         // loaded chunk map: chunk path -> Level*
         std::map<std::string, Level*> mLoadedChunks;

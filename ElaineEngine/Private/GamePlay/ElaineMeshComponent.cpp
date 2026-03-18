@@ -58,6 +58,8 @@ namespace Elaine
                     mRenderProxy->SetCastShadow(mbCastShadow);
                     mRenderProxy->SetReceiveShadow(mbReceiveShadow);
                     mRenderProxy->SetRenderLayer(mRenderLayer);
+                    mRenderProxy->mUserData = GetGameObject();
+                    mRenderProxy->mUserType = 1; // 1 = GameObject
                 }
             });
     }

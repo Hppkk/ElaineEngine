@@ -1,7 +1,11 @@
 #pragma once
 #include "ElaineEnginePrerequirements.h"
 #include "ElaineResourceBase.h"
+#include "ElaineReflectionDefines.h"
 #include "GamePlay/ElaineComponent.h"
+#include "ElaineMatrix4.h"
+#include "math/ElaineISpatialObject.h"
+#include "ElaineGameObject.generated.h"
 
 
 /*----------------------------------------------
@@ -66,32 +70,37 @@ namespace Elaine
 	class TransformComponent;
 	class SceneManager;
 
-	class ElaineEngineExport GameObject
+	ECLASS(DisplayName = "Game Object")
+	class ElaineEngineExport GameObject : public ISpatialObject
 	{
+		GENERATED_BODY()
 		friend class GameObjectMgr;
 	public:
 		GameObject(World* InWorld);
 		GameObject(const std::string& InName);
 		~GameObject();
-		const std::string&					GetName() const { return mName; }
-		void								SetName(const std::string& InName);
-		void								Initialize(GameObjectInfoPtr info);
-		void								Initialize();
-		Component*							GetComponentByName(const Name& name);
+		const std::string&				GetName() const { return mName; }
+		EFUNCTION(DisplayName="Set Name", Category="GameObject")
+		void							SetName(const std::string& InName);
+		void							Initialize(GameObjectInfoPtr info);
+		void							Initialize();
+		Component*						GetComponentByName(const Name& name);
 #ifdef _HAS_EDITOR_
-		std::vector<Component*>&			GetEditorComponents() { return m_components; }
+		std::vector<Component*>&		GetEditorComponents() { return m_components; }
 #endif
-		std::map<Name, Component*>&			GetComponents() { return mComponents; }
-		void								AddChildGameObject(GameObject* InChild);
-		void								AddComponent(Component* InCom);
-		GameObject*							CreateChildGameObject();
-		void								AddWorldOffset(const Vector3& InDelta, bool InRecursive = true);
-		void								Destroy();
-		void								RemoveComponent(Component* InComponent);
-		void								RemoveChildGameObject(GameObject* InObject);
-		void								save();
-		Component*							AddComponent(const Name& InType);
-		SceneManager*						GetSceneManager() const;
+		std::map<Name, Component*>&		GetComponents() { return mComponents; }
+		void							AddChildGameObject(GameObject* InChild);
+		void							AddComponent(Component* InCom);
+		GameObject*						CreateChildGameObject();
+		EFUNCTION(DisplayName="Add World Offset", Category="Transform")
+		void							AddWorldOffset(const Vector3& InDelta, bool InRecursive = true);
+		EFUNCTION(Category="Lifecycle")
+		void							Destroy();
+		void							RemoveComponent(Component* InComponent);
+		void							RemoveChildGameObject(GameObject* InObject);
+		void							save();
+		Component*						AddComponent(const Name& InType);
+		SceneManager*					GetSceneManager() const;
 
 		template<typename ComponentType>
 		ComponentType* AddComponentType(const Name& InType)
@@ -109,35 +118,51 @@ namespace Elaine
 			return nullptr;
 		}
 
-		GameObject*							GetParent() { return mParent; }
-		const Vector3&						GetWorldPosition() const;
-		const Vector3&						GetWorldScale() const;
-		const Quaternion&					GetWorldRotation() const;
-		const Matrix4x4&					GetWorldMatrix() const;
-		const Vector3&						GetPosition() const;
-		const Vector3&						GetScale() const;
-		const Quaternion&					GetRotation() const;
-		void								SetPosition(const Vector3& pos);
-		void								SetScale(const Vector3& scale);
-		void								SetQuaternion(const Quaternion& rotation);
-		void								UpdateNode(bool childUpdate = true, bool notifyParent = true);
-		void								OnRegisterWorld(World* InWorld);
-		void								OnUnregisterWorld();
+		GameObject*						GetParent() { return mParent; }
+		const Vector3&					GetWorldPosition() const;
+		const Vector3&					GetWorldScale() const;
+		const Quaternion&				GetWorldRotation() const;
+		const Matrix4x4&				GetWorldMatrix() const;
+		const Vector3&					GetPosition() const;
+		const Vector3&					GetScale() const;
+		const Quaternion&				GetRotation() const;
+		EFUNCTION(DisplayName="Set Position", Category="Transform")
+		void							SetPosition(const Vector3& pos);
+		EFUNCTION(DisplayName="Set Scale", Category="Transform")
+		void							SetScale(const Vector3& scale);
+		EFUNCTION(DisplayName="Set Rotation", Category="Transform")
+		void							SetQuaternion(const Quaternion& rotation);
+		void							UpdateNode(bool childUpdate = true, bool notifyParent = true);
+		void							OnRegisterWorld(World* InWorld);
+		void							OnUnregisterWorld();
+
+		// ISpatialObject interface
+		virtual AxisAlignedBox			GetBoundingBox() const override;
+		virtual void*					GetUserData() const override { return const_cast<GameObject*>(this); }
+		virtual uint32_t				GetUserType() const override { return 1; } // 1 = GameObject
+		virtual void					SetBVHNodeID(int32_t ID) override { mBVHNodeID = ID; }
+		virtual int32_t					GetBVHNodeID() const override { return mBVHNodeID; }
+		
 	private:
 #ifdef _HAS_EDITOR_
-		std::vector<Component*>				m_components;
-		std::map<Component*, size_t>		m_componentsIndexMap;
+		std::vector<Component*>			m_components;
+		std::map<Component*, size_t>	m_componentsIndexMap;
 #endif
-		std::map<Name, Component*>			mComponents; //组件类型名，对应组件指针
-		std::vector<GameObject*>			mChildren;
+		std::map<Name, Component*>		mComponents;
+		std::vector<GameObject*>		mChildren;
 		std::map<std::string, GameObject*>	mChildrenMap;
-		GameObjectInfo*						mDescription = nullptr;
-		GameObject*							mParent = nullptr;
-		World*								mWorld = nullptr;
-		TransformComponent*					mTransformCom = nullptr;
-		std::string							mName;
-		GameObjectNameGenerator				mNameGenerator;
-		bool								mbInitialized = false;
+		GameObjectInfo*					mDescription = nullptr;
+		GameObject*						mParent = nullptr;
+		World*							mWorld = nullptr;
+		TransformComponent*				mTransformCom = nullptr;
+		EPROPERTY(DisplayName="Name", Category="GameObject", Tooltip="The name of this game object")
+		std::string						mName;
+		GameObjectNameGenerator			mNameGenerator;
+		bool							mbInitialized = false;
+
+		// ISpatialObject state
+		int32_t							mBVHNodeID = -1;
+
 		friend class World;
 	};
 }

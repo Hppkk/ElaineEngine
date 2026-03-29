@@ -152,4 +152,6 @@ endif()
 
 target_link_directories(ElaineCore PRIVATE ${core_lib_path})
 target_link_libraries(ElaineCore PRIVATE ${lib})
+target_link_libraries(ElaineCore PRIVATE $<IF:$<OR:$<CONFIG:Debug>,$<CONFIG:EditorDebug>,$<CONFIG:RuntimeDebug>>,assimp-vc145-mtd,assimp-vc145-mt>)
+
 add_dependencies(ElaineCore)

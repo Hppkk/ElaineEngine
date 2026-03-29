@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineInputSystem.h"
 
 namespace Elaine
@@ -22,35 +22,37 @@ namespace Elaine
 		return mMouseButtonStates[static_cast<int>(button)];
 	}
 
-	uint32_t InputSystem::RegisterKeyCallback(KeyCallback callback)
+	// ============================================================
+	// 回调注册（带层级）
+	// ============================================================
+	uint32_t InputSystem::RegisterKeyCallback(KeyCallback callback, EInputLayer layer)
 	{
-		mKeyCallbacks[mNextCallbackId] = callback;
-		return mNextCallbackId++;
+		return InsertCallback(mKeyCallbacks, std::move(callback), layer);
 	}
 
-	uint32_t InputSystem::RegisterMouseButtonCallback(MouseButtonCallback callback)
+	uint32_t InputSystem::RegisterMouseButtonCallback(MouseButtonCallback callback, EInputLayer layer)
 	{
-		mMouseButtonCallbacks[mNextCallbackId] = callback;
-		return mNextCallbackId++;
+		return InsertCallback(mMouseButtonCallbacks, std::move(callback), layer);
 	}
 
-	uint32_t InputSystem::RegisterMouseMoveCallback(MouseMoveCallback callback)
+	uint32_t InputSystem::RegisterMouseMoveCallback(MouseMoveCallback callback, EInputLayer layer)
 	{
-		mMouseMoveCallbacks[mNextCallbackId] = callback;
-		return mNextCallbackId++;
+		return InsertCallback(mMouseMoveCallbacks, std::move(callback), layer);
 	}
 
-	uint32_t InputSystem::RegisterMouseScrollCallback(MouseScrollCallback callback)
+	uint32_t InputSystem::RegisterMouseScrollCallback(MouseScrollCallback callback, EInputLayer layer)
 	{
-		mMouseScrollCallbacks[mNextCallbackId] = callback;
-		return mNextCallbackId++;
+		return InsertCallback(mMouseScrollCallbacks, std::move(callback), layer);
 	}
 
-	void InputSystem::UnregisterKeyCallback(uint32_t id) { mKeyCallbacks.erase(id); }
-	void InputSystem::UnregisterMouseButtonCallback(uint32_t id) { mMouseButtonCallbacks.erase(id); }
-	void InputSystem::UnregisterMouseMoveCallback(uint32_t id) { mMouseMoveCallbacks.erase(id); }
-	void InputSystem::UnregisterMouseScrollCallback(uint32_t id) { mMouseScrollCallbacks.erase(id); }
+	void InputSystem::UnregisterKeyCallback(uint32_t id)         { RemoveCallback(mKeyCallbacks, id); }
+	void InputSystem::UnregisterMouseButtonCallback(uint32_t id) { RemoveCallback(mMouseButtonCallbacks, id); }
+	void InputSystem::UnregisterMouseMoveCallback(uint32_t id)   { RemoveCallback(mMouseMoveCallbacks, id); }
+	void InputSystem::UnregisterMouseScrollCallback(uint32_t id) { RemoveCallback(mMouseScrollCallbacks, id); }
 
+	// ============================================================
+	// Platform hooks — 按 layer 顺序分发，消费则停止
+	// ============================================================
 	void InputSystem::OnKeyPressed(EKeyCode key)
 	{
 		int k = static_cast<int>(key);
@@ -58,7 +60,16 @@ namespace Elaine
 		{
 			EInputAction action = mKeyStates[k] ? EInputAction::Repeat : EInputAction::Press;
 			mKeyStates[k] = true;
-			for (auto& pair : mKeyCallbacks) pair.second(key, action);
+
+			for (auto& entry : mKeyCallbacks)
+			{
+				// 如果 UI 想要键盘输入，跳过非 Editor 层
+				if (mUIWantsKeyboard && entry.layer > EInputLayer::Editor)
+					break;
+
+				if (entry.callback(key, action))
+					break; // 事件被消费
+			}
 		}
 	}
 
@@ -68,7 +79,15 @@ namespace Elaine
 		if (k >= 0 && k < static_cast<int>(EKeyCode::Max))
 		{
 			mKeyStates[k] = false;
-			for (auto& pair : mKeyCallbacks) pair.second(key, EInputAction::Release);
+
+			for (auto& entry : mKeyCallbacks)
+			{
+				if (mUIWantsKeyboard && entry.layer > EInputLayer::Editor)
+					break;
+
+				if (entry.callback(key, EInputAction::Release))
+					break;
+			}
 		}
 	}
 
@@ -78,7 +97,15 @@ namespace Elaine
 		if (b >= 0 && b < static_cast<int>(EMouseButton::Max))
 		{
 			mMouseButtonStates[b] = true;
-			for (auto& pair : mMouseButtonCallbacks) pair.second(button, EInputAction::Press);
+
+			for (auto& entry : mMouseButtonCallbacks)
+			{
+				if (mUIWantsMouse && entry.layer > EInputLayer::Editor)
+					break;
+
+				if (entry.callback(button, EInputAction::Press))
+					break;
+			}
 		}
 	}
 
@@ -88,7 +115,15 @@ namespace Elaine
 		if (b >= 0 && b < static_cast<int>(EMouseButton::Max))
 		{
 			mMouseButtonStates[b] = false;
-			for (auto& pair : mMouseButtonCallbacks) pair.second(button, EInputAction::Release);
+
+			for (auto& entry : mMouseButtonCallbacks)
+			{
+				if (mUIWantsMouse && entry.layer > EInputLayer::Editor)
+					break;
+
+				if (entry.callback(button, EInputAction::Release))
+					break;
+			}
 		}
 	}
 
@@ -96,11 +131,63 @@ namespace Elaine
 	{
 		mMouseX = x;
 		mMouseY = y;
-		for (auto& pair : mMouseMoveCallbacks) pair.second(x, y);
+
+		for (auto& entry : mMouseMoveCallbacks)
+		{
+			if (mUIWantsMouse && entry.layer > EInputLayer::Editor)
+				break;
+
+			if (entry.callback(x, y))
+				break;
+		}
 	}
 
 	void InputSystem::OnMouseScroll(float xOffset, float yOffset)
 	{
-		for (auto& pair : mMouseScrollCallbacks) pair.second(xOffset, yOffset);
+		for (auto& entry : mMouseScrollCallbacks)
+		{
+			if (mUIWantsMouse && entry.layer > EInputLayer::Editor)
+				break;
+
+			if (entry.callback(xOffset, yOffset))
+				break;
+		}
 	}
+
+	// ============================================================
+	// Private helpers
+	// ============================================================
+	template<typename CallbackType>
+	uint32_t InputSystem::InsertCallback(CallbackList<CallbackType>& list, CallbackType callback, EInputLayer layer)
+	{
+		uint32_t id = mNextCallbackId++;
+		CallbackEntry<CallbackType> entry{ id, layer, std::move(callback) };
+
+		// 保持按 layer 排序（稳定插入）
+		auto it = std::lower_bound(list.begin(), list.end(), entry,
+			[](const CallbackEntry<CallbackType>& a, const CallbackEntry<CallbackType>& b) {
+				return static_cast<uint8_t>(a.layer) < static_cast<uint8_t>(b.layer);
+			});
+		list.insert(it, std::move(entry));
+		return id;
+	}
+
+	template<typename CallbackType>
+	void InputSystem::RemoveCallback(CallbackList<CallbackType>& list, uint32_t id)
+	{
+		list.erase(
+			std::remove_if(list.begin(), list.end(),
+				[id](const CallbackEntry<CallbackType>& e) { return e.id == id; }),
+			list.end());
+	}
+
+	// 显式实例化模板
+	template uint32_t InputSystem::InsertCallback<KeyCallback>(CallbackList<KeyCallback>&, KeyCallback, EInputLayer);
+	template uint32_t InputSystem::InsertCallback<MouseButtonCallback>(CallbackList<MouseButtonCallback>&, MouseButtonCallback, EInputLayer);
+	template uint32_t InputSystem::InsertCallback<MouseMoveCallback>(CallbackList<MouseMoveCallback>&, MouseMoveCallback, EInputLayer);
+	template uint32_t InputSystem::InsertCallback<MouseScrollCallback>(CallbackList<MouseScrollCallback>&, MouseScrollCallback, EInputLayer);
+	template void InputSystem::RemoveCallback<KeyCallback>(CallbackList<KeyCallback>&, uint32_t);
+	template void InputSystem::RemoveCallback<MouseButtonCallback>(CallbackList<MouseButtonCallback>&, uint32_t);
+	template void InputSystem::RemoveCallback<MouseMoveCallback>(CallbackList<MouseMoveCallback>&, uint32_t);
+	template void InputSystem::RemoveCallback<MouseScrollCallback>(CallbackList<MouseScrollCallback>&, uint32_t);
 }

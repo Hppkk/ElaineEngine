@@ -17,6 +17,7 @@ namespace Editor
 	class ConsolePanel;
 	class ViewportPanel;
 	class EditorGlobalContext;
+	class ContentBrowserPanel;
 
 	// ============================================================
 	// ElaineEditor — main editor application
@@ -47,5 +48,6 @@ namespace Editor
 		InspectorPanel*         mInspectorPanel = nullptr;
 		ConsolePanel*           mConsolePanel = nullptr;
 		ViewportPanel*          mViewportPanel = nullptr;
+		ContentBrowserPanel*    mContentBrowserPanel = nullptr;
 	};
 }

@@ -28,8 +28,6 @@ namespace Elaine
 		ENQUEUE_RENDER_COMMAND(CreateCamera)([this, CameraName](RenderContext& Context)
 		{
 			mRenderCamera = new Camera(CameraName);
-			// 注册到 SceneManager（如果需要）
-			// SceneManager::Get()->RegisterCamera(mRenderCamera);
 		});
 	}
 
@@ -139,7 +137,6 @@ namespace Elaine
 	//=============================================================================
 	void CameraComponent::SendUpdateToRenderThread()
 	{
-		// 捕获当前值（值拷贝，线程安全）
 		Vector3 Pos = mPosition;
 		Vector3 Rot = Quaternion::toEulerZYX(mRotation);
 		float FOV = mFOV;
@@ -156,7 +153,6 @@ namespace Elaine
 				RenderCam->SetPosition(Pos);
 				RenderCam->SetRotation(Rot);
 				RenderCam->SetFOV(FOV);
-				// Camera 类没有 SetNearPlane/SetFarPlane，需要添加或使用其他方式
 				RenderCam->SetAspect(Aspect);
 				RenderCam->SetProjectionType(ProjType);
 			}

@@ -1,4 +1,4 @@
-#pragma once
+ï»¿#pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineMaterialInterface.h"
 #include "ElaineUniformGPUManager.h"
@@ -17,7 +17,7 @@ namespace Elaine
 		VertexSemantic Semantic;          // POSITION / NORMAL / TEXCOORD / COLOR / CUSTOM
 		uint32 Index;           // TEXCOORD0 / TEXCOORD1
 		VertexElementType Format;       // Float3 / Float2 / UByte4N ...
-		uint32 Offset;          // ÔÚÒ»¸ö vertex ÀïµÄÆ«ÒÆ
+		uint32 Offset;          // åœ¨ä¸€ä¸ª vertex é‡Œçš„åç§»
 	};
 
 	struct VertexBufferDesc
@@ -44,13 +44,13 @@ namespace Elaine
 		SubMesh() = default;
 		~SubMesh() = default;
 
-		/// Ë÷ÒıÆğÊ¼Î»ÖÃ£¨Mesh Index Buffer ÖĞ£©
+		/// ç´¢å¼•èµ·å§‹ä½ç½®ï¼ˆMesh Index Buffer ä¸­ï¼‰
 		uint32 StartIndex = 0;
 
-		/// Ë÷ÒıÊıÁ¿
+		/// ç´¢å¼•æ•°é‡
 		uint32 IndexCount = 0;
 
-		/// ¶¥µãÆğÊ¼£¨·Ç 0 Ê±ÓÃÓÚ BaseVertex£©
+		/// é¡¶ç‚¹èµ·å§‹ï¼ˆé 0 æ—¶ç”¨äº BaseVertexï¼‰
 		int32 BaseVertex = 0;
 
 		uint32 MaterialSlot;
@@ -93,4 +93,7 @@ namespace Elaine
 	};
 
 	using MeshPtr = ResourcePtr<Mesh>;
+#ifdef _HAS_EDITOR_
+	void ElaineCoreExport ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath);
+#endif
 }

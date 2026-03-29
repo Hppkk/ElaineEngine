@@ -1,0 +1,44 @@
+{
+  "version": "1.0.0",
+
+  "macros": [ "USE_GRID" ],
+
+  "renderqueue": "transparent",
+
+  "textures": {},
+
+  "shaderpass": [
+    {
+      "name": "Grid",
+
+      "shaders": {
+        "vs": "grid.vs",
+        "ps": "grid.ps"
+      },
+
+      "macros": {
+        "PASS_GRID": 1
+      },
+
+      "depthstate": {
+        "test": true,
+        "write": false,
+        "func": "less_equal"
+      },
+
+      "raster": {
+        "cull": "none",
+        "fill": "solid",
+        "frontccw": false
+      },
+
+      "blend": {
+        "enable": true,
+        "srcColor": "src_alpha",
+        "dstColor": "one_minus_src_alpha",
+        "srcAlpha": "one",
+        "dstAlpha": "one_minus_src_alpha"
+      }
+    }
+  ]
+}

@@ -85,10 +85,18 @@ namespace Editor
 		// Camera
 		Elaine::GameObject* CameraObj = mDefaultWorld->CreateGameObject();
 		mDefaultCamera = CameraObj->AddComponentType<Elaine::CameraComponent>("CameraComponent");
+		mDefaultCamera->SetRotation(Elaine::Vector3(30, 180, 30));
+		mDefaultCamera->SetRotation(Elaine::Vector3(30, 60, 30));
+
+		mDefaultCamera->SetRotation(Elaine::Vector3(30, 180, 60));
+
 
 		// Sky
 		Elaine::GameObject* SkyObj = mDefaultWorld->CreateGameObject();
 		SkyObj->AddComponentType<Elaine::SkyComponent>("SkyComponent");
+
+		// Editor Grid (infinite ground plane at Y=0)
+		mGridManager.Initialize(mDefaultWorld);
 
 		// Test Mesh
 		Elaine::GameObject* MeshObj = mDefaultWorld->CreateGameObject();

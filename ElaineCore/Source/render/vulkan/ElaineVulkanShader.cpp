@@ -104,9 +104,9 @@ namespace VulkanRHI
 			return true;
 		}
 	private:
-		static inline shaderc::Compiler mCompiler;
-		static inline shaderc::CompileOptions mOptions;
-		static inline bool mInitilizeOnce = false;
+		shaderc::Compiler mCompiler;
+		shaderc::CompileOptions mOptions;
+		bool mInitilizeOnce = false;
 	};
 
 

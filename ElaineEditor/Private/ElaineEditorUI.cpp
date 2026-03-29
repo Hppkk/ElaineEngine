@@ -2,6 +2,10 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "Windows.h"
+#include "ElaineMesh.h"
+#include "ElaineRoot.h"
+#include <commdlg.h>
+#include <filesystem>
 
 namespace Editor
 {
@@ -70,6 +74,7 @@ namespace Editor
 			ImGui::DockBuilderDockWindow("Viewport", dockCenter);
 			ImGui::DockBuilderDockWindow("Inspector", dockRight);
 			ImGui::DockBuilderDockWindow("Console", dockBottom);
+			ImGui::DockBuilderDockWindow("Content Browser", dockBottom);
 
 			ImGui::DockBuilderFinish(dockspaceId);
 		}
@@ -92,6 +97,31 @@ namespace Editor
 				if (ImGui::MenuItem("New Scene"))  {}
 				if (ImGui::MenuItem("Open Scene")) {}
 				if (ImGui::MenuItem("Save Scene")) {}
+				ImGui::Separator();
+				if (ImGui::MenuItem("Import Mesh..."))
+				{
+					char szFile[MAX_PATH] = {};
+					OPENFILENAMEA ofn = {};
+					ofn.lStructSize = sizeof(ofn);
+					ofn.hwndOwner = NULL;
+					ofn.lpstrFile = szFile;
+					ofn.nMaxFile = sizeof(szFile);
+					ofn.lpstrFilter = "3D Models\0*.obj;*.fbx;*.gltf;*.glb;*.dae;*.ply;*.stl\0All Files\0*.*\0";
+					ofn.nFilterIndex = 1;
+					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
+					if (GetOpenFileNameA(&ofn))
+					{
+						std::string srcPath = szFile;
+						std::filesystem::path srcFs(srcPath);
+						std::string destRelPath = "model/" + srcFs.stem().string() + ".emesh";
+						std::filesystem::path modelDir = std::filesystem::path(Elaine::Root::instance()->GetResourcePath()) / "model";
+						if (!std::filesystem::exists(modelDir))
+							std::filesystem::create_directories(modelDir);
+#ifdef _HAS_EDITOR_
+						Elaine::ImportMeshFromFile(srcPath, destRelPath);
+#endif
+					}
+				}
 				ImGui::Separator();
 				if (ImGui::MenuItem("Exit"))
 				{

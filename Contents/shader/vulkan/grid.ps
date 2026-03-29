@@ -1,0 +1,73 @@
+#include "Uniform_CommonVS.inl"
+
+layout(location = 0) in vec3 nearPoint;
+layout(location = 1) in vec3 farPoint;
+
+layout(location = 0) out vec4 outColor;
+
+// Compute the depth value for the Y=0 intersection point so that
+// scene objects correctly occlude/are occluded by the grid.
+float computeDepth(vec3 pos) {
+    mat4 viewMat = mat4(U_ViewMatrix[0], U_ViewMatrix[1], U_ViewMatrix[2], U_ViewMatrix[3]);
+    mat4 projMat = mat4(U_ProjectionMatrix[0], U_ProjectionMatrix[1], U_ProjectionMatrix[2], U_ProjectionMatrix[3]);
+    vec4 clipPos = projMat * viewMat * vec4(pos, 1.0);
+    return clipPos.z / clipPos.w;
+}
+
+// Generate anti-aliased grid lines on the XZ plane at Y=0.
+// Returns RGBA color: gray lines, red X-axis, blue Z-axis.
+vec4 grid(vec3 fragPos3D, float scale) {
+    vec2 coord = fragPos3D.xz * scale;
+    vec2 derivative = fwidth(coord);
+    vec2 grid = abs(fract(coord - 0.5) - 0.5) / derivative;
+    float line = min(grid.x, grid.y);
+    float minimumz = min(derivative.y, 1.0);
+    float minimumx = min(derivative.x, 1.0);
+
+    vec4 color = vec4(0.3, 0.3, 0.3, 1.0 - min(line, 1.0));
+
+    // Z axis (blue) — when X is near 0
+    if (fragPos3D.x > -0.1 * minimumx && fragPos3D.x < 0.1 * minimumx)
+        color = vec4(0.0, 0.3, 1.0, 1.0 - min(grid.x, 1.0));
+
+    // X axis (red) — when Z is near 0
+    if (fragPos3D.z > -0.1 * minimumz && fragPos3D.z < 0.1 * minimumz)
+        color = vec4(1.0, 0.2, 0.2, 1.0 - min(grid.y, 1.0));
+
+    return color;
+}
+
+void main() {
+    // Ray from near to far: find intersection with Y=0 plane
+    float t = -nearPoint.y / (farPoint.y - nearPoint.y);
+
+    // Only render if the ray actually hits the plane (t in [0,1])
+    if (t < 0.0 || t > 1.0)
+        discard;
+
+    vec3 fragPos3D = nearPoint + t * (farPoint - nearPoint);
+
+    // Write correct depth
+    gl_FragDepth = computeDepth(fragPos3D);
+
+    // Compute distance-based fade
+    float distToCamera = length(U_CameraPosition.xyz - fragPos3D);
+    float fadeFar = 1.0 - smoothstep(20.0, 150.0, distToCamera);
+
+    // Two grid scales: 1m and 10m
+    vec4 gridSmall = grid(fragPos3D, 1.0);   // 1-unit grid
+    vec4 gridLarge = grid(fragPos3D, 0.1);   // 10-unit grid
+
+    // Blend: large grid more visible at distance
+    outColor = gridSmall;
+    outColor.a *= fadeFar;
+
+    // Add large grid on top
+    vec4 large = gridLarge;
+    large.a *= fadeFar;
+    outColor = outColor + large * (1.0 - outColor.a);
+
+    // Final alpha cutoff
+    if (outColor.a < 0.01)
+        discard;
+}

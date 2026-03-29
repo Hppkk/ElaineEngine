@@ -6,17 +6,16 @@ namespace Elaine
 {
 	static int TranslateMode(DataStream::Mode InMode)
 	{
-		switch (InMode)
-		{
-		case Elaine::DataStream::In:
-			return std::ios::in;
-		case Elaine::DataStream::Out:
-			return std::ios::out;
-		case Elaine::DataStream::Binary:
-			return std::ios::binary;
-		default:
-			return std::ios::in;
-		}
+		int mode = 0;
+		if (InMode & DataStream::In)
+			mode |= std::ios::in;
+		if (InMode & DataStream::Out)
+			mode |= std::ios::out;
+		if (InMode & DataStream::Binary)
+			mode |= std::ios::binary;
+		if (mode == 0)
+			mode = std::ios::in;
+		return mode;
 	}
 
 	class DataStream_Private

@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineMesh.h"
 #include "ElaineDataStream.h"
 #include "ElaineUniformGPUManager.h"
@@ -10,6 +10,23 @@
 
 namespace Elaine
 {
+	namespace fs = std::filesystem;
+
+	void CheckAndCreateFile(const std::string& filePath)
+	{
+		fs::path p = fs::path(filePath);
+
+		if (!fs::exists(p))
+		{
+			std::ofstream ofs(p);
+
+			if (ofs.is_open())
+			{
+				ofs.close();
+			}
+		}
+	}
+
 	inline static VertexRate ParseVertexRate(const std::string& InRate)
 	{
 		static const std::unordered_map<std::string, VertexRate> sMap =
@@ -192,6 +209,7 @@ namespace Elaine
 
 	class MeshConverter
 	{
+		friend void ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath);
 	public:
 		static MeshPtr ConvertToInternalMesh(const std::string& InModelPath, const std::string& InSavePath)
 		{
@@ -423,6 +441,12 @@ namespace Elaine
 	private:
 		static bool LoadAndParse(const std::string& InPath)
 		{
+			vertices.clear();
+			indices.clear();
+			submeshes.clear();
+			materialSlots.clear();
+			SlotMap.clear();
+
 			Assimp::Importer AIModelImporter;
 
 			const aiScene* AIScene = AIModelImporter.ReadFile(
@@ -525,10 +549,12 @@ namespace Elaine
 
 				submeshes.push_back(BinSubMesh);
 			}
+			return true;
 		}
 
 		static void ExportToFile(const std::string& InPath)
 		{
+			CheckAndCreateFile(Root::instance()->GetResourcePath() + InPath);
 			DataStream MeshDataStream(Root::instance()->GetResourcePath() + InPath, DataStream::Out | DataStream::Binary);
 			MeshFileHeader FileHeader{};
 			FileHeader.Magic = 'EMSH';
@@ -607,6 +633,14 @@ namespace Elaine
 		static std::vector<MaterialSlot> materialSlots;
 		static std::unordered_map<uint64, uint32> SlotMap;
 	};
+
+	// Static member definitions for MeshConverter
+	std::vector<ImportVertex> MeshConverter::vertices;
+	std::vector<uint32> MeshConverter::indices;
+	std::vector<SubMeshBinary> MeshConverter::submeshes;
+	std::vector<MaterialSlot> MeshConverter::materialSlots;
+	std::unordered_map<uint64, uint32> MeshConverter::SlotMap;
+
 
 	Mesh::Mesh(ResourceManager* pManager, const std::string& res_name)
 		: ResourceBase(pManager, res_name)
@@ -839,4 +873,14 @@ namespace Elaine
 	{
 
 	}
+
+#ifdef _HAS_EDITOR_
+	void ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath)
+	{
+		MeshConverter::LoadAndParse(srcPath);
+		MeshConverter::ExportToFile(destRelPath);
+		LOG_INFO("Mesh imported successfully: ", destRelPath);
+	}
+#endif
+
 }

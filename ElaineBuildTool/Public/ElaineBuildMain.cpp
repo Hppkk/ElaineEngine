@@ -91,6 +91,7 @@ void CollectHeaders(const std::string& dir, std::vector<std::string>& headers)
 int main(int argc, char* argv[])
 {
 	std::cout << "========================================\n";
+	std::cout << " -- Welcome to use ElaineBuildTool --\n";
 	std::cout << " ElaineBuildTool — Reflection Generator\n";
 	std::cout << "========================================\n";
 

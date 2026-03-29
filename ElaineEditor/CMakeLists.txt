@@ -71,3 +71,12 @@ add_custom_command(
     COMMENT "[ElaineBuildTool] Generating editor code..."
     DEPENDS ElaineBuildTool
 )
+
+# Post-build: copy assimp DLL to exe output directory
+set(ASSIMP_DLL_DIR "${CMAKE_SOURCE_DIR}/ThirdParty/libs/x64")
+add_custom_command(TARGET ElaineEditor POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${ASSIMP_DLL_DIR}/$<IF:$<OR:$<CONFIG:Debug>,$<CONFIG:EditorDebug>,$<CONFIG:RuntimeDebug>>,Debug/assimp-vc145-mtd.dll,Release/assimp-vc145-mt.dll>"
+        "$<TARGET_FILE_DIR:ElaineEditor>"
+    COMMENT "[PostBuild] Copying assimp DLL to output directory..."
+)

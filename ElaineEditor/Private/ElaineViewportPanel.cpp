@@ -19,8 +19,12 @@ namespace Editor
 
 		if (mViewportSRV && mTexWidth > 0 && mTexHeight > 0)
 		{
-			// Shortcuts (Unity-style): W/E/R when viewport hovered and no item active
-			if (ImGui::IsWindowHovered() && !ImGui::IsAnyItemActive())
+			// Shortcuts (Unity-style): W/E/R when viewport hovered, no item active,
+			// and NOT in fly mode (right-click held – those keys are used for WASD).
+			bool viewportHovered = ImGui::IsWindowHovered();
+			bool rightMouseDown  = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+
+			if (viewportHovered && !ImGui::IsAnyItemActive() && !rightMouseDown)
 			{
 				if (ImGui::IsKeyPressed(ImGuiKey_W))
 					mCurrentGizmoOperation = static_cast<int>(ImGuizmo::TRANSLATE);
@@ -35,25 +39,36 @@ namespace Editor
 			}
 
 			// Unity-style Gizmo toolbar above the viewport
-			if (ImGui::Button("Move (W)"))
+			auto highlightButton = [&](const char* label, int op) {
+				bool isActive = (mCurrentGizmoOperation == op);
+				if (isActive)
+				{
+					ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.28f, 0.56f, 0.90f, 1.00f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.36f, 0.64f, 0.95f, 1.00f));
+					ImGui::PushStyleColor(ImGuiCol_ButtonActive,   ImVec4(0.20f, 0.41f, 0.68f, 1.00f));
+				}
+				bool clicked = ImGui::Button(label);
+				if (isActive)
+					ImGui::PopStyleColor(3);
+				return clicked;
+			};
+
+			if (highlightButton("Move (W)", static_cast<int>(ImGuizmo::TRANSLATE)))
 				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::TRANSLATE);
 			ImGui::SameLine();
-			if (ImGui::Button("Rotate (E)"))
+			if (highlightButton("Rotate (E)", static_cast<int>(ImGuizmo::ROTATE)))
 				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::ROTATE);
 			ImGui::SameLine();
-			if (ImGui::Button("Scale (R)"))
+			if (highlightButton("Scale (R)", static_cast<int>(ImGuizmo::SCALE)))
 				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::SCALE);
 			ImGui::SameLine();
 			ImGui::Spacing();
 			ImGui::SameLine();
-			if (static_cast<ImGuizmo::OPERATION>(mCurrentGizmoOperation) != ImGuizmo::SCALE)
-			{
-				if (ImGui::RadioButton("Local", mCurrentGizmoMode == static_cast<int>(ImGuizmo::LOCAL)))
-					mCurrentGizmoMode = static_cast<int>(ImGuizmo::LOCAL);
-				ImGui::SameLine();
-				if (ImGui::RadioButton("World", mCurrentGizmoMode == static_cast<int>(ImGuizmo::WORLD)))
-					mCurrentGizmoMode = static_cast<int>(ImGuizmo::WORLD);
-			}
+			if (ImGui::RadioButton("Local", mCurrentGizmoMode == static_cast<int>(ImGuizmo::LOCAL)))
+				mCurrentGizmoMode = static_cast<int>(ImGuizmo::LOCAL);
+			ImGui::SameLine();
+			if (ImGui::RadioButton("World", mCurrentGizmoMode == static_cast<int>(ImGuizmo::WORLD)))
+				mCurrentGizmoMode = static_cast<int>(ImGuizmo::WORLD);
 
 			// Display the engine's rendered scene (below toolbar)
 			ImVec2 imageSize = ImGui::GetContentRegionAvail();
@@ -64,7 +79,12 @@ namespace Editor
             if (ctx && ctx->GetSceneViewport() && ctx->GetSceneViewport()->GetCamera())
             {
                 Elaine::CameraComponent* camComp = ctx->GetSceneViewport()->GetCamera();
-                
+
+				// ---- Editor Camera Controller ----
+				float deltaTime = ImGui::GetIO().DeltaTime;
+				Elaine::GameObject* selectedObj = ctx->GetSelectedGameObject();
+				mCameraController.Tick(deltaTime, viewportHovered, camComp, selectedObj);
+
                 ImGuizmo::SetOrthographic(camComp->GetProjectionType() == Elaine::ProjectionType::Orthographic);
                 ImGuizmo::SetDrawlist();
                 ImGuizmo::SetRect(imagePos.x, imagePos.y, imageSize.x, imageSize.y);
@@ -72,7 +92,6 @@ namespace Editor
                 Elaine::Matrix4x4 viewMat = camComp->GetViewMatrix();
                 Elaine::Matrix4x4 projMat = camComp->GetProjMatrix();
                 
-                Elaine::GameObject* selectedObj = ctx->GetSelectedGameObject();
                 if (selectedObj)
                 {
                     Elaine::Matrix4x4 worldMat = selectedObj->GetWorldMatrix();
@@ -102,99 +121,110 @@ namespace Editor
                     }
                 }
                 
-                // Picking
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0) && !ImGuizmo::IsOver())
+                // ============================================================
+                // Left-Click: Picking (click) + Box Selection (drag)
+                // ============================================================
+                
+                // Start tracking on left-click press
+                if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
                 {
                     ImVec2 mousePos = ImGui::GetMousePos();
-                    float nx = ((mousePos.x - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                    float ny = 1.0f - ((mousePos.y - imagePos.y) / imageSize.y) * 2.0f; 
-                    
-                    Elaine::Matrix4x4 invVP = (projMat * viewMat).inverse();
-                    Elaine::Vector4 target = invVP * Elaine::Vector4(nx, ny, 1.0f, 1.0f);
-                    if (target.w != 0.0f)
-                    {
-                        target.x /= target.w;
-                        target.y /= target.w;
-                        target.z /= target.w;
-                    }
-                    
-                    Elaine::Vector3 dir(target.x - camComp->GetPosition().x, target.y - camComp->GetPosition().y, target.z - camComp->GetPosition().z);
-                    dir.normalise();
-                    
-                    Elaine::Ray ray(camComp->GetPosition(), dir);
-                    if (ctx->GetActiveWorld())
-                    {
-                        auto result = ctx->GetActiveWorld()->Raycast(ray);
-                        if (result && result->GetUserType() == 1) // 1 = GameObject
-                        {
-                            ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(result->GetUserData()));
-                        }
-                        else
-                        {
-                            ctx->SetSelectedGameObject(nullptr);
-                        }
-                    }
+                    mBoxSelectStartX = mousePos.x;
+                    mBoxSelectStartY = mousePos.y;
+                    mIsBoxSelecting = false;  // Not yet — wait for drag threshold
                 }
-
-                // Temporary simple Box Select
-                static ImVec2 dragStart(0, 0);
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(1) && !ImGuizmo::IsOver())
+                
+                // If dragging with left button beyond threshold, enter box-select mode
+                if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(0, 5.0f) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
                 {
-                    dragStart = ImGui::GetMousePos();
-                }
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(1) && !ImGuizmo::IsOver())
-                {
+                    mIsBoxSelecting = true;
                     ImVec2 dragEnd = ImGui::GetMousePos();
                     ImDrawList* drawList = ImGui::GetWindowDrawList();
+                    ImVec2 dragStart(mBoxSelectStartX, mBoxSelectStartY);
                     drawList->AddRect(dragStart, dragEnd, IM_COL32(0, 255, 0, 255));
+                    drawList->AddRectFilled(dragStart, dragEnd, IM_COL32(0, 255, 0, 30));
                 }
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(1) && !ImGuizmo::IsOver())
+                
+                // On left-click release
+                if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(0) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
                 {
-                    ImVec2 dragEnd = ImGui::GetMousePos();
-                    float minX = std::min(dragStart.x, dragEnd.x);
-                    float maxX = std::max(dragStart.x, dragEnd.x);
-                    float minY = std::min(dragStart.y, dragEnd.y);
-                    float maxY = std::max(dragStart.y, dragEnd.y);
+                    if (mIsBoxSelecting)
+                    {
+                        // ---- Box Selection ----
+                        ImVec2 dragEnd = ImGui::GetMousePos();
+                        float minX = std::min(mBoxSelectStartX, dragEnd.x);
+                        float maxX = std::max(mBoxSelectStartX, dragEnd.x);
+                        float minY = std::min(mBoxSelectStartY, dragEnd.y);
+                        float maxY = std::max(mBoxSelectStartY, dragEnd.y);
 
-                    // Compute NDC bounds
-                    float ndcMinX = ((minX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                    float ndcMaxX = ((maxX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                    float ndcMinY = 1.0f - ((maxY - imagePos.y) / imageSize.y) * 2.0f; // Y up
-                    float ndcMaxY = 1.0f - ((minY - imagePos.y) / imageSize.y) * 2.0f; // Y up
+                        // Compute NDC bounds
+                        float ndcMinX = ((minX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
+                        float ndcMaxX = ((maxX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
+                        float ndcMinY = 1.0f - ((maxY - imagePos.y) / imageSize.y) * 2.0f;
+                        float ndcMaxY = 1.0f - ((minY - imagePos.y) / imageSize.y) * 2.0f;
 
-                    // Box Intersect requires a 3D AABB or Frustum against the BVH.
-                    // Currently, World::BoxIntersect expects an AxisAlignedBox. 
-                    // For a proper 2D drag-box selection, we need to construct a Frustum from the NDC and test it.
-                    // To keep it simple for this step (AABB intersect), we construct an AABB from the Frustum corners:
-                    
-                    Elaine::Matrix4x4 invViewProj = (projMat * viewMat).inverse();
-                    Elaine::Vector3 corners[8];
-                    int idx = 0;
-                    for (int z = 0; z < 2; ++z) {
-                        for (int y = 0; y < 2; ++y) {
-                            for (int x = 0; x < 2; ++x) {
-                                float pX = x ? ndcMaxX : ndcMinX;
-                                float pY = y ? ndcMaxY : ndcMinY;
-                                float pZ = z ? 1.0f : 0.0f; // Near and Far in D3D/NDC
-                                Elaine::Vector4 pt = invViewProj * Elaine::Vector4(pX, pY, pZ, 1.0f);
-                                if (pt.w != 0.0f) { pt.x /= pt.w; pt.y /= pt.w; pt.z /= pt.w; }
-                                corners[idx++] = Elaine::Vector3(pt.x, pt.y, pt.z);
+                        Elaine::Matrix4x4 invViewProj = (projMat * viewMat).inverse();
+                        Elaine::Vector3 corners[8];
+                        int idx = 0;
+                        for (int z = 0; z < 2; ++z) {
+                            for (int y = 0; y < 2; ++y) {
+                                for (int x = 0; x < 2; ++x) {
+                                    float pX = x ? ndcMaxX : ndcMinX;
+                                    float pY = y ? ndcMaxY : ndcMinY;
+                                    float pZ = z ? 1.0f : 0.0f;
+                                    Elaine::Vector4 pt = invViewProj * Elaine::Vector4(pX, pY, pZ, 1.0f);
+                                    if (pt.w != 0.0f) { pt.x /= pt.w; pt.y /= pt.w; pt.z /= pt.w; }
+                                    corners[idx++] = Elaine::Vector3(pt.x, pt.y, pt.z);
+                                }
                             }
                         }
-                    }
 
-                    Elaine::AxisAlignedBox frustumAABB;
-                    frustumAABB.setNull();
-                    for (int i = 0; i < 8; ++i) frustumAABB.merge(corners[i]);
+                        Elaine::AxisAlignedBox frustumAABB;
+                        frustumAABB.setNull();
+                        for (int i = 0; i < 8; ++i) frustumAABB.merge(corners[i]);
 
-                    if (ctx->GetActiveWorld())
-                    {
-                        auto results = ctx->GetActiveWorld()->BoxIntersect(frustumAABB);
-                        if (!results.empty())
+                        if (ctx->GetActiveWorld())
                         {
-                            // Just select the first one for now
-                            if(results[0]->GetUserType() == 1)
-                                ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(results[0]->GetUserData()));
+                            auto results = ctx->GetActiveWorld()->BoxIntersect(frustumAABB);
+                            if (!results.empty())
+                            {
+                                if(results[0]->GetUserType() == 1)
+                                    ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(results[0]->GetUserData()));
+                            }
+                        }
+                        mIsBoxSelecting = false;
+                    }
+                    else
+                    {
+                        // ---- Point Picking (single click, no drag) ----
+                        ImVec2 mousePos = ImGui::GetMousePos();
+                        float nx = ((mousePos.x - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
+                        float ny = 1.0f - ((mousePos.y - imagePos.y) / imageSize.y) * 2.0f;
+                        
+                        Elaine::Matrix4x4 invVP = (projMat * viewMat).inverse();
+                        Elaine::Vector4 target = invVP * Elaine::Vector4(nx, ny, 1.0f, 1.0f);
+                        if (target.w != 0.0f)
+                        {
+                            target.x /= target.w;
+                            target.y /= target.w;
+                            target.z /= target.w;
+                        }
+                        
+                        Elaine::Vector3 dir(target.x - camComp->GetPosition().x, target.y - camComp->GetPosition().y, target.z - camComp->GetPosition().z);
+                        dir.normalise();
+                        
+                        Elaine::Ray ray(camComp->GetPosition(), dir);
+                        if (ctx->GetActiveWorld())
+                        {
+                            auto result = ctx->GetActiveWorld()->Raycast(ray);
+                            if (result && result->GetUserType() == 1)
+                            {
+                                ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(result->GetUserData()));
+                            }
+                            else
+                            {
+                                ctx->SetSelectedGameObject(nullptr);
+                            }
                         }
                     }
                 }

@@ -930,6 +930,7 @@ namespace VulkanRHI
 
 		if (!bForceSeparateAllocation)
 		{
+			AllocationSize = Math::max(Size, MemoryBucket.mPageSize); // for allocations above max, which are forced to be seperate allocations
 			if (Size < MemoryBucket.mPageSize) // Last bucket, for dedicated allocations has max size set to 0, preventing reuse
 			{
 				// Check Used pages to see if we can fit this in
@@ -938,7 +939,10 @@ namespace VulkanRHI
 					VulkanSubResourceAllocator* Page = UsedPages[Index];
 					if (Page->GetSubresourceAllocatorFlags() == AllocationFlags)
 					{
-						assert(Page->mMemoryAllocation->IsMapped() == bMapAllocation);
+						if (!Page->mMemoryAllocation->IsMapped() && bMapAllocation)
+						{
+							Page->mMemoryAllocation->Map(AllocationSize, 0);
+						}
 						if (Page->TryAllocate2(OutAllocation, AllocationOwner, Size, Alignment, MetaType, File, Line))
 						{
 							return true;
@@ -946,7 +950,6 @@ namespace VulkanRHI
 					}
 				}
 			}
-			AllocationSize = Math::max(Size, MemoryBucket.mPageSize); // for allocations above max, which are forced to be seperate allocations
 		}
 		else
 		{

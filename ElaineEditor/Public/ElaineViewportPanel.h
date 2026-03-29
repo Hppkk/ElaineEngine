@@ -1,11 +1,12 @@
 ﻿#pragma once
 #include "ElaineEditorBase.h"
+#include "ElaineEditorCameraController.h"
 #include <d3d11.h>
 
 namespace Editor
 {
 	// ============================================================
-	// ViewportPanel — shows the 3D engine viewport (placeholder)
+	// ViewportPanel — shows the 3D engine viewport
 	// ============================================================
 	class ViewportPanel : public EditorPanel
 	{
@@ -31,5 +32,13 @@ namespace Editor
 		// Gizmo state (Unity-style). Values match ImGuizmo::OPERATION / ImGuizmo::MODE; cast in .cpp.
 		int mCurrentGizmoOperation = 7;  // default: TRANSLATE (1|2|4)
 		int mCurrentGizmoMode = 1;        // default: WORLD (1); 0 = LOCAL
+
+		// Structured camera controller
+		EditorCameraController mCameraController;
+
+		// Box selection state
+		bool mIsBoxSelecting = false;
+		float mBoxSelectStartX = 0.0f;
+		float mBoxSelectStartY = 0.0f;
 	};
 }

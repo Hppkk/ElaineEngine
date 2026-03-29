@@ -14,6 +14,7 @@ namespace Elaine
     {
         StaticMesh,
         Sky,
+        Grid,
         Light,
         Particle,
         Unknown

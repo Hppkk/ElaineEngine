@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "ElaineSingleton.h"
+#include "ElaineEditorGridManager.h"
 #include <d3d11.h>
 
 namespace Elaine
@@ -98,5 +99,8 @@ namespace Editor
 		ID3D11Texture2D*                 mStagingD3D11Texture = nullptr;
 		ID3D11ShaderResourceView*        mStagingSRV = nullptr;
 		std::vector<uint8_t>             mPixelBuffer;
+
+		// Editor Grid (infinite ground plane)
+		EditorGridManager                mGridManager;
 	};
 }

@@ -13,6 +13,7 @@
 //-----------------------------------
 #include "RenderProxy/ElaineMeshRenderProxy.h"
 #include "RenderProxy/ElaineSkyRenderProxy.h"
+#include "RenderProxy/ElaineGridRenderProxy.h"
 //-----------------------------------
 
 namespace Elaine
@@ -110,6 +111,13 @@ namespace Elaine
 			RenderProxy* NewRenderProxy = new SkyRenderProxy();
 			mRenderProxys.insert(NewRenderProxy);
 			// Sky is global; still insert to proxy set but do not add to quad tree
+			mQuadTree->AddRenderProxy(NewRenderProxy);
+			return NewRenderProxy;
+		}
+		case Elaine::EProxyType::Grid:
+		{
+			RenderProxy* NewRenderProxy = new GridRenderProxy();
+			mRenderProxys.insert(NewRenderProxy);
 			mQuadTree->AddRenderProxy(NewRenderProxy);
 			return NewRenderProxy;
 		}

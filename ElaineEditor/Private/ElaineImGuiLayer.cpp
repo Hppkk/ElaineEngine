@@ -2,6 +2,7 @@
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
 #include "backends/imgui_impl_dx11.h"
+#include "imgui/ImGuizmo/ImGuizmo.h"
 #include <d3d11.h>
 #include <CommCtrl.h>
 #pragma comment(lib, "comctl32.lib")
@@ -232,6 +233,7 @@ namespace Editor
 		ImGui_ImplDX11_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
+		ImGuizmo::BeginFrame();
 	}
 
 	// ============================================================

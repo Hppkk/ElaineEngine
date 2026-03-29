@@ -5,10 +5,13 @@
 #include "ElaineInspectorPanel.h"
 #include "ElaineConsolePanel.h"
 #include "ElaineViewportPanel.h"
+#include "ElaineContentBrowserPanel.h"
 #include "ElaineEngine.h"
 #include "ElaineWorld.h"
 #include "ElaineEditorUI.h"
 #include "ElaineEditorGlobalContext.h"
+#include "ElaineInputSystem.h"
+#include "imgui.h"
 
 namespace Editor
 {
@@ -50,11 +53,13 @@ namespace Editor
 		mInspectorPanel = new InspectorPanel(mEditorUI);
 		mConsolePanel   = new ConsolePanel();
 		mViewportPanel  = new ViewportPanel();
+		mContentBrowserPanel = new ContentBrowserPanel();
 
 		mEditorUI->AddPanel(mHierarchyPanel);
 		mEditorUI->AddPanel(mViewportPanel);
 		mEditorUI->AddPanel(mInspectorPanel);
 		mEditorUI->AddPanel(mConsolePanel);
+		mEditorUI->AddPanel(mContentBrowserPanel);
 
 
 
@@ -74,6 +79,7 @@ namespace Editor
 		delete mInspectorPanel;  mInspectorPanel = nullptr;
 		delete mConsolePanel;    mConsolePanel = nullptr;
 		delete mViewportPanel;   mViewportPanel = nullptr;
+		delete mContentBrowserPanel; mContentBrowserPanel = nullptr;
 		delete mEditorUI;        mEditorUI = nullptr;
 		delete mImGuiLayer;      mImGuiLayer = nullptr;
 	}
@@ -132,6 +138,14 @@ namespace Editor
 		}
 
 		mImGuiLayer->BeginFrame();
+
+		// 同步 ImGui 的输入捕获标志到引擎 InputSystem
+		{
+			ImGuiIO& io = ImGui::GetIO();
+			Elaine::InputSystem::instance()->SetUIWantsKeyboard(io.WantCaptureKeyboard);
+			Elaine::InputSystem::instance()->SetUIWantsMouse(io.WantCaptureMouse);
+		}
+
 		mEditorUI->Draw();
 		mImGuiLayer->EndFrame();
 	}

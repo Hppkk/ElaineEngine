@@ -14,6 +14,15 @@
 #include "RenderGraph/ElaineRenderGraphResource.h"
 #include "ElaineRenderTarget.h"
 #include "ElaineSwapchainRenderTarget.h"
+// Virtual Texture includes
+#include "VirtualTexture/ElaineVirtualTextureTypes.h"
+#include "VirtualTexture/ElaineVTFeedbackAnalyzer.h"
+#include "VirtualTexture/ElaineVTStreamingManager.h"
+#include "VirtualTexture/ElaineVTIndirectionTexture.h"
+#include "VirtualTexture/ElaineVirtualTextureSpace.h"
+#include "VirtualTexture/ElainePhysicalTilePool.h"
+#include "VirtualTexture/ElaineVTMaterialBinding.h"
+#include "VirtualTexture/ElaineVTDescriptorSetBinder.h"
 
 namespace Elaine
 {
@@ -36,6 +45,12 @@ namespace Elaine
 		mPostProcessChain = new PostProcessChain();
 		mPostProcessChain->Initialize("render/config/deferred_render_pipeline.json");
 
+		// Check if VirtualTextureSystem is available
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (VTSystem && VTSystem->IsInitialized())
+		{
+			mVTEnabled = true;
+		}
 	}
 
 	void DeferredRenderPipeline::Render(RenderView* InRenderView)
@@ -96,10 +111,21 @@ namespace Elaine
 			mGBufferC = nullptr;
 			mSceneDepthTexture = nullptr;
 			mSceneColorTexture = nullptr;
+			mVTFeedbackTexture = nullptr;
+			mVTFeedbackDepthTexture = nullptr;
 			mLastViewportWidth = Width;
 			mLastViewportHeight = Height;
 		}
 
+		//=========================================================================
+		// Virtual Texture CPU-side Update
+		//=========================================================================
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (mVTEnabled && VTSystem && VTSystem->IsInitialized())
+		{
+			static uint32 sFrameCounter = 0;
+			UpdateVirtualTextures(CmdList, sFrameCounter++);
+		}
 
 		//=========================================================================
 		// Resource Descriptors
@@ -167,7 +193,48 @@ namespace Elaine
 		//=========================================================================
 		// Pass 1: VT Feedback Pass (optional)
 		//=========================================================================
+		if (mVTEnabled && VTSystem && VTSystem->IsInitialized())
+		{
+			uint32 FBWidth = std::max(1u, Width / VTConstants::FeedbackDownscaleFactor);
+			uint32 FBHeight = std::max(1u, Height / VTConstants::FeedbackDownscaleFactor);
 
+			RenderGraph::RGTextureDesc VTFBDesc = RenderGraph::RGTextureDesc::Create2D(
+				FBWidth, FBHeight, PF_R32_UINT,
+				TextureCreateFlags::RenderTargetable | TextureCreateFlags::CPUReadback);
+			VTFBDesc.ClearColor = LinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+			RenderGraph::RGTextureDesc VTFBDepthDesc = RenderGraph::RGTextureDesc::Create2D(
+				FBWidth, FBHeight, PF_DepthStencil,
+				TextureCreateFlags::DepthStencilTargetable);
+			VTFBDepthDesc.ClearColor = LinearColor(1.0f, 0.0f, 0.0f, 0.0f);
+
+			if (!mVTFeedbackTexture)
+				mVTFeedbackTexture = ResourcePool.AcquirePersistentTexture("VTFeedback", VTFBDesc, GraphicsContext);
+			if (!mVTFeedbackDepthTexture)
+				mVTFeedbackDepthTexture = ResourcePool.AcquirePersistentTexture("VTFeedbackDepth", VTFBDepthDesc, GraphicsContext);
+
+			auto VTFBRT = Builder.ImportTexture("VTFeedback", mVTFeedbackTexture, VTFBDesc);
+			auto VTFBDepth = Builder.ImportTexture("VTFeedbackDepth", mVTFeedbackDepthTexture, VTFBDepthDesc);
+
+			struct VTFeedbackData { RenderGraph::RGTextureHandle RT, Depth; };
+			Builder.AddRasterPass<VTFeedbackData>("VTFeedbackPass",
+				[&](RenderGraph::RenderGraphBuilder& B, VTFeedbackData& D) {
+					RenderGraph::RGRenderTargetDesc RTD; RTD.LoadStoreOp = ERenderTargetActions::Clear_Store;
+					RenderGraph::RGDepthStencilDesc DSD; DSD.LoadStoreOp = EDepthStencilTargetActions::ClearDepthStencil_StoreDepthStencil; DSD.ClearDepth = 1.0f;
+					B.SetRenderTarget(0, VTFBRT, RTD);
+					B.SetDepthStencil(VTFBDepth, DSD);
+					D.RT = VTFBRT; D.Depth = VTFBDepth;
+				},
+				[=](RHICommandList* InCmdList, const VTFeedbackData& D) {
+					uint32 FBW = std::max(1u, Width / VTConstants::FeedbackDownscaleFactor);
+					uint32 FBH = std::max(1u, Height / VTConstants::FeedbackDownscaleFactor);
+					CmdList->SetViewport(0, 0, 0, (float)FBW, (float)FBH, 1.0f);
+					CmdList->SetScissorRect(true, 0, 0, FBW, FBH);
+					if (auto* Q = QueueSet->GetRenderQueue(RenderQueue_Normal))
+						Q->RenderWithOverrideMaterial(CmdList, "VTFeedback");
+				}
+			);
+		}
 
 		//=========================================================================
 		// Pass 2: Shadow Pass
@@ -240,12 +307,23 @@ namespace Elaine
 				//
 				// For non-VT materials, the standard per-material textures are bound normally.
 
+				if (mVTEnabled)
+				{
+					// Ensure all VT material bindings have their GPU resources resolved
+					VTMaterialBindingManager* VTBindMgr = VTMaterialBindingManager::instance();
+					if (VTBindMgr)
+					{
+						VTBindMgr->ResolveAllBindings();
+					}
+				}
 
 				if (auto* Q = QueueSet->GetRenderQueue(RenderQueue_Normal))
 				{
 					if (mVTEnabled)
 					{
-
+						// Render with VT-aware path: the queue iterates over renderables,
+						// checks each material for VT binding, and switches pipeline/descriptors
+						Q->RenderWithVTSupport(CmdList);
 					}
 					else
 					{
@@ -372,5 +450,12 @@ namespace Elaine
 	//=========================================================================
 	// Virtual Texture CPU-side Update
 	//=========================================================================
+	void DeferredRenderPipeline::UpdateVirtualTextures(RHICommandList* CmdList, uint32 FrameNumber)
+	{
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (!VTSystem || !VTSystem->IsInitialized())
+			return;
 
+		VTSystem->Update(FrameNumber);
+	}
 }

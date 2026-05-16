@@ -8,6 +8,7 @@ namespace Elaine
 	class SceneManager;
 	class RenderView;
 	class RHITexture;
+	class VTIndirectionTexture;
 
 	/**
 	 * Deferred Rendering Pipeline (UE5-style)
@@ -66,6 +67,9 @@ namespace Elaine
 		// Scene color (output of lighting pass, input of post-process)
 		RHITexture* mSceneColorTexture = nullptr;
 
+		// Virtual Texture feedback
+		RHITexture* mVTFeedbackTexture = nullptr;
+		RHITexture* mVTFeedbackDepthTexture = nullptr;
 		bool mVTEnabled = false;
 
 		//=========================================================================

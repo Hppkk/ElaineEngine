@@ -48,6 +48,17 @@ namespace Elaine
         Ambient,
         Metallic,
         Roughness,
+
+        // Virtual Texture semantics
+        // These are used when a material is bound via VT pipeline.
+        // The indirection texture maps virtual UVs to physical atlas locations.
+        // Physical atlas textures contain the actual tile pixel data per layer.
+        VT_Indirection,                // usampler2D - indirection lookup texture (R16G16B16A16_UINT)
+        VT_PhysicalAtlas_BaseColor,    // sampler2D - physical atlas for BaseColor layer
+        VT_PhysicalAtlas_Normal,       // sampler2D - physical atlas for Normal layer
+        VT_PhysicalAtlas_RMA,          // sampler2D - physical atlas for Roughness/Metallic/AO layer
+        VT_PhysicalAtlas_Emissive,     // sampler2D - physical atlas for Emissive layer
+
         Tex_Count,
     };
 

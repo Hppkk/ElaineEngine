@@ -1,0 +1,234 @@
+//=============================================================================
+// DeferredLighting.ps - Deferred Lighting Pass Fragment Shader
+//
+// Reads the GBuffer textures, reconstructs world position from depth,
+// and evaluates PBR lighting for all light sources.
+//
+// GBuffer Layout:
+//   GBufferA: BaseColor.rgb + Metallic.a     (RGBA8)
+//   GBufferB: WorldNormal.rgb + Roughness.a  (RGBA16F)
+//   GBufferC: Emissive.rgb + AO.a            (RGBA8)
+//   Depth:    Scene depth                     (D32F)
+//
+// Supports:
+//   - Directional light (main sun)
+//   - Point lights (up to MAX_POINT_LIGHTS)
+//   - Spot lights (up to MAX_SPOT_LIGHTS)
+//   - Shadow mapping (PCF for directional light)
+//   - Ambient lighting (simple or IBL)
+//   - Tone mapping (ACES)
+//=============================================================================
+
+#include "PBRLighting.inl"
+
+#define MAX_POINT_LIGHTS 64
+#define MAX_SPOT_LIGHTS  16
+
+//=========================================================================
+// GBuffer Samplers
+//=========================================================================
+layout(set = 0, binding = 0) uniform sampler2D texGBufferA;
+layout(set = 0, binding = 1) uniform sampler2D texGBufferB;
+layout(set = 0, binding = 2) uniform sampler2D texGBufferC;
+layout(set = 0, binding = 3) uniform sampler2D texSceneDepth;
+layout(set = 0, binding = 4) uniform sampler2D texShadowMap;
+
+//=========================================================================
+// Light & Camera Uniforms
+//=========================================================================
+layout(set = 1, binding = 0) uniform DeferredLightingUniforms
+{
+    // Camera
+    vec4 U_CameraPosition;       // xyz = camera world position
+    vec4 U_InvViewProjection[4]; // Inverse view-projection matrix (row-major vec4[4])
+
+    // Directional Light (Sun)
+    vec4 U_DirLightDirection;    // xyz = direction (pointing FROM light), w = shadow enabled (1/0)
+    vec4 U_DirLightColor;        // rgb = color, a = intensity
+
+    // Shadow
+    vec4 U_ShadowMatrix[4];      // Light view-projection matrix for shadow mapping
+    vec4 U_ShadowParams;         // x = shadow bias, y = shadow normal bias, z = shadow strength, w = unused
+
+    // Ambient
+    vec4 U_AmbientColor;         // rgb = ambient color, a = ambient intensity
+    vec4 U_AmbientSkyColor;      // rgb = sky hemisphere color (top)
+    vec4 U_AmbientGroundColor;   // rgb = ground hemisphere color (bottom)
+
+    // Tone mapping
+    vec4 U_ToneMapParams;        // x = exposure, y = gamma, z = tone map mode (0=ACES, 1=Reinhard, 2=Uncharted2), w = unused
+
+    // Point lights count & spot lights count
+    vec4 U_LightCounts;          // x = numPointLights, y = numSpotLights
+};
+
+// Point lights
+struct PointLightData
+{
+    vec4 PositionRadius;   // xyz = position, w = radius
+    vec4 ColorIntensity;   // rgb = color, a = intensity
+};
+
+layout(set = 1, binding = 1) uniform PointLightsBuffer
+{
+    PointLightData U_PointLights[MAX_POINT_LIGHTS];
+};
+
+// Spot lights
+struct SpotLightData
+{
+    vec4 PositionRadius;   // xyz = position, w = radius
+    vec4 DirectionInner;   // xyz = direction, w = inner cone angle (cosine)
+    vec4 ColorOuter;       // rgb = color, a = outer cone angle (cosine)
+    vec4 Intensity;        // x = intensity
+};
+
+layout(set = 1, binding = 2) uniform SpotLightsBuffer
+{
+    SpotLightData U_SpotLights[MAX_SPOT_LIGHTS];
+};
+
+//=========================================================================
+// Input / Output
+//=========================================================================
+layout(location = 0) in vec2 vUV;
+layout(location = 0) out vec4 outColor;
+
+void main()
+{
+    //=========================================================================
+    // Sample GBuffer
+    //=========================================================================
+    vec4 gbufferA = texture(texGBufferA, vUV);
+    vec4 gbufferB = texture(texGBufferB, vUV);
+    vec4 gbufferC = texture(texGBufferC, vUV);
+    float depth   = texture(texSceneDepth, vUV).r;
+
+    // Early out for sky pixels (depth = 1.0 in Vulkan reversed-Z, or 0.0 in standard)
+    if (depth >= 1.0)
+    {
+        outColor = vec4(0.0, 0.0, 0.0, 1.0);
+        return;
+    }
+
+    // Unpack GBuffer
+    vec3 albedo    = gbufferA.rgb;
+    float metallic = gbufferA.a;
+
+    vec3 N          = PBR_DecodeNormal(gbufferB.rgb);
+    float roughness = gbufferB.a;
+
+    vec3 emissive  = gbufferC.rgb;
+    float ao       = gbufferC.a;
+
+    //=========================================================================
+    // Reconstruct World Position from Depth
+    //=========================================================================
+    vec4 invViewProj[4];
+    invViewProj[0] = U_InvViewProjection[0];
+    invViewProj[1] = U_InvViewProjection[1];
+    invViewProj[2] = U_InvViewProjection[2];
+    invViewProj[3] = U_InvViewProjection[3];
+
+    vec3 worldPos = PBR_ReconstructWorldPosition(vUV, depth, invViewProj);
+
+    //=========================================================================
+    // View Direction
+    //=========================================================================
+    vec3 V = normalize(U_CameraPosition.xyz - worldPos);
+
+    //=========================================================================
+    // Accumulate Lighting
+    //=========================================================================
+    vec3 Lo = vec3(0.0);
+
+    //--- Directional Light ---
+    {
+        vec3 lightDir = U_DirLightDirection.xyz;
+        vec3 lightColor = U_DirLightColor.rgb * U_DirLightColor.a;
+
+        vec3 directional = PBR_DirectionalLight(N, V, lightDir, albedo, metallic, roughness, lightColor);
+
+        // Shadow
+        float shadow = 1.0;
+        if (U_DirLightDirection.w > 0.5)
+        {
+            // Transform world position to shadow map space
+            vec4 shadowPos;
+            vec4 wp = vec4(worldPos, 1.0);
+            shadowPos.x = dot(U_ShadowMatrix[0], wp);
+            shadowPos.y = dot(U_ShadowMatrix[1], wp);
+            shadowPos.z = dot(U_ShadowMatrix[2], wp);
+            shadowPos.w = dot(U_ShadowMatrix[3], wp);
+
+            vec3 shadowCoord = shadowPos.xyz / shadowPos.w;
+            shadowCoord.xy = shadowCoord.xy * 0.5 + 0.5;
+
+            float bias = PBR_ComputeShadowBias(N, normalize(-lightDir), U_ShadowParams.x);
+            shadow = PBR_ShadowPCF(texShadowMap, shadowCoord, bias);
+            shadow = mix(1.0, shadow, U_ShadowParams.z); // shadow strength
+        }
+
+        Lo += directional * shadow;
+    }
+
+    //--- Point Lights ---
+    int numPointLights = int(U_LightCounts.x);
+    for (int i = 0; i < numPointLights && i < MAX_POINT_LIGHTS; ++i)
+    {
+        vec3 lightPos = U_PointLights[i].PositionRadius.xyz;
+        float lightRadius = U_PointLights[i].PositionRadius.w;
+        vec3 lightColor = U_PointLights[i].ColorIntensity.rgb * U_PointLights[i].ColorIntensity.a;
+
+        Lo += PBR_PointLight(N, V, worldPos, lightPos, albedo, metallic, roughness, lightColor, lightRadius);
+    }
+
+    //--- Spot Lights ---
+    int numSpotLights = int(U_LightCounts.y);
+    for (int i = 0; i < numSpotLights && i < MAX_SPOT_LIGHTS; ++i)
+    {
+        vec3 lightPos = U_SpotLights[i].PositionRadius.xyz;
+        float lightRadius = U_SpotLights[i].PositionRadius.w;
+        vec3 lightDir = U_SpotLights[i].DirectionInner.xyz;
+        float innerCone = U_SpotLights[i].DirectionInner.w;
+        float outerCone = U_SpotLights[i].ColorOuter.a;
+        vec3 lightColor = U_SpotLights[i].ColorOuter.rgb * U_SpotLights[i].Intensity.x;
+
+        Lo += PBR_SpotLight(N, V, worldPos, lightPos, lightDir, albedo, metallic, roughness, lightColor, lightRadius, innerCone, outerCone);
+    }
+
+    //=========================================================================
+    // Ambient Lighting
+    //=========================================================================
+    vec3 ambient = PBR_SimpleAmbient(N, V, albedo, metallic, roughness, ao,
+        U_AmbientColor.rgb * U_AmbientColor.a);
+
+    //=========================================================================
+    // Final Color
+    //=========================================================================
+    vec3 color = Lo + ambient + emissive;
+
+    // Exposure
+    float exposure = U_ToneMapParams.x;
+    color *= exposure;
+
+    // Tone mapping
+    int toneMapMode = int(U_ToneMapParams.z);
+    if (toneMapMode == 0)
+    {
+        color = PBR_ToneMapACES(color);
+    }
+    else if (toneMapMode == 1)
+    {
+        color = PBR_ToneMapReinhard(color);
+    }
+    else
+    {
+        color = PBR_ToneMapUncharted2(color, 2.0);
+    }
+
+    // Gamma correction (linear → sRGB)
+    color = PBR_LinearToSRGB(color);
+
+    outColor = vec4(color, 1.0);
+}

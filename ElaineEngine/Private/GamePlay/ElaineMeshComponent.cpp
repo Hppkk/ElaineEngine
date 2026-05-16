@@ -5,6 +5,7 @@
 #include "ElaineRenderCommandQueue.h"
 #include "ElaineMeshManager.h"
 #include "ElaineMaterialInstanceDynamic.h"
+#include "ElaineMaterialParamSnapshot.h"
 #include "ElaineGameObject.h"
 
 namespace Elaine
@@ -17,7 +18,12 @@ namespace Elaine
 
     StaticMeshComponent::~StaticMeshComponent()
     {
-
+        // 逻辑线程销毁材质实例
+        for (auto* Mat : mMaterials)
+        {
+            delete Mat;
+        }
+        mMaterials.clear();
     }
 
     void StaticMeshComponent::ChangeMesh(const std::string& InPath)
@@ -41,20 +47,32 @@ namespace Elaine
 
     void StaticMeshComponent::OnRegisterWorldImpl(World* InWorld)
     {
+        // 在逻辑线程生成所有材质的快照
+        std::vector<MaterialParamSnapshot> Snapshots;
+        Snapshots.reserve(mMaterials.size());
+        for (const auto* Mat : mMaterials)
+        {
+            if (Mat)
+                Snapshots.push_back(Mat->CreateSnapshot());
+            else
+                Snapshots.push_back(MaterialParamSnapshot());
+        }
+
+        MeshPtr CurrentMesh = mMesh;
+        uint32 Count = 0;
+        if (!CurrentMesh.isNull())
+            Count = CurrentMesh->GetSubMeshCount();
+
         ENQUEUE_RENDER_COMMAND(CreateProxy)(
-            [this](RenderContext& Context)
+            [this, Snapshots = std::move(Snapshots), CurrentMesh, Count](RenderContext& Context)
             {
                 mRenderProxy = static_cast<StaticMeshRenderProxy*>(GetGameObject()->GetSceneManager()->CreateRenderProxy(EProxyType::StaticMesh));
-                // initialize with current mesh/material state
                 if (mRenderProxy)
                 {
-                    mRenderProxy->SetMesh(mMesh);
-                    mRenderProxy->SetMaterials(mMaterials);
-                    // submesh count could be derived from mesh if available
-                    uint32 count = 0;
-                    if (!mMesh.isNull())
-                        count = mMesh->GetSubMeshCount();
-                    mRenderProxy->SetSubMeshCount(count);
+                    mRenderProxy->SetMesh(CurrentMesh);
+                    // 用快照数组更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
+                    mRenderProxy->UpdateMaterials(Snapshots);
+                    mRenderProxy->SetSubMeshCount(Count);
                     mRenderProxy->SetCastShadow(mbCastShadow);
                     mRenderProxy->SetReceiveShadow(mbReceiveShadow);
                     mRenderProxy->SetRenderLayer(mRenderLayer);
@@ -84,19 +102,30 @@ namespace Elaine
         if (mRenderProxy == nullptr)
             return;
 
+        // 在逻辑线程生成所有材质的快照
+        std::vector<MaterialParamSnapshot> Snapshots;
+        Snapshots.reserve(mMaterials.size());
+        for (const auto* Mat : mMaterials)
+        {
+            if (Mat)
+                Snapshots.push_back(Mat->CreateSnapshot());
+            else
+                Snapshots.push_back(MaterialParamSnapshot());
+        }
+
         StaticMeshRenderProxy* Proxy = mRenderProxy;
         MeshPtr CurrentMesh = mMesh;
-        std::vector<MaterialInstanceDynamic*> Mats = mMaterials;
         uint32 Count = 0;
         if (!CurrentMesh.isNull())
             Count = CurrentMesh->GetSubMeshCount();
 
         ENQUEUE_RENDER_COMMAND(UpdateMeshState)(
-            [Proxy, CurrentMesh, Mats, Count, Cast = mbCastShadow, Recv = mbReceiveShadow, Layer = mRenderLayer](RenderContext& Context)
+            [Proxy, CurrentMesh, Snapshots = std::move(Snapshots), Count, Cast = mbCastShadow, Recv = mbReceiveShadow, Layer = mRenderLayer](RenderContext& Context)
             {
                 Proxy->SetMesh(CurrentMesh);
                 Proxy->SetSubMeshCount(Count);
-                Proxy->SetMaterials(Mats);
+                // 用快照数组更新渲染线程的 RenderMaterialProxy
+                Proxy->UpdateMaterials(Snapshots);
                 Proxy->SetCastShadow(Cast);
                 Proxy->SetReceiveShadow(Recv);
                 Proxy->SetRenderLayer(Layer);

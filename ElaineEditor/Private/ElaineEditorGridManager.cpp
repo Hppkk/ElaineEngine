@@ -4,6 +4,7 @@
 #include "ElaineRenderCommandQueue.h"
 #include "RenderProxy/ElaineGridRenderProxy.h"
 #include "ElaineMaterialInstanceDynamic.h"
+#include "ElaineMaterialParamSnapshot.h"
 
 namespace Editor
 {
@@ -21,13 +22,11 @@ namespace Editor
 		mMaterial = new Elaine::MaterialInstanceDynamic();
 		mMaterial->ChangeMaterial("material_instance/Grid.mi");
 
-		// Create the GridRenderProxy on the render thread.
-		// SceneManager is created on the render thread in the World constructor,
-		// so we must access it inside a render command to guarantee it exists.
-		Elaine::MaterialInstanceDynamic* MaterialCopy = mMaterial;
+		// 在逻辑线程生成材质参数快照（不含 RHI 资源）
+		Elaine::MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
 		Elaine::World* WorldCopy = InWorld;
 
-		ENQUEUE_RENDER_COMMAND(CreateGridRenderProxy)([WorldCopy, MaterialCopy](Elaine::RenderContext& InContext)
+		ENQUEUE_RENDER_COMMAND(CreateGridRenderProxy)([WorldCopy, Snapshot = std::move(Snapshot)](Elaine::RenderContext& InContext)
 		{
 			Elaine::SceneManager* SceneMgr = WorldCopy->GetSceneManager();
 			if (!SceneMgr)
@@ -37,12 +36,13 @@ namespace Editor
 			Elaine::GridRenderProxy* GridProxy = static_cast<Elaine::GridRenderProxy*>(NewProxy);
 			if (GridProxy)
 			{
-				GridProxy->SetMaterial(MaterialCopy);
+				// 用快照更新渲染线程的 RenderMaterialProxy
+				GridProxy->UpdateMaterial(Snapshot);
 
 				// Track material resources and begin initialization
-				if (MaterialCopy && !MaterialCopy->GetSourceMaterial().isNull())
+				if (Snapshot.IsValid())
 				{
-					GridProxy->TrackResource(MaterialCopy->GetSourceMaterial());
+					GridProxy->TrackResource(Snapshot.Source);
 				}
 				GridProxy->BeginInitialization();
 			}
@@ -56,7 +56,7 @@ namespace Editor
 		if (!mInitialized)
 			return;
 
-		// Material cleanup
+		// Material cleanup (逻辑线程持有，逻辑线程销毁)
 		delete mMaterial;
 		mMaterial = nullptr;
 		mInitialized = false;

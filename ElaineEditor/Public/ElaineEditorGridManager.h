@@ -15,6 +15,10 @@ namespace Editor
 	// The grid is rendered via a GridRenderProxy on the render thread,
 	// using the grid.material / Grid.mi assets.
 	//
+	// MaterialInstanceDynamic 由逻辑线程创建和持有。
+	// 通过 CreateSnapshot() 生成参数快照，经 ENQUEUE_RENDER_COMMAND
+	// 传递给渲染线程的 GridRenderProxy::RenderMaterialProxy。
+	//
 	// Lifetime: create once during editor scene setup, destroy on teardown.
 	// ============================================================
 	class EditorGridManager
@@ -31,7 +35,7 @@ namespace Editor
 		void Shutdown();
 
 	private:
-		Elaine::MaterialInstanceDynamic* mMaterial = nullptr;
+		Elaine::MaterialInstanceDynamic* mMaterial = nullptr;  // 逻辑线程持有，不传递给渲染线程
 		bool mInitialized = false;
 	};
 }

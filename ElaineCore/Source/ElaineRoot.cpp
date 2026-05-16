@@ -11,6 +11,7 @@
 #include "ElaineFileMonitor.h"
 #include "common/ElaineRenderModule.h"
 #include "ElaineForwardRenderPipeline.h"
+#include "ElaineDeferredRenderPipeline.h"
 #include "ElaineRenderCommandQueue.h"
 #include "platform/ElaineSystemInfo.h"
 
@@ -66,6 +67,8 @@ namespace Elaine
 
 		mRenderPipeline[RP_Forward] = new ForwardRenderPipeline();
 		mRenderPipeline[RP_Forward]->Initialize();
+		mRenderPipeline[RP_Defferred] = new DeferredRenderPipeline();
+		mRenderPipeline[RP_Defferred]->Initialize();
 
 		mRenderThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RenderThread, &Root::RenderOneFrame, this);
 	}

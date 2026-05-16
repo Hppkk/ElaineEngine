@@ -1,0 +1,135 @@
+//=============================================================================
+// DeferredGBuffer.ps - GBuffer Pass Fragment Shader
+//
+// Outputs material properties to the GBuffer render targets:
+//   RT0 (GBufferA): BaseColor.rgb + Metallic.a     (RGBA8_UNORM)
+//   RT1 (GBufferB): WorldNormal.rgb + Roughness.a  (RGBA16F)
+//   RT2 (GBufferC): Emissive.rgb + AO.a            (RGBA8_UNORM)
+//
+// Supports:
+//   - Albedo/BaseColor texture
+//   - Normal map (tangent-space to world-space)
+//   - Metallic-Roughness texture (Green=Roughness, Blue=Metallic, or packed)
+//   - Emissive texture
+//   - Ambient Occlusion texture
+//=============================================================================
+
+#include "PBRLighting.inl"
+
+// Material textures
+layout(set = 2, binding = 0) uniform sampler2D texBaseColor;
+layout(set = 2, binding = 1) uniform sampler2D texNormal;
+layout(set = 2, binding = 2) uniform sampler2D texMetallicRoughness;  // G=Roughness, B=Metallic (glTF convention)
+layout(set = 2, binding = 3) uniform sampler2D texEmissive;
+layout(set = 2, binding = 4) uniform sampler2D texAO;
+
+// Material parameters
+layout(set = 2, binding = 5) uniform MaterialParams
+{
+    vec4 U_BaseColorFactor;    // Tint + alpha cutoff in .a
+    vec4 U_EmissiveFactor;     // Emissive color multiplier (rgb), emissive strength (a)
+    vec4 U_PBRParams;          // x=metallic, y=roughness, z=ao, w=alphaCutoff
+    vec4 U_MaterialFlags;      // x=hasNormalMap, y=hasMetallicRoughnessMap, z=hasEmissiveMap, w=hasAOMap
+};
+
+// Inputs from vertex shader
+layout(location = 0) in vec3 vWorldPosition;
+layout(location = 1) in vec2 vUV;
+layout(location = 2) in vec3 vWorldNormal;
+layout(location = 3) in vec3 vWorldTangent;
+layout(location = 4) in vec3 vWorldBitangent;
+
+// GBuffer outputs
+layout(location = 0) out vec4 outGBufferA;  // BaseColor.rgb + Metallic.a
+layout(location = 1) out vec4 outGBufferB;  // WorldNormal.rgb + Roughness.a
+layout(location = 2) out vec4 outGBufferC;  // Emissive.rgb + AO.a
+
+void main()
+{
+    //=========================================================================
+    // Base Color
+    //=========================================================================
+    vec4 baseColor = texture(texBaseColor, vUV) * U_BaseColorFactor;
+
+    // Alpha test (discard transparent fragments)
+    float alphaCutoff = U_PBRParams.w;
+    if (alphaCutoff > 0.0 && baseColor.a < alphaCutoff)
+    {
+        discard;
+    }
+
+    // Convert from sRGB to linear
+    vec3 albedo = PBR_SRGBToLinear(baseColor.rgb);
+
+    //=========================================================================
+    // Normal Mapping
+    //=========================================================================
+    vec3 N = normalize(vWorldNormal);
+
+    if (U_MaterialFlags.x > 0.5) // hasNormalMap
+    {
+        vec3 T = normalize(vWorldTangent);
+        vec3 B = normalize(vWorldBitangent);
+        mat3 TBN = mat3(T, B, N);
+
+        // Sample tangent-space normal map
+        vec3 tangentNormal = texture(texNormal, vUV).rgb;
+        tangentNormal = tangentNormal * 2.0 - 1.0;
+        
+        N = normalize(TBN * tangentNormal);
+    }
+
+    //=========================================================================
+    // Metallic & Roughness
+    //=========================================================================
+    float metallic = U_PBRParams.x;
+    float roughness = U_PBRParams.y;
+
+    if (U_MaterialFlags.y > 0.5) // hasMetallicRoughnessMap
+    {
+        // glTF convention: Green = Roughness, Blue = Metallic
+        vec4 mrSample = texture(texMetallicRoughness, vUV);
+        roughness = mrSample.g * U_PBRParams.y;
+        metallic = mrSample.b * U_PBRParams.x;
+    }
+
+    // Clamp roughness to avoid singularities in BRDF
+    roughness = clamp(roughness, 0.04, 1.0);
+    metallic = clamp(metallic, 0.0, 1.0);
+
+    //=========================================================================
+    // Emissive
+    //=========================================================================
+    vec3 emissive = vec3(0.0);
+    if (U_MaterialFlags.z > 0.5) // hasEmissiveMap
+    {
+        emissive = PBR_SRGBToLinear(texture(texEmissive, vUV).rgb) * U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+    else
+    {
+        emissive = U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+
+    //=========================================================================
+    // Ambient Occlusion
+    //=========================================================================
+    float ao = U_PBRParams.z;
+    if (U_MaterialFlags.w > 0.5) // hasAOMap
+    {
+        ao *= texture(texAO, vUV).r;
+    }
+
+    //=========================================================================
+    // Write GBuffer
+    //=========================================================================
+    
+    // GBuffer A: BaseColor(RGB) + Metallic(A)
+    outGBufferA = vec4(albedo, metallic);
+
+    // GBuffer B: WorldNormal(RGB) + Roughness(A)
+    // Encode normal to [0, 1] range
+    outGBufferB = vec4(PBR_EncodeNormal(N), roughness);
+
+    // GBuffer C: Emissive(RGB) + AO(A)
+    outGBufferC = vec4(emissive, ao);
+}

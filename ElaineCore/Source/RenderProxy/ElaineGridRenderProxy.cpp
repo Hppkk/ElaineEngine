@@ -1,8 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineGridRenderProxy.h"
 #include "ElaineRenderQueue.h"
-#include "ElaineMaterial.h"
-#include "ElaineMaterialInstanceDynamic.h"
 
 namespace Elaine
 {
@@ -52,10 +50,11 @@ namespace Elaine
         if (!IsBindingsInitialized())
             return;
 
-        if (mMaterial == nullptr || !mMaterial->IsReady())
+        // 使用 RenderMaterialProxy 的 IsReady 检查
+        if (!mMaterialProxy.IsReady())
             return;
 
-        ShaderPass* GridPass = mMaterial->GetPass(Name("Grid"));
+        ShaderPass* GridPass = mMaterialProxy.GetPass(Name("Grid"));
         if (GridPass == nullptr)
             return;
 

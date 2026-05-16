@@ -1,8 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineSkyRenderProxy.h"
 #include "ElaineRenderQueue.h"
-#include "ElaineMaterial.h"
-#include "ElaineMaterialInstanceDynamic.h"
 
 namespace Elaine
 {
@@ -77,23 +75,14 @@ namespace Elaine
 
         mResourceBinding.mVertexCount = 36;
         mResourceBinding.mInstanceCount = 1;
-        mCubeTexture = mMaterial->GetTexture(BaseColor);
-        if (!mCubeTexture.isNull() && mCubeTexture->GetTextureRHI())
-            mResourceBinding.SetTexture(0, mCubeTexture->GetTextureRHI(), SAMPLER_CUBEMAP);
 
-        //The RHI layer has not undergone matching verification, uses data obtained from Shader reflection.
-        
-        //CurrentPass->mRHIDesc.mDepthOp = COMPARE_OP_LESS_OR_EQUAL;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mAttributeSize = 3;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mOffset[0] = sizeof(float) * 3;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mOffset[1] = sizeof(float) * 2;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mOffset[2] = sizeof(float) * 3;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mFormat[0] = VET_Float3;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mFormat[1] = VET_Float2;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mFormat[2] = VET_Float3;
-        //CurrentPass->mRHIDesc.mVertexAttribute.mStride = sizeof(VertexData);
+        // 从 RenderMaterialProxy 获取已解析的 RHI 纹理
+        RHITexture* CubeRHI = mMaterialProxy.GetResolvedTexture(BaseColor);
+        if (!CubeRHI && !mCubeTexture.isNull() && mCubeTexture->IsLoaded())
+            CubeRHI = mCubeTexture->GetTextureRHI();
 
-
+        if (CubeRHI)
+            mResourceBinding.SetTexture(0, CubeRHI, SAMPLER_CUBEMAP);
     }
 
     void SkyRenderProxy::UpdateRenderQueue(RenderQueueSet* InRenderQueue)
@@ -101,11 +90,11 @@ namespace Elaine
         if (!IsBindingsInitialized())
             return;
 
-        // 使用IsReady确保Material完全加载完成
-        if (mMaterial == nullptr || !mMaterial->IsReady())
+        // 使用 RenderMaterialProxy 的 IsReady 检查
+        if (!mMaterialProxy.IsReady())
             return;
 
-        ShaderPass* SkyPass = mMaterial->GetPass(Name("Sky"));
+        ShaderPass* SkyPass = mMaterialProxy.GetPass(Name("Sky"));
         if (SkyPass == nullptr)
             return;
 

@@ -1,5 +1,6 @@
 ﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineMaterialInstanceDynamic.h"
+#include "ElaineMaterialParamSnapshot.h"
 #include "ElaineMaterialManager.h"
 
 namespace Elaine
@@ -44,30 +45,6 @@ namespace Elaine
 		return originMat->IsLoaded();
 	}
 
-	ShaderPass* MaterialInstanceDynamic::GetShaderPass()
-	{
-		if (mSource.isNull())
-			return nullptr;
-		
-		// 检查加载状态
-		if (!mSource->IsLoaded())
-			return nullptr;
-			
-		return mSource->GetShaderPass();
-	}
-
-	ShaderPass* MaterialInstanceDynamic::GetPass(const Name& InPassType)
-	{
-		if (mSource.isNull())
-			return nullptr;
-		
-		// 检查加载状态
-		if (!mSource->IsLoaded())
-			return nullptr;
-		
-		return mSource->GetPass(InPassType);
-	}
-
 	void MaterialInstanceDynamic::SetTexture(TextureSemantics InSemantics, const TexturePtr& InTexture)
 	{
 		mOverridedTextures[InSemantics] = InTexture;
@@ -79,7 +56,10 @@ namespace Elaine
 		if (it != mOverridedTextures.end())
 			return it->second;
 		
-		return mSource->GetTexture(InSemantics);
+		if (!mSource.isNull())
+			return mSource->GetTexture(InSemantics);
+
+		return TexturePtr();
 	}
 
 	bool MaterialInstanceDynamic::HasTextureOverride(TextureSemantics InSemantics) const
@@ -123,5 +103,15 @@ namespace Elaine
 	{
 		//return mOverridedVectors.find(InParamName.GetHash()) != mOverridedVectors.end();
 		return true;
+	}
+
+	MaterialParamSnapshot MaterialInstanceDynamic::CreateSnapshot() const
+	{
+		MaterialParamSnapshot Snapshot;
+		Snapshot.Source = mSource;
+		Snapshot.OverridedTextures = mOverridedTextures;
+		Snapshot.OverridedScalars = mOverridedScalars;
+		Snapshot.OverridedVectors = mOverridedVectors;
+		return Snapshot;
 	}
 }

@@ -5,6 +5,7 @@
 #include "ElaineGameObject.h"
 #include "ElaineTextureManager.h"
 #include "ElaineMaterialInstanceDynamic.h"
+#include "ElaineMaterialParamSnapshot.h"
 
 namespace Elaine
 {
@@ -14,33 +15,39 @@ namespace Elaine
         , mExposure(1.0f)
         , mMaterial(nullptr)
     {
-        // 创建默认的材质实例
+        // 创建默认的材质实例（逻辑线程）
         mMaterial = new MaterialInstanceDynamic();
         mMaterial->ChangeMaterial("material_instance/SkyBox.mi");
 
-        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this](RenderContext& InContext)
-            {
+        // 在逻辑线程生成材质参数快照（不含 RHI 资源）
+        MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
+        TexturePtr CubeCopy = mCubeTexture;
+        float ExposureCopy = mExposure;
 
+        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this, Snapshot = std::move(Snapshot), CubeCopy, ExposureCopy](RenderContext& InContext)
+            {
                 RenderProxy* NewProxy = self->GetGameObject()->GetSceneManager()->CreateRenderProxy(EProxyType::Sky);
                 SkyRenderProxy* SkyProxy = static_cast<SkyRenderProxy*>(NewProxy);
                 if (SkyProxy)
                 {
-                    SkyProxy->SetExposure(self->mExposure);
-                    if (!self->mCubeTexture.isNull())
-                        SkyProxy->SetCubeTexture(self->mCubeTexture);
-                    SkyProxy->SetMaterial(self->mMaterial);
+                    SkyProxy->SetExposure(ExposureCopy);
+                    if (!CubeCopy.isNull())
+                        SkyProxy->SetCubeTexture(CubeCopy);
+
+                    // 用快照更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
+                    SkyProxy->UpdateMaterial(Snapshot);
                     self->mProxy = SkyProxy;
 
                     // ========== 资源依赖追踪 ==========
                     // 追踪材质资源（会递归追踪 MaterialInstanceStatic -> Material -> Texture/Shader）
-                    if (self->mMaterial && !self->mMaterial->GetSourceMaterial().isNull())
+                    if (Snapshot.IsValid())
                     {
-                        SkyProxy->TrackResource(self->mMaterial->GetSourceMaterial());
+                        SkyProxy->TrackResource(Snapshot.Source);
                     }
                     // 追踪 CubeTexture
-                    if (!self->mCubeTexture.isNull())
+                    if (!CubeCopy.isNull())
                     {
-                        SkyProxy->TrackResource(self->mCubeTexture);
+                        SkyProxy->TrackResource(CubeCopy);
                     }
                     // 开始初始化流程（在所有资源加载完成后自动调用 InitializeResourceBinding）
                     SkyProxy->BeginInitialization();
@@ -52,19 +59,16 @@ namespace Elaine
     {
         SkyRenderProxy* ProxyCopy = mProxy;
         SceneManager* SceneMgr = GetGameObject()->GetSceneManager();
-        MaterialInstanceDynamic* MaterialCopy = mMaterial;
-        ENQUEUE_RENDER_COMMAND(DestroySkyRenderProxy)([ProxyCopy, SceneMgr, MaterialCopy](RenderContext& InContext)
+        ENQUEUE_RENDER_COMMAND(DestroySkyRenderProxy)([ProxyCopy, SceneMgr](RenderContext& InContext)
             {
                 if (ProxyCopy)
                 {
                     SceneMgr->DestroyRenderProxy(ProxyCopy);
                 }
-                // 注意: mMaterial的生命周期由逻辑线程管理，这里不删除
-                // 在渲染线程执行后，ProxyCopy已被销毁，不会再访问MaterialCopy
             });
         mProxy = nullptr;
 
-        // 在逻辑线程删除材质
+        // 在逻辑线程删除材质（逻辑线程持有，逻辑线程销毁）
         delete mMaterial;
         mMaterial = nullptr;
     }
@@ -116,12 +120,13 @@ namespace Elaine
             mMaterial->ChangeMaterial(InMaterialPath);
         }
 
+        // 在逻辑线程生成快照，传递给渲染线程
+        MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
         SkyRenderProxy* ProxyCopy = mProxy;
-        MaterialInstanceDynamic* MaterialCopy = mMaterial;
-        ENQUEUE_RENDER_COMMAND(UpdateSkyMaterial)([ProxyCopy, MaterialCopy](RenderContext& InContext)
+        ENQUEUE_RENDER_COMMAND(UpdateSkyMaterial)([ProxyCopy, Snapshot = std::move(Snapshot)](RenderContext& InContext)
             {
                 if (ProxyCopy)
-                    ProxyCopy->SetMaterial(MaterialCopy);
+                    ProxyCopy->UpdateMaterial(Snapshot);
             });
     }
 

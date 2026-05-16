@@ -2,13 +2,13 @@
 
 -----------------
 
-![ElaineEngine](Docs/ElaineEngine.png)
+![ElaineEngine](Docs/Images/ElaineEngine.png)
 
 Welcome to the Elaine Engine source code!
 
 You can build the Elaine Editor for Windows(Other platforms will be gradually opened in the future); compile Elaine Engine games for target platforms. Modify the code in any way you can imagine, and share your changes with others.
 
-![image-20260329230101040](Docs/image-20260329230101040.png)
+![image-20260329230101040](Docs/Images/main_scene_00.png)
 
 # Branch
 
@@ -31,7 +31,7 @@ Elaine Engine can be easily build by CMake. Make sure your CMake version is 3.26
 1. Download Git on your computer and use the following commond:
    
    ```
-   git clone --recursive https://github.com/Hppkk/ElaineEngine.git
+   git clone https://github.com/Hppkk/ElaineEngine.git
    ```
    
    When updating existing repository, don't forget to update all submodules:
@@ -57,6 +57,8 @@ Elaine Engine can be easily build by CMake. Make sure your CMake version is 3.26
 2. Elaine Engine Core using the Vulkan and DX12 to rendering, you can see the source code in the core layer.
 
 3. We use the [Geometric Tools](http://www.geometrictools.com/) for our math library.
+
+4. Use TaskGraph for multi thread and RenderGraph base for render pipeline.
 
 # Contributions
 

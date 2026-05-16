@@ -1,4 +1,4 @@
-#include "ElaineCoreMacroDefinition.h"
+﻿#include "ElaineCoreMacroDefinition.h"
 #include "GamePlay/ElaineComponent.h"
 #include "GamePlay/ElaineComponentSystem.h"
 #include "GamePlay/ElaineComponentFactory.h"
@@ -6,6 +6,7 @@
 #include "GamePlay/ElaineMeshComponent.h"
 #include "GamePlay/ElaineSkyComponent.h"
 #include "GamePlay/ElaineCameraComponent.h"
+#include "GamePlay/ElaineRVTVolumeComponent.h"
 
 namespace Elaine
 {
@@ -26,5 +27,6 @@ namespace Elaine
 		REGISTER_COM_FACTORY(StaticMeshComponent);
 		REGISTER_COM_FACTORY(SkyComponent);
 		REGISTER_COM_FACTORY(CameraComponent);
+		REGISTER_COM_FACTORY(RVTVolumeComponent);
 	}
 }

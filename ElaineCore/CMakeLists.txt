@@ -49,6 +49,8 @@ file(GLOB_RECURSE inc_post_process Include/PostProcess/*.h)
 source_group(PostProcess FILES ${inc_post_process})
 file(GLOB_RECURSE inc_ren_proxy Include/RenderProxy/*.h)
 source_group(RenderProxy FILES ${inc_ren_proxy})
+file(GLOB_RECURSE inc_virtual_tex Include/VirtualTexture/*.h)
+source_group(VirtualTexture FILES ${inc_virtual_tex})
 
 #source group
 file(GLOB src_ Source/*.cpp)
@@ -81,6 +83,8 @@ file(GLOB_RECURSE src_post_process Source/PostProcess/*.cpp)
 source_group(PostProcess FILES ${src_post_process})
 file(GLOB_RECURSE src_ren_proxy Source/RenderProxy/*.cpp)
 source_group(RenderProxy FILES ${src_ren_proxy})
+file(GLOB_RECURSE src_virtual_tex Source/VirtualTexture/*.cpp)
+source_group(VirtualTexture FILES ${src_virtual_tex})
 
 file(GLOB_RECURSE DIR_SRCS *.cpp)
 file(GLOB_RECURSE DIR_INC *.h)

@@ -16,6 +16,17 @@ namespace Elaine
 	mTextureSemantics.emplace(Name(STR_NAME(NAME)), NAME);
 		REG_TEX_SEM(BaseColor);
 		REG_TEX_SEM(Normal);
+		REG_TEX_SEM(Specular);
+		REG_TEX_SEM(Ambient);
+		REG_TEX_SEM(Metallic);
+		REG_TEX_SEM(Roughness);
+
+		// Virtual Texture semantics
+		REG_TEX_SEM(VT_Indirection);
+		REG_TEX_SEM(VT_PhysicalAtlas_BaseColor);
+		REG_TEX_SEM(VT_PhysicalAtlas_Normal);
+		REG_TEX_SEM(VT_PhysicalAtlas_RMA);
+		REG_TEX_SEM(VT_PhysicalAtlas_Emissive);
 	}
 
 	void SemanticsRegister::RegisterVertexSemantics()

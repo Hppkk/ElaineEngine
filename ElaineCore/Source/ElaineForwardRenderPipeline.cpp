@@ -14,6 +14,13 @@
 #include "RenderGraph/ElaineRenderGraphResource.h"
 #include "ElaineRenderTarget.h"
 #include "ElaineSwapchainRenderTarget.h"
+// Virtual Texture includes
+#include "VirtualTexture/ElaineVirtualTextureTypes.h"
+#include "VirtualTexture/ElaineVTFeedbackAnalyzer.h"
+#include "VirtualTexture/ElaineVTStreamingManager.h"
+#include "VirtualTexture/ElaineVTIndirectionTexture.h"
+#include "VirtualTexture/ElaineVirtualTextureSpace.h"
+#include "VirtualTexture/ElainePhysicalTilePool.h"
 
 namespace Elaine
 {
@@ -31,6 +38,13 @@ namespace Elaine
 	{
 		mPostProcessChain = new PostProcessChain();
 		mPostProcessChain->Initialize("render/config/forward_render_pipeline.json");
+
+		// Check if VirtualTextureSystem is available and initialized
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (VTSystem && VTSystem->IsInitialized())
+		{
+			mVTEnabled = true;
+		}
 	}
 
 	void ForwardRenderPipeline::Render(RenderView* InRenderView)
@@ -88,8 +102,21 @@ namespace Elaine
 		{
 			mSceneColorTexture = nullptr;
 			mSceneDepthTexture = nullptr;
+			mVTFeedbackTexture = nullptr;
+			mVTFeedbackDepthTexture = nullptr;
 			mLastViewportWidth = Width;
 			mLastViewportHeight = Height;
+		}
+
+		//=========================================================================
+		// Virtual Texture: CPU-side update (analyze previous frame feedback,
+		// dispatch streaming, upload completed tiles, update indirection textures)
+		//=========================================================================
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (mVTEnabled && VTSystem && VTSystem->IsInitialized())
+		{
+			static uint32 sFrameCounter = 0;
+			UpdateVirtualTextures(CmdList, sFrameCounter++);
 		}
 
 		RenderGraph::RGTextureDesc ShadowMapDesc = RenderGraph::RGTextureDesc::Create2D(
@@ -121,6 +148,84 @@ namespace Elaine
 		RenderGraph::RGTextureHandle ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture, ShadowMapDesc);
 		RenderGraph::RGTextureHandle SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture, SceneColorDesc);
 		RenderGraph::RGTextureHandle SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture, DepthDesc);
+
+		//=========================================================================
+		// VT Feedback Pass - renders at reduced resolution to capture tile requests
+		//=========================================================================
+		RenderGraph::RGTextureHandle VTFeedbackRT;
+		RenderGraph::RGTextureHandle VTFeedbackDepth;
+
+		if (mVTEnabled && VTSystem && VTSystem->IsInitialized())
+		{
+			uint32 FBWidth = Width / VTConstants::FeedbackDownscaleFactor;
+			uint32 FBHeight = Height / VTConstants::FeedbackDownscaleFactor;
+			if (FBWidth < 1) FBWidth = 1;
+			if (FBHeight < 1) FBHeight = 1;
+
+			RenderGraph::RGTextureDesc VTFeedbackDesc = RenderGraph::RGTextureDesc::Create2D(
+				FBWidth, FBHeight, PF_R32_UINT,
+				TextureCreateFlags::RenderTargetable | TextureCreateFlags::CPUReadback);
+			VTFeedbackDesc.ClearColor = LinearColor(0.0f, 0.0f, 0.0f, 0.0f);
+
+			RenderGraph::RGTextureDesc VTFeedbackDepthDesc = RenderGraph::RGTextureDesc::Create2D(
+				FBWidth, FBHeight, PF_DepthStencil,
+				TextureCreateFlags::DepthStencilTargetable);
+			VTFeedbackDepthDesc.ClearColor = LinearColor(1.0f, 0.0f, 0.0f, 0.0f);
+
+			auto& ResourcePool = RG.GetResourcePool();
+			if (!mVTFeedbackTexture)
+			{
+				mVTFeedbackTexture = ResourcePool.AcquirePersistentTexture("VTFeedback", VTFeedbackDesc, GraphicsContext);
+			}
+			if (!mVTFeedbackDepthTexture)
+			{
+				mVTFeedbackDepthTexture = ResourcePool.AcquirePersistentTexture("VTFeedbackDepth", VTFeedbackDepthDesc, GraphicsContext);
+			}
+
+			VTFeedbackRT = Builder.ImportTexture("VTFeedback", mVTFeedbackTexture, VTFeedbackDesc);
+			VTFeedbackDepth = Builder.ImportTexture("VTFeedbackDepth", mVTFeedbackDepthTexture, VTFeedbackDepthDesc);
+
+			struct VTFeedbackPassData
+			{
+				RenderGraph::RGTextureHandle FeedbackRT;
+				RenderGraph::RGTextureHandle FeedbackDepth;
+			};
+
+			Builder.AddRasterPass<VTFeedbackPassData>("VTFeedbackPass",
+				[&](RenderGraph::RenderGraphBuilder& Builder, VTFeedbackPassData& Data)
+				{
+					RenderGraph::RGRenderTargetDesc RTDesc;
+					RTDesc.LoadStoreOp = ERenderTargetActions::Clear_Store;
+					RTDesc.ClearColor = VTFeedbackDesc.ClearColor;
+
+					RenderGraph::RGDepthStencilDesc DSDesc;
+					DSDesc.LoadStoreOp = EDepthStencilTargetActions::ClearDepthStencil_StoreDepthStencil;
+					DSDesc.ClearDepth = 1.0f;
+
+					Builder.SetRenderTarget(0, VTFeedbackRT, RTDesc);
+					Builder.SetDepthStencil(VTFeedbackDepth, DSDesc);
+					Data.FeedbackRT = VTFeedbackRT;
+					Data.FeedbackDepth = VTFeedbackDepth;
+				},
+				[=](Elaine::RHICommandList* InCmdList, const VTFeedbackPassData& Data)
+				{
+					uint32 FBW = Width / VTConstants::FeedbackDownscaleFactor;
+					uint32 FBH = Height / VTConstants::FeedbackDownscaleFactor;
+					if (FBW < 1) FBW = 1;
+					if (FBH < 1) FBH = 1;
+
+					CmdList->SetViewport(0, 0, 0, (float)FBW, (float)FBH, 1.0f);
+					CmdList->SetScissorRect(true, 0, 0, FBW, FBH);
+
+					// Render all opaque objects with VT feedback shader
+					// This uses VTFeedback.vs/ps to output packed tile coords
+					if (auto* Queue = QueueSet->GetRenderQueue(RenderQueue_Normal))
+					{
+						Queue->RenderWithOverrideMaterial(CmdList, "VTFeedback");
+					}
+				}
+			);
+		}
 
 		//=========================================================================
 		// Shadow Pass
@@ -242,11 +347,42 @@ namespace Elaine
 		RG.Execute(GraphicsContext);
 		RG.EndFrame();
 
+		// After RenderGraph execution, the VT feedback buffer is now filled
+		// The next frame's UpdateVirtualTextures() will read it back and analyze
+
 		CmdList->EndFrame();
 
 		if (Swapchain)
 		{
 			CmdList->PresentSwapchain(Swapchain);
 		}
+	}
+
+	//=========================================================================
+	// Virtual Texture CPU-side Update
+	//=========================================================================
+	void ForwardRenderPipeline::UpdateVirtualTextures(RHICommandList* CmdList, uint32 FrameNumber)
+	{
+		VirtualTextureSystem* VTSystem = VirtualTextureSystem::instance();
+		if (!VTSystem || !VTSystem->IsInitialized())
+			return;
+
+		// Step 1: Update the VT system (analyzes previous frame's feedback,
+		//         processes tile requests, updates page tables)
+		VTSystem->Update(FrameNumber);
+
+		// Step 2: Update indirection textures for all active spaces
+		// The VirtualTextureSystem::Update() internally calls:
+		//   - AnalyzeFeedback()        → reads back feedback buffer, extracts tile requests
+		//   - ProcessTileRequests()    → submits to streaming manager
+		//   - UpdatePageTables()       → processes completed tile uploads
+		//   - UpdateIndirectionTextures() → triggers VTIndirectionTexture::Update()
+		//
+		// The indirection texture upload commands need to be recorded into
+		// the current command list. This is handled by the VT system internally
+		// through the RHI command context.
+		//
+		// Note: The feedback buffer readback from GPU→CPU has 1 frame latency
+		// by design (we read this frame what was rendered last frame).
 	}
 }

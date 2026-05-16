@@ -1,0 +1,191 @@
+//=============================================================================
+// DeferredGBufferVT.ps - GBuffer Pass Fragment Shader (Virtual Texture variant)
+//
+// This shader replaces traditional texture sampling with Virtual Texture 
+// sampling via VirtualTexture.inl. All material layers (BaseColor, Normal,
+// MetallicRoughness, Emissive) are fetched from the VT physical atlas using
+// indirection texture lookup.
+//
+// Outputs to GBuffer (identical layout to DeferredGBuffer.ps):
+//   RT0 (GBufferA): BaseColor.rgb + Metallic.a     (RGBA8_UNORM)
+//   RT1 (GBufferB): WorldNormal.rgb + Roughness.a  (RGBA16F)
+//   RT2 (GBufferC): Emissive.rgb + AO.a            (RGBA8_UNORM)
+//
+// Descriptor Set 2 Layout (VT mode):
+//   binding 0: usampler2D  vtIndirection          - Indirection texture
+//   binding 1: sampler2D   vtPhysicalBaseColor    - Physical atlas (BaseColor)
+//   binding 2: sampler2D   vtPhysicalNormal       - Physical atlas (Normal)
+//   binding 3: sampler2D   vtPhysicalRMA          - Physical atlas (Roughness/Metallic/AO)
+//   binding 4: sampler2D   vtPhysicalEmissive     - Physical atlas (Emissive)
+//   binding 5: uniform     VTSpaceParams          - VT space parameters UBO
+//   binding 6: uniform     MaterialParams         - Material parameters UBO
+//=============================================================================
+
+#include "PBRLighting.inl"
+#include "VirtualTexture.inl"
+
+//=============================================================================
+// VT Bindings (set = 2)
+//=============================================================================
+
+// Indirection texture - maps virtual UV to physical atlas location
+layout(set = 2, binding = 0) uniform usampler2D vtIndirection;
+
+// Physical atlas textures per layer
+layout(set = 2, binding = 1) uniform sampler2D vtPhysicalBaseColor;
+layout(set = 2, binding = 2) uniform sampler2D vtPhysicalNormal;
+layout(set = 2, binding = 3) uniform sampler2D vtPhysicalRMA;         // R=Roughness, G=Metallic, B=AO
+layout(set = 2, binding = 4) uniform sampler2D vtPhysicalEmissive;
+
+// VT Space parameters
+layout(set = 2, binding = 5) uniform VTSpaceParamsUBO
+{
+    vec2  U_VirtualTextureSize;      // Virtual texture size at mip 0
+    vec2  U_InvVirtualTextureSize;   // 1.0 / VirtualTextureSize
+    float U_TileSize;                // 128.0
+    float U_InvTileSize;             // 1.0 / 128.0
+    float U_MaxMipLevel;             // Max available mip level
+    float U_PhysicalAtlasSize;       // Physical atlas texture size in pixels
+};
+
+// Material parameters (same UBO as traditional path, shared semantics)
+layout(set = 2, binding = 6) uniform MaterialParams
+{
+    vec4 U_BaseColorFactor;    // Tint (rgb) + alpha cutoff (a)
+    vec4 U_EmissiveFactor;     // Emissive color multiplier (rgb), strength (a)
+    vec4 U_PBRParams;          // x=metallic, y=roughness, z=ao, w=alphaCutoff
+    vec4 U_MaterialFlags;      // x=hasNormalMap, y=hasRMAMap, z=hasEmissiveMap, w=unused
+};
+
+//=============================================================================
+// Vertex Inputs
+//=============================================================================
+layout(location = 0) in vec3 vWorldPosition;
+layout(location = 1) in vec2 vUV;
+layout(location = 2) in vec3 vWorldNormal;
+layout(location = 3) in vec3 vWorldTangent;
+layout(location = 4) in vec3 vWorldBitangent;
+
+//=============================================================================
+// GBuffer Outputs
+//=============================================================================
+layout(location = 0) out vec4 outGBufferA;  // BaseColor.rgb + Metallic.a
+layout(location = 1) out vec4 outGBufferB;  // WorldNormal.rgb + Roughness.a
+layout(location = 2) out vec4 outGBufferC;  // Emissive.rgb + AO.a
+
+//=============================================================================
+// Helper: build VTSpaceParams from UBO values
+//=============================================================================
+VTSpaceParams BuildVTParams()
+{
+    VTSpaceParams p;
+    p.VirtualTextureSize    = U_VirtualTextureSize;
+    p.InvVirtualTextureSize = U_InvVirtualTextureSize;
+    p.TileSize              = U_TileSize;
+    p.InvTileSize           = U_InvTileSize;
+    p.MaxMipLevel           = U_MaxMipLevel;
+    p.PhysicalAtlasSize     = U_PhysicalAtlasSize;
+    return p;
+}
+
+void main()
+{
+    VTSpaceParams vtParams = BuildVTParams();
+
+    // Pre-compute UV derivatives outside of flow control
+    // (required because dFdx/dFdy are undefined in divergent control flow)
+    vec2 ddxUV = dFdx(vUV);
+    vec2 ddyUV = dFdy(vUV);
+
+    //=========================================================================
+    // Base Color (VT Layer 0)
+    //=========================================================================
+    vec4 baseColorSample = VTSampleGrad(
+        vtIndirection, vtPhysicalBaseColor,
+        vUV, ddxUV, ddyUV, vtParams);
+
+    vec4 baseColor = baseColorSample * U_BaseColorFactor;
+
+    // Alpha test
+    float alphaCutoff = U_PBRParams.w;
+    if (alphaCutoff > 0.0 && baseColor.a < alphaCutoff)
+    {
+        discard;
+    }
+
+    // sRGB to linear
+    vec3 albedo = PBR_SRGBToLinear(baseColor.rgb);
+
+    //=========================================================================
+    // Normal Mapping (VT Layer 1)
+    //=========================================================================
+    vec3 N = normalize(vWorldNormal);
+
+    if (U_MaterialFlags.x > 0.5) // hasNormalMap
+    {
+        vec3 T = normalize(vWorldTangent);
+        vec3 B = normalize(vWorldBitangent);
+        mat3 TBN = mat3(T, B, N);
+
+        // Sample normal from VT physical atlas
+        vec3 tangentNormal = VTSampleGrad(
+            vtIndirection, vtPhysicalNormal,
+            vUV, ddxUV, ddyUV, vtParams).rgb;
+
+        tangentNormal = tangentNormal * 2.0 - 1.0;
+        N = normalize(TBN * tangentNormal);
+    }
+
+    //=========================================================================
+    // Roughness / Metallic / AO (VT Layer 2)
+    //=========================================================================
+    float metallic = U_PBRParams.x;
+    float roughness = U_PBRParams.y;
+    float ao = U_PBRParams.z;
+
+    if (U_MaterialFlags.y > 0.5) // hasRMAMap
+    {
+        // RMA packing: R=Roughness, G=Metallic, B=AO
+        vec4 rmaSample = VTSampleGrad(
+            vtIndirection, vtPhysicalRMA,
+            vUV, ddxUV, ddyUV, vtParams);
+
+        roughness = rmaSample.r * U_PBRParams.y;
+        metallic = rmaSample.g * U_PBRParams.x;
+        ao = rmaSample.b * U_PBRParams.z;
+    }
+
+    roughness = clamp(roughness, 0.04, 1.0);
+    metallic = clamp(metallic, 0.0, 1.0);
+
+    //=========================================================================
+    // Emissive (VT Layer 3)
+    //=========================================================================
+    vec3 emissive = vec3(0.0);
+
+    if (U_MaterialFlags.z > 0.5) // hasEmissiveMap
+    {
+        vec3 emissiveSample = VTSampleGrad(
+            vtIndirection, vtPhysicalEmissive,
+            vUV, ddxUV, ddyUV, vtParams).rgb;
+
+        emissive = PBR_SRGBToLinear(emissiveSample) * U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+    else
+    {
+        emissive = U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+
+    //=========================================================================
+    // Write GBuffer (identical output to DeferredGBuffer.ps)
+    //=========================================================================
+
+    // GBuffer A: BaseColor(RGB) + Metallic(A)
+    outGBufferA = vec4(albedo, metallic);
+
+    // GBuffer B: WorldNormal(RGB) + Roughness(A)
+    outGBufferB = vec4(PBR_EncodeNormal(N), roughness);
+
+    // GBuffer C: Emissive(RGB) + AO(A)
+    outGBufferC = vec4(emissive, ao);
+}

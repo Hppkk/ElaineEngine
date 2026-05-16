@@ -14,6 +14,7 @@
 #include "ElaineDeferredRenderPipeline.h"
 #include "ElaineRenderCommandQueue.h"
 #include "platform/ElaineSystemInfo.h"
+#include "VirtualTexture/ElaineVirtualTextureTypes.h"
 
 namespace Elaine
 {
@@ -65,6 +66,8 @@ namespace Elaine
 		//mMainSceneMgr = new SceneManager("Main SceneManager");
 		//mSceneMgrs.emplace("Main SceneManager", mMainSceneMgr);
 
+		new VirtualTextureSystem();
+		VirtualTextureSystem::instance()->Initialize();
 		mRenderPipeline[RP_Forward] = new ForwardRenderPipeline();
 		mRenderPipeline[RP_Forward]->Initialize();
 		mRenderPipeline[RP_Defferred] = new DeferredRenderPipeline();
@@ -230,6 +233,7 @@ namespace Elaine
 
 	void Root::Terminate()
 	{
+		delete VirtualTextureSystem::instance();
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();

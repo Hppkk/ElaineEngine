@@ -1,0 +1,131 @@
+//=============================================================================
+// RVTCapture.ps - Runtime Virtual Texture Capture Fragment Shader
+//
+// Captures scene material properties into RVT tile render targets.
+// This is a mini-GBuffer pass optimized for top-down orthographic rendering.
+//
+// Outputs (MRT, matches EVTLayerType order):
+//   RT0: BaseColor.rgb + Metallic.a      (EVTLayerType::BaseColor)
+//   RT1: WorldNormal.rgb + Roughness.a   (EVTLayerType::Normal)
+//   RT2: Roughness.r + Metallic.g + AO.b (EVTLayerType::Roughness_Metallic_AO)
+//   RT3: Emissive.rgb + 0.a              (EVTLayerType::Emissive)
+//
+// The captured tile content is then copied to the physical atlas
+// for use in VT sampling during the main render passes.
+//=============================================================================
+
+#include "PBRLighting.inl"
+
+// Material textures (standard per-material bindings)
+layout(set = 2, binding = 0) uniform sampler2D texBaseColor;
+layout(set = 2, binding = 1) uniform sampler2D texNormal;
+layout(set = 2, binding = 2) uniform sampler2D texMetallicRoughness;
+layout(set = 2, binding = 3) uniform sampler2D texEmissive;
+layout(set = 2, binding = 4) uniform sampler2D texAO;
+
+layout(set = 2, binding = 5) uniform MaterialParams
+{
+    vec4 U_BaseColorFactor;
+    vec4 U_EmissiveFactor;
+    vec4 U_PBRParams;       // x=metallic, y=roughness, z=ao, w=alphaCutoff
+    vec4 U_MaterialFlags;   // x=hasNormalMap, y=hasMRMap, z=hasEmissiveMap, w=hasAOMap
+};
+
+// Inputs from vertex shader
+layout(location = 0) in vec3 vWorldPosition;
+layout(location = 1) in vec2 vUV;
+layout(location = 2) in vec3 vWorldNormal;
+layout(location = 3) in vec3 vWorldTangent;
+layout(location = 4) in vec3 vWorldBitangent;
+
+// RVT Tile outputs (4 layers)
+layout(location = 0) out vec4 outBaseColor;     // RT0: BaseColor.rgb + Metallic.a
+layout(location = 1) out vec4 outNormal;        // RT1: WorldNormal.rgb + Roughness.a
+layout(location = 2) out vec4 outRMA;           // RT2: Roughness.r + Metallic.g + AO.b
+layout(location = 3) out vec4 outEmissive;      // RT3: Emissive.rgb + 0.a
+
+void main()
+{
+    //=========================================================================
+    // Base Color
+    //=========================================================================
+    vec4 baseColor = texture(texBaseColor, vUV) * U_BaseColorFactor;
+
+    // Alpha test
+    float alphaCutoff = U_PBRParams.w;
+    if (alphaCutoff > 0.0 && baseColor.a < alphaCutoff)
+    {
+        discard;
+    }
+
+    vec3 albedo = PBR_SRGBToLinear(baseColor.rgb);
+
+    //=========================================================================
+    // Normal
+    //=========================================================================
+    vec3 N = normalize(vWorldNormal);
+
+    if (U_MaterialFlags.x > 0.5) // hasNormalMap
+    {
+        vec3 T = normalize(vWorldTangent);
+        vec3 B = normalize(vWorldBitangent);
+        mat3 TBN = mat3(T, B, N);
+
+        vec3 tangentNormal = texture(texNormal, vUV).rgb;
+        tangentNormal = tangentNormal * 2.0 - 1.0;
+        N = normalize(TBN * tangentNormal);
+    }
+
+    //=========================================================================
+    // Metallic / Roughness / AO
+    //=========================================================================
+    float metallic = U_PBRParams.x;
+    float roughness = U_PBRParams.y;
+    float ao = U_PBRParams.z;
+
+    if (U_MaterialFlags.y > 0.5) // hasMRMap
+    {
+        vec4 mrSample = texture(texMetallicRoughness, vUV);
+        roughness = mrSample.g * U_PBRParams.y;
+        metallic = mrSample.b * U_PBRParams.x;
+    }
+
+    if (U_MaterialFlags.w > 0.5) // hasAOMap
+    {
+        ao *= texture(texAO, vUV).r;
+    }
+
+    roughness = clamp(roughness, 0.04, 1.0);
+    metallic = clamp(metallic, 0.0, 1.0);
+
+    //=========================================================================
+    // Emissive
+    //=========================================================================
+    vec3 emissive = vec3(0.0);
+    if (U_MaterialFlags.z > 0.5) // hasEmissiveMap
+    {
+        emissive = PBR_SRGBToLinear(texture(texEmissive, vUV).rgb) 
+                   * U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+    else
+    {
+        emissive = U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+    }
+
+    //=========================================================================
+    // Write RVT Tile Layers
+    //=========================================================================
+
+    // Layer 0: BaseColor(RGB) + Metallic(A)
+    outBaseColor = vec4(albedo, metallic);
+
+    // Layer 1: WorldNormal(RGB) + Roughness(A)
+    // Encode normal to [0,1] range for storage
+    outNormal = vec4(N * 0.5 + 0.5, roughness);
+
+    // Layer 2: RMA packed - R=Roughness, G=Metallic, B=AO
+    outRMA = vec4(roughness, metallic, ao, 0.0);
+
+    // Layer 3: Emissive(RGB) + padding
+    outEmissive = vec4(emissive, 0.0);
+}

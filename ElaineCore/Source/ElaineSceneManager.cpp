@@ -14,6 +14,7 @@
 #include "RenderProxy/ElaineMeshRenderProxy.h"
 #include "RenderProxy/ElaineSkyRenderProxy.h"
 #include "RenderProxy/ElaineGridRenderProxy.h"
+#include "RenderProxy/ElaineRVTRenderProxy.h"
 //-----------------------------------
 
 namespace Elaine
@@ -119,6 +120,14 @@ namespace Elaine
 			RenderProxy* NewRenderProxy = new GridRenderProxy();
 			mRenderProxys.insert(NewRenderProxy);
 			mQuadTree->AddRenderProxy(NewRenderProxy);
+			return NewRenderProxy;
+		}
+		case Elaine::EProxyType::RVTVolume:
+		{
+			RenderProxy* NewRenderProxy = new RVTRenderProxy();
+			mRenderProxys.insert(NewRenderProxy);
+			// RVT volumes are global; add to proxy set but not to quad tree
+			// (they don't participate in frustum culling, tile rendering is driven by feedback)
 			return NewRenderProxy;
 		}
 		case Elaine::EProxyType::Light:

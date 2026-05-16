@@ -1,0 +1,42 @@
+// ============================================================================
+// VTFeedback.ps - Virtual Texture Feedback Fragment Shader
+// ============================================================================
+//
+// This shader outputs per-pixel VT tile requests to the feedback buffer.
+// Output format: R32_UINT, packed as VTTileCoord::Pack()
+//   [SpaceID:4][MipLevel:4][TileY:12][TileX:12]
+//
+// The feedback buffer is read back to CPU next frame and analyzed to
+// determine which tiles need to be loaded/rendered.
+// ============================================================================
+
+#include "VirtualTexture.inl"
+
+layout(location = 0) in vec2 fragVirtualUV;
+layout(location = 1) in flat uint fragSpaceID;
+
+// Output to R32_UINT render target
+layout(location = 0) out uint outFeedback;
+
+// VT space parameters uniform
+layout(set = 1, binding = 0) uniform VTFeedbackParams
+{
+    vec4 U_VTSize;          // xy = VirtualTextureSize, zw = InvVirtualTextureSize
+    vec4 U_VTTileParams;    // x = TileSize, y = InvTileSize, z = MaxMipLevel, w = PhysicalAtlasSize
+    vec4 U_VTScreenParams;  // x = ScreenWidth, y = ScreenHeight, z = FeedbackDownscale, w = unused
+};
+
+void main()
+{
+    // Build VTSpaceParams from uniforms
+    VTSpaceParams params;
+    params.VirtualTextureSize = U_VTSize.xy;
+    params.InvVirtualTextureSize = U_VTSize.zw;
+    params.TileSize = U_VTTileParams.x;
+    params.InvTileSize = U_VTTileParams.y;
+    params.MaxMipLevel = U_VTTileParams.z;
+    params.PhysicalAtlasSize = U_VTTileParams.w;
+
+    // Compute and output the packed tile coordinate
+    outFeedback = VTComputeFeedback(fragVirtualUV, fragSpaceID, params);
+}

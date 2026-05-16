@@ -17,6 +17,7 @@ namespace Elaine
         Grid,
         Light,
         Particle,
+        RVTVolume,
         Unknown
     };
 

@@ -1,7 +1,46 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
+#include <atomic>
+#include <new>
+#include <vector>
+
 namespace Elaine
 {
+	struct MemoryTag
+	{
+		uint32_t TypeId = 0;
+		uint16_t ResourceTypeId = 0;
+		uint16_t CategoryId = 0;
+	};
+
+	struct MemoryStats
+	{
+		uint64_t CurrentBytes = 0;
+		uint64_t PeakBytes = 0;
+		uint64_t AllocationCount = 0;
+		uint64_t FreeCount = 0;
+		uint64_t CurrentBlocks = 0;
+	};
+
+	struct MemoryStatsEntry
+	{
+		MemoryTag Tag;
+		uint32_t SizeClass = 0;
+		MemoryStats Stats;
+	};
+
+	class ElaineCoreExport MemoryScope
+	{
+	public:
+		explicit MemoryScope(const MemoryTag& InTag);
+		~MemoryScope();
+		MemoryScope(const MemoryScope&) = delete;
+		MemoryScope& operator=(const MemoryScope&) = delete;
+	private:
+		bool mActive = false;
+	};
 	template <typename T>
 	struct TIsPointer
 	{
@@ -70,6 +109,16 @@ namespace Elaine
 	class ElaineCoreExport Memory
 	{
 	public:
+		static void* Allocate(size_t Size, size_t Alignment = alignof(std::max_align_t));
+		static void Deallocate(void* Ptr, size_t Alignment = 0) noexcept;
+		static void* Reallocate(void* Ptr, size_t NewSize, size_t Alignment = 0);
+		static MemoryTag GetCurrentTag();
+		static uint32_t TypeId(const char* TypeName);
+		static MemoryStats GetMemoryStats();
+		static MemoryStats GetMemoryStats(uint32_t TypeId, uint16_t ResourceTypeId);
+		static std::vector<MemoryStatsEntry> GetMemoryStatsSnapshot();
+		static void ResetMemoryStats();
+		static void DumpMemoryLeaks();
 		static void* MemorySet(void* Dest, uint8 inChar, size_t Count);
 		static void* MemoryZero(void* Dest, size_t insize);
 		static void* MemoryCopy(void* Dest, const void* Src, size_t Count);
@@ -94,3 +143,24 @@ namespace Elaine
 		}
 	};
 }
+
+void* operator new(std::size_t Size);
+void* operator new[](std::size_t Size);
+void* operator new(std::size_t Size, const std::nothrow_t&) noexcept;
+void* operator new[](std::size_t Size, const std::nothrow_t&) noexcept;
+void* operator new(std::size_t Size, std::align_val_t Alignment);
+void* operator new[](std::size_t Size, std::align_val_t Alignment);
+void* operator new(std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
+void* operator new[](std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
+void operator delete(void* Ptr) noexcept;
+void operator delete[](void* Ptr) noexcept;
+void operator delete(void* Ptr, std::size_t Size) noexcept;
+void operator delete[](void* Ptr, std::size_t Size) noexcept;
+void operator delete(void* Ptr, std::align_val_t Alignment) noexcept;
+void operator delete[](void* Ptr, std::align_val_t Alignment) noexcept;
+void operator delete(void* Ptr, std::size_t Size, std::align_val_t Alignment) noexcept;
+void operator delete[](void* Ptr, std::size_t Size, std::align_val_t Alignment) noexcept;
+void operator delete(void* Ptr, const std::nothrow_t&) noexcept;
+void operator delete[](void* Ptr, const std::nothrow_t&) noexcept;
+void operator delete(void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
+void operator delete[](void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept;

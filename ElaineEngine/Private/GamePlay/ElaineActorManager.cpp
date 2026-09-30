@@ -19,6 +19,7 @@ namespace Elaine
 
 	Actor* ActorManager::CreateActor()
 	{
+		MemoryScope Scope({Memory::TypeId("Actor"), 0, 0});
 		Actor* createGo = new Actor(mWorld);
 		m_ActorSet.insert(createGo);
 		return createGo;
@@ -26,6 +27,7 @@ namespace Elaine
 
 	Actor* ActorManager::CreateActorByInfo(ActorInfoPtr InInfo)
 	{
+		MemoryScope Scope({Memory::TypeId("Actor"), 0, 0});
 		Actor* newGo = new Actor(mWorld);
 		newGo->Initialize(InInfo);
 		m_ActorSet.insert(newGo);
@@ -34,6 +36,7 @@ namespace Elaine
 
 	Actor* ActorManager::CreateActorByInfo(const std::string& path, bool async)
 	{
+		MemoryScope Scope({Memory::TypeId("Actor"), 0, 0});
 		ActorInfoPtr NewInfo = ActorInfoMgr::instance()->CreateEmptyResource(path);
 		if (async)
 		{

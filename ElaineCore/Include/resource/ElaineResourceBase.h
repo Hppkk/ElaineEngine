@@ -78,6 +78,10 @@ namespace Elaine
 		void					ResourceArrived();
 		LoadState				GetLoadState() const;
 		bool					IsLoaded() const;
+		size_t				GetMemoryUsage() const;
+		void					SetMemoryUsage(size_t Bytes);
+		void					AddMemoryUsage(size_t Bytes);
+		void					ReleaseMemoryUsage(size_t Bytes);
 		const std::string&		GetPath() const { return mResourceName; }
 
 		TaskGraph::GraphTaskPtr GetLoadTask() const { return mLoadTask; }
@@ -104,7 +108,7 @@ namespace Elaine
 	protected:
 		std::string				mResourceName;
 		ResourceManager* mOwner = nullptr;
-		unsigned long			mMemoryUsage = 0;
+		std::atomic<size_t>		mMemoryUsage{0};
 		std::atomic<LoadState> mLoadState = Unloaded;
 		TaskGraph::GraphTaskPtr mLoadTask;
 		//std::vector<ResourceEvent> mResourceEvents;

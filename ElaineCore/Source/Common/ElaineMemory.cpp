@@ -137,13 +137,4 @@ namespace Elaine
 		}
 		return Ptr2;
 	}
-	__forceinline void* Memory::SystemMalloc(size_t Size)
-	{
-		return ::malloc(Size);
-	}
-	void Memory::SystemFree(void* Ptr)
-	{
-		::free(Ptr);
-	}
-
 }

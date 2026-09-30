@@ -1,5 +1,6 @@
 ﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineResourceBase.h"
+#include "ElaineResourceManager.h"
 #include "ElaineDataStream.h"
 #include "TaskGraph/ElaineTaskGraph.h"
 
@@ -41,14 +42,22 @@ namespace Elaine
 		if (!LoadImpl())
 		{
 			mLoadState = Failed;
+			SetMemoryUsage(0);
 			LOG_ERROR("Failed to load resource.");
 		}
-		mLoadState = Loaded;
+		else
+		{
+			mLoadState = Loaded;
+			if (mOwner) mOwner->OnResourceLoaded(true);
+		}
 	}
 
 	void ResourceBase::UnloadResource()
 	{
+		const bool WasLoaded = mLoadState == Loaded;
 		UnloadImpl();
+		SetMemoryUsage(0);
+		if (WasLoaded && mOwner) mOwner->OnResourceLoaded(false);
 		mLoadState = Unloaded;
 	}
 
@@ -78,6 +87,38 @@ namespace Elaine
 	bool ResourceBase::IsLoaded() const
 	{
 		return mLoadState == Loaded;
+	}
+
+	size_t ResourceBase::GetMemoryUsage() const
+	{
+		return mMemoryUsage.load(std::memory_order_relaxed);
+	}
+
+	void ResourceBase::SetMemoryUsage(size_t Bytes)
+	{
+		const size_t Previous = mMemoryUsage.exchange(Bytes, std::memory_order_relaxed);
+		if (mOwner && Previous != Bytes)
+			mOwner->OnResourceMemoryChanged(static_cast<int64_t>(Bytes) - static_cast<int64_t>(Previous), Bytes > Previous ? Bytes - Previous : 0);
+	}
+
+	void ResourceBase::AddMemoryUsage(size_t Bytes)
+	{
+		mMemoryUsage.fetch_add(Bytes, std::memory_order_relaxed);
+		if (mOwner) mOwner->OnResourceMemoryChanged(static_cast<int64_t>(Bytes), Bytes);
+	}
+
+	void ResourceBase::ReleaseMemoryUsage(size_t Bytes)
+	{
+		size_t Current = mMemoryUsage.load(std::memory_order_relaxed);
+		for (;;)
+		{
+			const size_t Released = Bytes > Current ? Current : Bytes;
+			if (mMemoryUsage.compare_exchange_weak(Current, Current - Released, std::memory_order_relaxed))
+			{
+				if (mOwner && Released) mOwner->OnResourceMemoryChanged(-static_cast<int64_t>(Released));
+				return;
+			}
+		}
 	}
 
 	//void ResourceBase::GetResourceEvents(std::vector<ResourceEvent>& OutEvents)

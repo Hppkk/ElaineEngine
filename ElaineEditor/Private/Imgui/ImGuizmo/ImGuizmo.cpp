@@ -960,8 +960,8 @@ namespace IMGUIZMO_NAMESPACE
       gContext.mWidth = width;
       gContext.mHeight = height;
       gContext.mXMax = gContext.mX + gContext.mWidth;
-      gContext.mYMax = gContext.mY + gContext.mXMax;
-      gContext.mDisplayRatio = width / height;
+      gContext.mYMax = gContext.mY + gContext.mHeight;
+      gContext.mDisplayRatio = height > 0.0f ? width / height : 1.0f;
    }
 
    void SetOrthographic(bool isOrthographic)

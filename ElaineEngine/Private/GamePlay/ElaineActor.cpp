@@ -454,7 +454,7 @@ namespace Elaine
 		{
 			// Fallback if no specific ActorComponent provides bounds: create small bound around position
 			Vector3 Pos = GetWorldPosition();
-			//Box.setExtents(Pos - Vector3(0.5f, 0.5f, 0.5f), Pos + Vector3(0.5f, 0.5f, 0.5f));
+			Box.setExtent(Pos - Vector3(0.5f, 0.5f, 0.5f), Pos + Vector3(0.5f, 0.5f, 0.5f));
 		}
 
 		return Box;

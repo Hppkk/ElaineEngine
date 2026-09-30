@@ -27,10 +27,14 @@ namespace Editor
 	void EditorGlobalContext::Initialize(Elaine::ElaineEngine* InEngine)
 	{
 		mEngine = InEngine;
+		mGizmoManager.Initialize();
 	}
 
 	void EditorGlobalContext::Destroy()
 	{
+		mGizmoManager.Shutdown();
+		mGridManager.Shutdown();
+		mSelectedActor = nullptr;
 		// DX11 共享内存路径
 		if (mSharedSRV)
 		{

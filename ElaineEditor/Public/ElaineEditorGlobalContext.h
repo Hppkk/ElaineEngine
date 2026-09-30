@@ -1,6 +1,7 @@
 #pragma once
 #include "ElaineSingleton.h"
 #include "ElaineEditorGridManager.h"
+#include "ElaineGizmoManager.h"
 #include <d3d11.h>
 
 namespace Elaine
@@ -44,6 +45,8 @@ namespace Editor
 		Elaine::Viewport* GetSceneViewport() const { return mSceneViewport; }
 		Elaine::OffscreenRenderTarget* GetOffscreenRT() const { return mOffscreenRT; }
 		Elaine::RHITexture* GetOffscreenColorTexture() const { return mOffscreenColorTextures[mWriteIndex]; }
+		EditorGizmoManager& GetGizmoManager() { return mGizmoManager; }
+		EditorGridManager& GetGridManager() { return mGridManager; }
 
 		//=====================================================================
 		// DX11 共享纹理 (共享内存路径)
@@ -102,5 +105,6 @@ namespace Editor
 
 		// Editor Grid (infinite ground plane)
 		EditorGridManager                mGridManager;
+		EditorGizmoManager               mGizmoManager;
 	};
 }

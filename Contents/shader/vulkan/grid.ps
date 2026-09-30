@@ -5,20 +5,24 @@ layout(location = 1) in vec3 farPoint;
 
 layout(location = 0) out vec4 outColor;
 
-// Compute the depth value for the Y=0 intersection point so that
-// scene objects correctly occlude/are occluded by the grid.
+mat4 GridMatrix(vec4 row0, vec4 row1, vec4 row2, vec4 row3) {
+    return transpose(mat4(row0, row1, row2, row3));
+}
+
 float computeDepth(vec3 pos) {
-    mat4 viewMat = mat4(U_ViewMatrix[0], U_ViewMatrix[1], U_ViewMatrix[2], U_ViewMatrix[3]);
-    mat4 projMat = mat4(U_ProjectionMatrix[0], U_ProjectionMatrix[1], U_ProjectionMatrix[2], U_ProjectionMatrix[3]);
+    mat4 viewMat = GridMatrix(U_ViewMatrix[0], U_ViewMatrix[1], U_ViewMatrix[2], U_ViewMatrix[3]);
+    mat4 projMat = GridMatrix(U_ProjectionMatrix[0], U_ProjectionMatrix[1], U_ProjectionMatrix[2], U_ProjectionMatrix[3]);
     vec4 clipPos = projMat * viewMat * vec4(pos, 1.0);
-    return clipPos.z / clipPos.w;
+    if (abs(clipPos.w) < 0.000001)
+        return -1.0;
+    return clamp(clipPos.z / clipPos.w, 0.0, 1.0);
 }
 
 // Generate anti-aliased grid lines on the XZ plane at Y=0.
 // Returns RGBA color: gray lines, red X-axis, blue Z-axis.
 vec4 grid(vec3 fragPos3D, float scale) {
     vec2 coord = fragPos3D.xz * scale;
-    vec2 derivative = fwidth(coord);
+    vec2 derivative = max(fwidth(coord), vec2(0.0001));
     vec2 grid = abs(fract(coord - 0.5) - 0.5) / derivative;
     float line = min(grid.x, grid.y);
     float minimumz = min(derivative.y, 1.0);
@@ -39,7 +43,10 @@ vec4 grid(vec3 fragPos3D, float scale) {
 
 void main() {
     // Ray from near to far: find intersection with Y=0 plane
-    float t = -nearPoint.y / (farPoint.y - nearPoint.y);
+    float denominator = farPoint.y - nearPoint.y;
+    if (abs(denominator) < 0.000001)
+        discard;
+    float t = -nearPoint.y / denominator;
 
     // Only render if the ray actually hits the plane (t in [0,1])
     if (t < 0.0 || t > 1.0)
@@ -48,15 +55,18 @@ void main() {
     vec3 fragPos3D = nearPoint + t * (farPoint - nearPoint);
 
     // Write correct depth
-    gl_FragDepth = computeDepth(fragPos3D);
+    float depth = computeDepth(fragPos3D);
+    if (depth < 0.0 || depth > 1.0 || isnan(depth) || isinf(depth))
+        discard;
+    gl_FragDepth = depth;
 
     // Compute distance-based fade
     float distToCamera = length(U_CameraPosition.xyz - fragPos3D);
     float fadeFar = 1.0 - smoothstep(20.0, 150.0, distToCamera);
 
-    // Two grid scales: 1m and 10m
-    vec4 gridSmall = grid(fragPos3D, 1.0);   // 1-unit grid
-    vec4 gridLarge = grid(fragPos3D, 0.1);   // 10-unit grid
+    // Two grid scales: 1m and 10m.
+    vec4 gridSmall = grid(fragPos3D, 1.0);
+    vec4 gridLarge = grid(fragPos3D, 0.1);
 
     // Blend: large grid more visible at distance
     outColor = gridSmall;
@@ -65,7 +75,8 @@ void main() {
     // Add large grid on top
     vec4 large = gridLarge;
     large.a *= fadeFar;
-    outColor = outColor + large * (1.0 - outColor.a);
+    outColor.rgb = outColor.rgb + large.rgb * (1.0 - outColor.a);
+    outColor.a = outColor.a + large.a * (1.0 - outColor.a);
 
     // Final alpha cutoff
     if (outColor.a < 0.01)

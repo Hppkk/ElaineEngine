@@ -71,6 +71,16 @@ namespace Elaine
 		
 		std::vector<RenderProxy*> VisibleRenderProxys;
 		mQuadTree->FindVisibleObjectsByCamera(InCamera, VisibleRenderProxys);
+		// Grid is a fullscreen ray-marched proxy. It must not be clipped by the
+		// finite world-space QuadTree bounds used for regular renderables.
+		for (RenderProxy* Proxy : mRenderProxys)
+		{
+			if (Proxy != nullptr && Proxy->GetType() == EProxyType::Grid &&
+				std::find(VisibleRenderProxys.begin(), VisibleRenderProxys.end(), Proxy) == VisibleRenderProxys.end())
+			{
+				VisibleRenderProxys.push_back(Proxy);
+			}
+		}
 
 		RenderQueueSet* QueueSet = FrameData.mRenderQueueSet;
 		for (auto VisibleProxy : VisibleRenderProxys)
@@ -186,10 +196,6 @@ namespace Elaine
 	{
 		if (!InCamera)
 			InCamera = mMainCamera;
-
-		float radius = 1.0f;
-		float camX = Root::instance()->GetTimer()->getSeconds() * radius;
-		InCamera->SetRotation(Vector3(0.0f, camX, 0.0f));
 
 		CommonUniformBufferCPU& UB = FrameData.mCommonUniformBuffer;
 		UB.U_ViewMatrix = InCamera->GetViewMatrix();

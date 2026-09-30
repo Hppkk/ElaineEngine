@@ -29,10 +29,6 @@ namespace Editor
 		int mTexWidth = 0;
 		int mTexHeight = 0;
 
-		// Gizmo state (Unity-style). Values match ImGuizmo::OPERATION / ImGuizmo::MODE; cast in .cpp.
-		int mCurrentGizmoOperation = 7;  // default: TRANSLATE (1|2|4)
-		int mCurrentGizmoMode = 1;        // default: WORLD (1); 0 = LOCAL
-
 		// Structured camera controller
 		EditorCameraController mCameraController;
 

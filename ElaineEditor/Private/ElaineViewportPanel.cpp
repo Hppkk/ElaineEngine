@@ -2,264 +2,163 @@
 #include "imgui.h"
 #include "ElaineEditorGlobalContext.h"
 #include "ElaineWorld.h"
-#include "ElaineSceneManager.h"
-#include "GamePlay/ElaineCameraComponent.h"
 #include "ElaineViewport.h"
-#include "imgui/ImGuizmo/ImGuizmo.h"
+#include "GamePlay/ElaineCameraComponent.h"
 #include "GamePlay/ElaineActor.h"
 #include "math/ElaineRay.h"
 #include "math/ElaineISpatialObject.h"
+#include "math/ElaineAxisAlignedBox.h"
+#include "imgui/ImGuizmo/ImGuizmo.h"
+
+#include <algorithm>
 
 namespace Editor
 {
-	void ViewportPanel::OnDraw()
-	{
-		ImVec2 panelSize = ImGui::GetContentRegionAvail();
-        ImVec2 panelPos = ImGui::GetCursorScreenPos();
-
-		if (mViewportSRV && mTexWidth > 0 && mTexHeight > 0)
-		{
-			// Shortcuts (Unity-style): W/E/R when viewport hovered, no item active,
-			// and NOT in fly mode (right-click held – those keys are used for WASD).
-			bool viewportHovered = ImGui::IsWindowHovered();
-			bool rightMouseDown  = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-
-			if (viewportHovered && !ImGui::IsAnyItemActive() && !rightMouseDown)
-			{
-				if (ImGui::IsKeyPressed(ImGuiKey_W))
-					mCurrentGizmoOperation = static_cast<int>(ImGuizmo::TRANSLATE);
-				if (ImGui::IsKeyPressed(ImGuiKey_E))
-					mCurrentGizmoOperation = static_cast<int>(ImGuizmo::ROTATE);
-				if (ImGui::IsKeyPressed(ImGuiKey_R))
-					mCurrentGizmoOperation = static_cast<int>(ImGuizmo::SCALE);
-				if (ImGui::IsKeyPressed(ImGuiKey_X))
-					mCurrentGizmoMode = mCurrentGizmoMode == static_cast<int>(ImGuizmo::LOCAL)
-						? static_cast<int>(ImGuizmo::WORLD)
-						: static_cast<int>(ImGuizmo::LOCAL);
-			}
-
-			// Unity-style Gizmo toolbar above the viewport
-			auto highlightButton = [&](const char* label, int op) {
-				bool isActive = (mCurrentGizmoOperation == op);
-				if (isActive)
-				{
-					ImGui::PushStyleColor(ImGuiCol_Button,        ImVec4(0.28f, 0.56f, 0.90f, 1.00f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonHovered,  ImVec4(0.36f, 0.64f, 0.95f, 1.00f));
-					ImGui::PushStyleColor(ImGuiCol_ButtonActive,   ImVec4(0.20f, 0.41f, 0.68f, 1.00f));
-				}
-				bool clicked = ImGui::Button(label);
-				if (isActive)
-					ImGui::PopStyleColor(3);
-				return clicked;
-			};
-
-			if (highlightButton("Move (W)", static_cast<int>(ImGuizmo::TRANSLATE)))
-				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::TRANSLATE);
-			ImGui::SameLine();
-			if (highlightButton("Rotate (E)", static_cast<int>(ImGuizmo::ROTATE)))
-				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::ROTATE);
-			ImGui::SameLine();
-			if (highlightButton("Scale (R)", static_cast<int>(ImGuizmo::SCALE)))
-				mCurrentGizmoOperation = static_cast<int>(ImGuizmo::SCALE);
-			ImGui::SameLine();
-			ImGui::Spacing();
-			ImGui::SameLine();
-			if (ImGui::RadioButton("Local", mCurrentGizmoMode == static_cast<int>(ImGuizmo::LOCAL)))
-				mCurrentGizmoMode = static_cast<int>(ImGuizmo::LOCAL);
-			ImGui::SameLine();
-			if (ImGui::RadioButton("World", mCurrentGizmoMode == static_cast<int>(ImGuizmo::WORLD)))
-				mCurrentGizmoMode = static_cast<int>(ImGuizmo::WORLD);
-
-			// Display the engine's rendered scene (below toolbar)
-			ImVec2 imageSize = ImGui::GetContentRegionAvail();
-			ImVec2 imagePos = ImGui::GetCursorScreenPos();
-			ImGui::Image((ImTextureID)mViewportSRV, imageSize);
-
-            auto* ctx = EditorGlobalContext::instance();
-            if (ctx && ctx->GetSceneViewport() && ctx->GetSceneViewport()->GetCamera())
+    namespace
+    {
+        struct ImageRect { ImVec2 Min; ImVec2 Max; ImVec2 Size() const { return ImVec2(Max.x - Min.x, Max.y - Min.y); } };
+        ImageRect FitImage(const ImVec2& Min, const ImVec2& Available, float Aspect)
+        {
+            ImageRect Result{Min, ImVec2(Min.x + Available.x, Min.y + Available.y)};
+            if (Available.x <= 1.0f || Available.y <= 1.0f || Aspect <= 0.0f) return Result;
+            if (Available.x / Available.y > Aspect)
             {
-                Elaine::CameraComponent* camComp = ctx->GetSceneViewport()->GetCamera();
+                const float Width = Available.y * Aspect;
+                Result.Min.x += (Available.x - Width) * 0.5f; Result.Max.x = Result.Min.x + Width;
+            }
+            else
+            {
+                const float Height = Available.x / Aspect;
+                Result.Min.y += (Available.y - Height) * 0.5f; Result.Max.y = Result.Min.y + Height;
+            }
+            return Result;
+        }
+        bool InRect(const ImageRect& Rect, const ImVec2& Point)
+        {
+            return Point.x >= Rect.Min.x && Point.x <= Rect.Max.x && Point.y >= Rect.Min.y && Point.y <= Rect.Max.y;
+        }
+    }
 
-				// ---- Editor Camera Controller ----
-				float deltaTime = ImGui::GetIO().DeltaTime;
-				Elaine::Actor* selectedObj = ctx->GetSelectedActor();
-				mCameraController.Tick(deltaTime, viewportHovered, camComp, selectedObj);
+    void ViewportPanel::OnDraw()
+    {
+        auto* Context = EditorGlobalContext::instance();
+        auto& Gizmos = Context->GetGizmoManager();
+        Gizmos.DrawSettings();
+        Context->GetGridManager().SetVisible(Gizmos.IsVisible(GizmoType::Grid));
+        const ImVec2 AreaSize = ImGui::GetContentRegionAvail();
+        const ImVec2 AreaPos = ImGui::GetCursorScreenPos();
 
-                ImGuizmo::SetOrthographic(camComp->GetProjectionType() == Elaine::ProjectionType::Orthographic);
-                ImGuizmo::SetDrawlist();
-                ImGuizmo::SetRect(imagePos.x, imagePos.y, imageSize.x, imageSize.y);
-                
-                Elaine::Matrix4x4 viewMat = camComp->GetViewMatrix();
-                Elaine::Matrix4x4 projMat = camComp->GetProjMatrix();
-                
-                if (selectedObj)
-                {
-                    Elaine::Matrix4x4 worldMat = selectedObj->GetWorldMatrix();
-                    float view[16], proj[16], model[16];
-                    viewMat.toData(view);
-                    projMat.toData(proj);
-                    worldMat.toData(model);
-                    
-                    ImGuizmo::Manipulate(view, proj,
-                        static_cast<ImGuizmo::OPERATION>(mCurrentGizmoOperation),
-                        static_cast<ImGuizmo::MODE>(mCurrentGizmoMode),
-                        model);
-                    
-                    if (ImGuizmo::IsUsing())
-                    {
-                        float pos[3], rot[3], scale[3];
-                        ImGuizmo::DecomposeMatrixToComponents(model, pos, rot, scale);
-                        selectedObj->SetPosition(Elaine::Vector3(pos[0], pos[1], pos[2]));
-                        
-                        // Convert euler angles to quaternion
-                        Elaine::Matrix4x4 newWorldMat(model);
-                        Elaine::Vector3 dPos, dScale;
-                        Elaine::Quaternion qRot;
-                        newWorldMat.decomposition(dPos, dScale, qRot);
-                        selectedObj->SetQuaternion(qRot);
-                        selectedObj->SetScale(Elaine::Vector3(scale[0], scale[1], scale[2]));
-                    }
-                }
-                
-                // ============================================================
-                // Left-Click: Picking (click) + Box Selection (drag)
-                // ============================================================
-                
-                // Start tracking on left-click press
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(0) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
-                {
-                    ImVec2 mousePos = ImGui::GetMousePos();
-                    mBoxSelectStartX = mousePos.x;
-                    mBoxSelectStartY = mousePos.y;
-                    mIsBoxSelecting = false;  // Not yet — wait for drag threshold
-                }
-                
-                // If dragging with left button beyond threshold, enter box-select mode
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseDragging(0, 5.0f) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
-                {
-                    mIsBoxSelecting = true;
-                    ImVec2 dragEnd = ImGui::GetMousePos();
-                    ImDrawList* drawList = ImGui::GetWindowDrawList();
-                    ImVec2 dragStart(mBoxSelectStartX, mBoxSelectStartY);
-                    drawList->AddRect(dragStart, dragEnd, IM_COL32(0, 255, 0, 255));
-                    drawList->AddRectFilled(dragStart, dragEnd, IM_COL32(0, 255, 0, 30));
-                }
-                
-                // On left-click release
-                if (ImGui::IsWindowHovered() && ImGui::IsMouseReleased(0) && !ImGuizmo::IsOver() && !ImGuizmo::IsUsing())
-                {
-                    if (mIsBoxSelecting)
-                    {
-                        // ---- Box Selection ----
-                        ImVec2 dragEnd = ImGui::GetMousePos();
-                        float minX = std::min(mBoxSelectStartX, dragEnd.x);
-                        float maxX = std::max(mBoxSelectStartX, dragEnd.x);
-                        float minY = std::min(mBoxSelectStartY, dragEnd.y);
-                        float maxY = std::max(mBoxSelectStartY, dragEnd.y);
+        if (!mViewportSRV || mTexWidth <= 0 || mTexHeight <= 0)
+        {
+            ImGui::Dummy(AreaSize);
+            ImGui::GetWindowDrawList()->AddRectFilled(AreaPos, ImVec2(AreaPos.x + AreaSize.x, AreaPos.y + AreaSize.y), IM_COL32(20, 20, 20, 255));
+            return;
+        }
 
-                        // Compute NDC bounds
-                        float ndcMinX = ((minX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                        float ndcMaxX = ((maxX - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                        float ndcMinY = 1.0f - ((maxY - imagePos.y) / imageSize.y) * 2.0f;
-                        float ndcMaxY = 1.0f - ((minY - imagePos.y) / imageSize.y) * 2.0f;
+        const ImageRect Image = FitImage(AreaPos, AreaSize, static_cast<float>(mTexWidth) / static_cast<float>(mTexHeight));
+        ImDrawList* DrawList = ImGui::GetWindowDrawList();
+        DrawList->AddRectFilled(AreaPos, ImVec2(AreaPos.x + AreaSize.x, AreaPos.y + AreaSize.y), IM_COL32(20, 20, 20, 255));
+        ImGui::SetCursorScreenPos(Image.Min);
+        ImGui::Image(reinterpret_cast<ImTextureID>(mViewportSRV), Image.Size());
+        ImGui::SetCursorScreenPos(AreaPos);
+        ImGui::Dummy(AreaSize);
 
-                        Elaine::Matrix4x4 invViewProj = (projMat * viewMat).inverse();
-                        Elaine::Vector3 corners[8];
-                        int idx = 0;
-                        for (int z = 0; z < 2; ++z) {
-                            for (int y = 0; y < 2; ++y) {
-                                for (int x = 0; x < 2; ++x) {
-                                    float pX = x ? ndcMaxX : ndcMinX;
-                                    float pY = y ? ndcMaxY : ndcMinY;
-                                    float pZ = z ? 1.0f : 0.0f;
-                                    Elaine::Vector4 pt = invViewProj * Elaine::Vector4(pX, pY, pZ, 1.0f);
-                                    if (pt.w != 0.0f) { pt.x /= pt.w; pt.y /= pt.w; pt.z /= pt.w; }
-                                    corners[idx++] = Elaine::Vector3(pt.x, pt.y, pt.z);
+        const bool HoveredImage = InRect(Image, ImGui::GetMousePos());
+        const bool RightMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
+        if (HoveredImage && !ImGui::IsAnyItemActive() && !RightMouseDown)
+        {
+            if (ImGui::IsKeyPressed(ImGuiKey_W)) { Gizmos.SetOperation(ImGuizmo::TRANSLATE); ImGui::MarkIniSettingsDirty(); }
+            if (ImGui::IsKeyPressed(ImGuiKey_E)) { Gizmos.SetOperation(ImGuizmo::ROTATE); ImGui::MarkIniSettingsDirty(); }
+            if (ImGui::IsKeyPressed(ImGuiKey_R)) { Gizmos.SetOperation(ImGuizmo::SCALE); ImGui::MarkIniSettingsDirty(); }
+            if (ImGui::IsKeyPressed(ImGuiKey_X)) { Gizmos.SetMode(Gizmos.GetMode() == ImGuizmo::LOCAL ? ImGuizmo::WORLD : ImGuizmo::LOCAL); ImGui::MarkIniSettingsDirty(); }
+        }
+
+        if (Context->GetSceneViewport() && Context->GetSceneViewport()->GetCamera())
+        {
+            Elaine::CameraComponent* Camera = Context->GetSceneViewport()->GetCamera();
+            mCameraController.Tick(ImGui::GetIO().DeltaTime, HoveredImage, Camera, Context->GetSelectedActor());
+            ImGuizmo::SetDrawlist(DrawList);
+            ImGuizmo::SetOrthographic(Camera->GetProjectionType() == Elaine::ProjectionType::Orthographic);
+            DrawList->PushClipRect(Image.Min, Image.Max, true);
+
+            Elaine::Actor* Selected = Context->GetSelectedActor();
+            if (Selected && (Gizmos.IsVisible(GizmoType::Transform) || Gizmos.IsVisible(GizmoType::Bounds)))
+                Gizmos.DrawTransform(Selected, Camera->GetViewMatrix(), Camera->GetProjMatrix(), Image.Min.x, Image.Min.y, Image.Size().x, Image.Size().y);
+
+            const bool GizmoInput = ImGuizmo::IsUsing() || ImGuizmo::IsOver();
+            if (HoveredImage && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !GizmoInput)
+            {
+                const ImVec2 Mouse = ImGui::GetMousePos();
+                mBoxSelectStartX = Mouse.x; mBoxSelectStartY = Mouse.y; mIsBoxSelecting = false;
+            }
+            if (HoveredImage && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 5.0f) && !GizmoInput)
+            {
+                mIsBoxSelecting = true;
+                const ImVec2 End = ImGui::GetMousePos();
+                DrawList->AddRect(ImVec2(mBoxSelectStartX, mBoxSelectStartY), End, IM_COL32(0, 255, 0, 255));
+                DrawList->AddRectFilled(ImVec2(mBoxSelectStartX, mBoxSelectStartY), End, IM_COL32(0, 255, 0, 30));
+            }
+            if ((HoveredImage || mIsBoxSelecting) && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !GizmoInput)
+            {
+                ImVec2 Mouse = ImGui::GetMousePos();
+                Mouse.x = std::max(Image.Min.x, std::min(Image.Max.x, Mouse.x));
+                Mouse.y = std::max(Image.Min.y, std::min(Image.Max.y, Mouse.y));
+                const Elaine::Matrix4x4 View = Camera->GetViewMatrix();
+                const Elaine::Matrix4x4 Projection = Camera->GetProjMatrix();
+                const Elaine::Matrix4x4 InverseViewProjection = (Projection * View).inverse();
+                if (mIsBoxSelecting)
+                {
+                    const float MinX = std::min(mBoxSelectStartX, Mouse.x);
+                    const float MaxX = std::max(mBoxSelectStartX, Mouse.x);
+                    const float MinY = std::min(mBoxSelectStartY, Mouse.y);
+                    const float MaxY = std::max(mBoxSelectStartY, Mouse.y);
+                    const float NdcMinX = ((MinX - Image.Min.x) / Image.Size().x) * 2.0f - 1.0f;
+                    const float NdcMaxX = ((MaxX - Image.Min.x) / Image.Size().x) * 2.0f - 1.0f;
+                    const float NdcMinY = 1.0f - ((MaxY - Image.Min.y) / Image.Size().y) * 2.0f;
+                    const float NdcMaxY = 1.0f - ((MinY - Image.Min.y) / Image.Size().y) * 2.0f;
+                    Elaine::AxisAlignedBox Box;
+                    Box.setNull();
+                    for (int Z = 0; Z < 2; ++Z)
+                        for (int Y = 0; Y < 2; ++Y)
+                            for (int X = 0; X < 2; ++X)
+                            {
+                                const float XNdc = X ? NdcMaxX : NdcMinX;
+                                const float YNdc = Y ? NdcMaxY : NdcMinY;
+                                Elaine::Vector4 Point = InverseViewProjection * Elaine::Vector4(XNdc, YNdc, Z ? 1.0f : 0.0f, 1.0f);
+                                if (Point.w != 0.0f)
+                                {
+                                    Point.x /= Point.w; Point.y /= Point.w; Point.z /= Point.w;
+                                    Box.merge(Elaine::Vector3(Point.x, Point.y, Point.z));
                                 }
                             }
-                        }
-
-                        Elaine::AxisAlignedBox frustumAABB;
-                        frustumAABB.setNull();
-                        for (int i = 0; i < 8; ++i) frustumAABB.merge(corners[i]);
-
-                        if (ctx->GetActiveWorld())
-                        {
-                            auto results = ctx->GetActiveWorld()->BoxIntersect(frustumAABB);
-                            if (!results.empty())
-                            {
-                                if(results[0]->GetUserType() == 1)
-                                    ctx->SetSelectedActor(static_cast<Elaine::Actor*>(results[0]->GetUserData()));
-                            }
-                        }
-                        mIsBoxSelecting = false;
-                    }
-                    else
+                    if (Context->GetActiveWorld())
                     {
-                        // ---- Point Picking (single click, no drag) ----
-                        ImVec2 mousePos = ImGui::GetMousePos();
-                        float nx = ((mousePos.x - imagePos.x) / imageSize.x) * 2.0f - 1.0f;
-                        float ny = 1.0f - ((mousePos.y - imagePos.y) / imageSize.y) * 2.0f;
-                        
-                        Elaine::Matrix4x4 invVP = (projMat * viewMat).inverse();
-                        Elaine::Vector4 target = invVP * Elaine::Vector4(nx, ny, 1.0f, 1.0f);
-                        if (target.w != 0.0f)
+                        auto Results = Context->GetActiveWorld()->BoxIntersect(Box);
+                        if (!Results.empty() && Results.front()->GetUserType() == 1)
+                            Context->SetSelectedActor(static_cast<Elaine::Actor*>(Results.front()->GetUserData()));
+                    }
+                }
+                else
+                {
+                    const float NdcX = ((Mouse.x - Image.Min.x) / Image.Size().x) * 2.0f - 1.0f;
+                    const float NdcY = 1.0f - ((Mouse.y - Image.Min.y) / Image.Size().y) * 2.0f;
+                    Elaine::Vector4 Target = InverseViewProjection * Elaine::Vector4(NdcX, NdcY, 1.0f, 1.0f);
+                    if (Target.w != 0.0f)
+                    {
+                        Target.x /= Target.w; Target.y /= Target.w; Target.z /= Target.w;
+                        Elaine::Vector3 Direction(Target.x - Camera->GetPosition().x, Target.y - Camera->GetPosition().y, Target.z - Camera->GetPosition().z);
+                        Direction.normalise();
+                        if (Context->GetActiveWorld())
                         {
-                            target.x /= target.w;
-                            target.y /= target.w;
-                            target.z /= target.w;
-                        }
-                        
-                        Elaine::Vector3 dir(target.x - camComp->GetPosition().x, target.y - camComp->GetPosition().y, target.z - camComp->GetPosition().z);
-                        dir.normalise();
-                        
-                        Elaine::Ray ray(camComp->GetPosition(), dir);
-                        if (ctx->GetActiveWorld())
-                        {
-                            auto result = ctx->GetActiveWorld()->Raycast(ray);
-                            if (result && result->GetUserType() == 1)
-                            {
-                                ctx->SetSelectedActor(static_cast<Elaine::Actor*>(result->GetUserData()));
-                            }
-                            else
-                            {
-                                ctx->SetSelectedActor(nullptr);
-                            }
+                            auto Hit = Context->GetActiveWorld()->Raycast(Elaine::Ray(Camera->GetPosition(), Direction));
+                            if (Hit && Hit->GetUserType() == 1) Context->SetSelectedActor(static_cast<Elaine::Actor*>(Hit->GetUserData()));
+                            else Context->SetSelectedActor(nullptr);
                         }
                     }
                 }
+                mIsBoxSelecting = false;
             }
-		}
-		else
-		{
-			// Placeholder when no scene texture is available
-			ImVec2 center = ImVec2(
-				ImGui::GetCursorScreenPos().x + panelSize.x * 0.5f,
-				ImGui::GetCursorScreenPos().y + panelSize.y * 0.5f);
-
-			ImDrawList* drawList = ImGui::GetWindowDrawList();
-			ImVec2 topLeft = ImGui::GetCursorScreenPos();
-			ImVec2 bottomRight = ImVec2(topLeft.x + panelSize.x, topLeft.y + panelSize.y);
-
-			// Dark background
-			drawList->AddRectFilled(topLeft, bottomRight, IM_COL32(20, 20, 20, 255));
-
-			// Grid lines
-			const float gridStep = 50.0f;
-			for (float x = topLeft.x; x < bottomRight.x; x += gridStep)
-				drawList->AddLine(ImVec2(x, topLeft.y), ImVec2(x, bottomRight.y), IM_COL32(40, 40, 40, 255));
-			for (float y = topLeft.y; y < bottomRight.y; y += gridStep)
-				drawList->AddLine(ImVec2(topLeft.x, y), ImVec2(bottomRight.x, y), IM_COL32(40, 40, 40, 255));
-
-			// Center text
-			const char* text = "3D Viewport (No Scene Connected)";
-			ImVec2 textSize = ImGui::CalcTextSize(text);
-			drawList->AddText(
-				ImVec2(center.x - textSize.x * 0.5f, center.y - textSize.y * 0.5f),
-				IM_COL32(100, 100, 100, 255), text);
-
-			// Advance cursor past the placeholder area
-			ImGui::Dummy(panelSize);
-		}
-	}
+            DrawList->PopClipRect();
+        }
+    }
 }

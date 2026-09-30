@@ -17,36 +17,17 @@ namespace Elaine
 
     void GridRenderProxy::InitializeResourceBinding()
     {
-        // Fullscreen triangle: 6 vertices, no vertex buffer needed.
-        // The vertex shader generates positions from gl_VertexIndex.
-        // We still need a dummy VBO for the pipeline to be happy.
-        struct VertexData
-        {
-            float mVertex[3];
-            float mUV[2];
-            float mNormals[3];
-        };
-
-        // 6 vertices for a fullscreen quad (2 triangles)
-        std::vector<VertexData> CpuData = {
-            { 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
-            {-1.0f,  1.0f, 0.0f,  0.0f, 1.0f,  0.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f, 0.0f,  0.0f, 0.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f,  1.0f, 0.0f,  1.0f, 1.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f, -1.0f, 0.0f,  1.0f, 0.0f,  0.0f, 0.0f, 1.0f},
-        };
-
-        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] =
-            RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
-                CpuData.data(), CpuData.size() * sizeof(VertexData));
-
-        mResourceBinding.mVertexCount = 6;
+        // The vertex shader generates a three-vertex fullscreen triangle from gl_VertexIndex.
+        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = nullptr;
+        mResourceBinding.mVertexCount = 3;
         mResourceBinding.mInstanceCount = 1;
     }
 
     void GridRenderProxy::UpdateRenderQueue(RenderQueueSet* InRenderQueue)
     {
+        if (!IsVisible())
+            return;
+
         if (!IsBindingsInitialized())
             return;
 

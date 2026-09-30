@@ -1,8 +1,11 @@
 #pragma once
+#include <atomic>
+#include <memory>
 
 namespace Elaine
 {
 	class World;
+	class GridRenderProxy;
 	class MaterialInstanceDynamic;
 }
 
@@ -33,9 +36,20 @@ namespace Editor
 
 		/// Destroy the grid proxy on the render thread.
 		void Shutdown();
+		void SetVisible(bool Visible);
+		bool IsVisible() const { return mVisible; }
 
 	private:
+		struct ProxyState
+		{
+			std::atomic<Elaine::GridRenderProxy*> Proxy{nullptr};
+			std::atomic<bool> Active{true};
+			std::atomic<bool> Visible{true};
+		};
 		Elaine::MaterialInstanceDynamic* mMaterial = nullptr;  // 逻辑线程持有，不传递给渲染线程
 		bool mInitialized = false;
+		bool mVisible = true;
+		Elaine::World* mWorld = nullptr;
+		std::shared_ptr<ProxyState> mState;
 	};
 }

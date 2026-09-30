@@ -4,7 +4,7 @@
 
 namespace Elaine
 {
-	void ComponentFactory::DestoryComponent(Component* InComponent)
+	void ComponentFactory::DestoryComponent(ActorComponent* InComponent)
 	{
 		if (InComponent == nullptr)
 			return;
@@ -18,16 +18,16 @@ namespace Elaine
 		SAFE_DELETE(InComponent)
 	}
 
-	void ComponentFactory::DestoryComponentInfo(ComponentInfo* InInfo)
+	void ComponentFactory::DestoryActorComponentInfo(ActorComponentInfo* InInfo)
 	{
 		if (InInfo == nullptr)
 			return;
 
-		auto Iter = mComponentInfos.find(InInfo);
-		if (Iter == mComponentInfos.end())
+		auto Iter = mActorComponentInfos.find(InInfo);
+		if (Iter == mActorComponentInfos.end())
 			return;
 
-		mComponentInfos.erase(Iter);
+		mActorComponentInfos.erase(Iter);
 
 		SAFE_DELETE(InInfo)
 	}
@@ -44,7 +44,7 @@ namespace Elaine
 
 	ComponentFactory::~ComponentFactory()
 	{
-		for (auto info : mComponentInfos)
+		for (auto info : mActorComponentInfos)
 		{
 			SAFE_DELETE(info)
 		}
@@ -55,21 +55,21 @@ namespace Elaine
 		}
 
 		mComponents.clear();
-		mComponentInfos.clear();
+		mActorComponentInfos.clear();
 	}
 
-	Component* ComponentFactory::CreateComponent(GameObject* InObject)
+	ActorComponent* ComponentFactory::CreateComponent(Actor* InObject)
 	{
-		Component* NewComponent = CreateComponentImpl(InObject);
+		ActorComponent* NewComponent = CreateComponentImpl(InObject);
 		NewComponent->OnCreate();
 		mComponents.insert(NewComponent);
 		return NewComponent;
 	}
 
-	ComponentInfo* ComponentFactory::CreateComponentInfo()
+	ActorComponentInfo* ComponentFactory::CreateActorComponentInfo()
 	{
-		ComponentInfo* NewComInfo = CreateComponentInfoImpl();
-		mComponentInfos.insert(NewComInfo);
+		ActorComponentInfo* NewComInfo = CreateActorComponentInfoImpl();
+		mActorComponentInfos.insert(NewComInfo);
 		return NewComInfo;
 	}
 
@@ -82,7 +82,7 @@ namespace Elaine
 		mFactoryMap.clear();
 	}
 
-	Component* ComponentFactoryManager::CreateComponent(const Name& InType, GameObject* InObject)
+	ActorComponent* ComponentFactoryManager::CreateComponent(const Name& InType, Actor* InObject)
 	{
 		ComponentFactory* ComFactory = GetComponentFactory(InType);
 		if (ComFactory != nullptr)
@@ -92,12 +92,12 @@ namespace Elaine
 		return nullptr;
 	}
 
-	ComponentInfo* ComponentFactoryManager::CreateComponentInfo(const Name& InType)
+	ActorComponentInfo* ComponentFactoryManager::CreateActorComponentInfo(const Name& InType)
 	{
 		ComponentFactory* ComFactory = GetComponentFactory(InType);
 		if (ComFactory != nullptr)
 		{
-			return ComFactory->CreateComponentInfo();
+			return ComFactory->CreateActorComponentInfo();
 		}
 		return nullptr;
 	}
@@ -116,7 +116,7 @@ namespace Elaine
 		auto Iter = mFactoryMap.find(InType);
 		if (Iter != mFactoryMap.end())
 		{
-			LOG_FATAL("This component factory has already been registered.");
+			LOG_FATAL("This ActorComponent factory has already been registered.");
 			return;
 		}
 

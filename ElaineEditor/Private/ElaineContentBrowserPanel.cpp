@@ -1,4 +1,4 @@
-﻿#include "ElaineContentBrowserPanel.h"
+#include "ElaineContentBrowserPanel.h"
 #include "ElaineRoot.h"
 #include "ElaineMesh.h"
 #include "imgui.h"

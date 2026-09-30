@@ -1,14 +1,14 @@
-﻿#pragma once
+#pragma once
 #include "ElaineEditorBase.h"
 
-namespace Elaine { class World; class GameObject; }
+namespace Elaine { class World; class Actor; }
 
 namespace Editor
 {
 	class EditorUI;
 
 	// ============================================================
-	// SceneHierarchyPanel — shows the GameObject tree
+	// SceneHierarchyPanel — shows the Actor tree
 	// ============================================================
 	class SceneHierarchyPanel : public EditorPanel
 	{
@@ -18,7 +18,7 @@ namespace Editor
 
 		void OnDraw() override;
 	private:
-		void DrawGameObjectNode(Elaine::GameObject* obj);
+		void DrawActorNode(Elaine::Actor* obj);
 		EditorUI* mUI = nullptr;
 	};
 }

@@ -4,21 +4,21 @@
 #include "ElainePropertyDrawerRegistry.h"
 #include "ElaineTypeDescriptor.h"
 #include "imgui.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 #include "ElaineComponent.h"
 
 namespace Editor
 {
 	void InspectorPanel::OnDraw()
 	{
-		Elaine::GameObject* selected = mContext->GetSelectedGameObject();
+		Elaine::Actor* selected = mContext->GetSelectedActor();
 		if (!selected)
 		{
-			ImGui::TextDisabled("No GameObject selected");
+			ImGui::TextDisabled("No Actor selected");
 			return;
 		}
 
-		// --- GameObject Header ---
+		// --- Actor Header ---
 		ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.9f, 0.9f, 0.3f, 1.0f));
 		ImGui::Text("%s", selected->GetName().c_str());
 		ImGui::PopStyleColor();
@@ -40,13 +40,13 @@ namespace Editor
 
 		// --- Components ---
 		auto& components = selected->GetComponents();
-		for (auto& [name, component] : components)
+		for (auto& [name, ActorComponent] : components)
 		{
-			if (!component) continue;
+			if (!ActorComponent) continue;
 
-			ImGui::PushID(component);
+			ImGui::PushID(ActorComponent);
 
-			const Elaine::Name& typeName = component->GetType();
+			const Elaine::Name& typeName = ActorComponent->GetType();
 			std::string typeStr = typeName.ToString();
 
 			// Priority 1: Use generated type-specific drawer (compile-time, precise)
@@ -54,7 +54,7 @@ namespace Editor
 			{
 				if (ImGui::CollapsingHeader(typeName.C_Str(), ImGuiTreeNodeFlags_DefaultOpen))
 				{
-					PropertyDrawerRegistry::Instance().Draw(typeStr, component);
+					PropertyDrawerRegistry::Instance().Draw(typeStr, ActorComponent);
 				}
 			}
 			// Priority 2: Fallback to runtime reflection drawer (generic)
@@ -63,7 +63,7 @@ namespace Editor
 				Elaine::TypeDescriptor* desc = Elaine::TypeRegistry::Instance().Find(typeStr);
 				if (desc)
 				{
-					Elaine::PropertyDrawer::DrawComponentInspector(component, desc);
+					Elaine::PropertyDrawer::DrawComponentInspector(ActorComponent, desc);
 				}
 				else
 				{
@@ -81,21 +81,21 @@ namespace Editor
 		ImGui::Spacing();
 		ImGui::Separator();
 
-		// --- Add Component button ---
+		// --- Add ActorComponent button ---
 		float width = ImGui::GetContentRegionAvail().x;
-		if (ImGui::Button("Add Component", ImVec2(width, 0)))
+		if (ImGui::Button("Add ActorComponent", ImVec2(width, 0)))
 		{
 			ImGui::OpenPopup("AddComponentPopup");
 		}
 
 		if (ImGui::BeginPopup("AddComponentPopup"))
 		{
-			// List all registered types that inherit from Component
+			// List all registered types that inherit from ActorComponent
 			auto& allTypes = Elaine::TypeRegistry::Instance().GetAllTypes();
 			for (auto& [typeName, typeDesc] : allTypes)
 			{
 				const char* parent = typeDesc->GetParentClassName();
-				if (parent && (strcmp(parent, "Component") == 0))
+				if (parent && (strcmp(parent, "ActorComponent") == 0))
 				{
 					if (ImGui::MenuItem(typeName.c_str()))
 					{

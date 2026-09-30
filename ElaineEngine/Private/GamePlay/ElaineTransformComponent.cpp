@@ -3,7 +3,7 @@
 #include "math/ElaineTransform.h"
 #include "ElaineWorld.h"
 #include "GamePlay/ElaineMeshComponent.h"
-#include "GamePlay/ElaineGameObject.h"
+#include "GamePlay/ElaineActor.h"
 
 namespace Elaine
 {
@@ -41,8 +41,8 @@ namespace Elaine
 		
 	}
 
-	TransformComponent::TransformComponent(GameObject* InObject)
-		: Component(InObject)
+	TransformComponent::TransformComponent(Actor* InObject)
+		: ActorComponent(InObject)
 	{
 		//RegisterTickTime(BeginFrame);
 		//RegisterComNeedTick();
@@ -104,18 +104,18 @@ namespace Elaine
 
 	void TransformComponent::NodeTick(float InDeltaTime)
 	{
-		// Update world transform based on parent GameObject's transform (no SceneNode)
+		// Update world transform based on parent Actor's transform (no SceneNode)
 		if (mParent == nullptr)
 			return;
 
 		Matrix4x4 localMat = mTransform.GetMatrix();
 		Matrix4x4 worldMat = localMat;
 
-		GameObject* owner = mParent;
-		GameObject* parentGO = owner->GetParent();
+		Actor* owner = mParent;
+		Actor* parentGO = owner->GetParent();
 		if (parentGO)
 		{
-			Component* pcom = parentGO->GetComponentByName(Name("TransformComponent"));
+			ActorComponent* pcom = parentGO->GetComponentByName(Name("TransformComponent"));
 			if (pcom)
 			{
 				TransformComponent* parentTransform = static_cast<TransformComponent*>(pcom);
@@ -135,11 +135,11 @@ namespace Elaine
 		mWorldTransform.mScale = scale;
 		mWorldTransform.mRotation = rot;
 
-		// Notify mesh-like components on this GameObject that transform changed
+		// Notify mesh-like components on this Actor that transform changed
 		auto& comps = mParent->GetComponents();
 		for (auto& kv : comps)
 		{
-			Component* com = kv.second;
+			ActorComponent* com = kv.second;
 			if (com == nullptr) continue;
 			// dynamic_cast may be used to identify mesh components
 			StaticMeshComponent* meshCom = nullptr;

@@ -5,9 +5,9 @@
 
 namespace Elaine
 {
-	class Component;
-	class ComponentInfo;
-	class GameObject;
+	class ActorComponent;
+	class ActorComponentInfo;
+	class Actor;
 
 	class ElaineEngineExport ComponentFactory
 	{
@@ -15,17 +15,17 @@ namespace Elaine
 		ComponentFactory(const char* InType);
 		
 		virtual ~ComponentFactory();
-		Component* CreateComponent(GameObject* InObject);
-		ComponentInfo* CreateComponentInfo();
-		virtual Component*				CreateComponentImpl(GameObject* InObject) = 0;
-		virtual ComponentInfo*			CreateComponentInfoImpl() = 0;
-		void							DestoryComponent(Component* InComponent);
-		void							DestoryComponentInfo(ComponentInfo* InInfo);
+		ActorComponent* CreateComponent(Actor* InObject);
+		ActorComponentInfo* CreateActorComponentInfo();
+		virtual ActorComponent*				CreateComponentImpl(Actor* InObject) = 0;
+		virtual ActorComponentInfo*			CreateActorComponentInfoImpl() = 0;
+		void							DestoryComponent(ActorComponent* InComponent);
+		void							DestoryActorComponentInfo(ActorComponentInfo* InInfo);
 		void							DestoryAllComponent();
 	protected:
 		Name mType;
-		std::set<Component*> mComponents;
-		std::set<ComponentInfo*> mComponentInfos;
+		std::set<ActorComponent*> mComponents;
+		std::set<ActorComponentInfo*> mActorComponentInfos;
 	};
 
 	class ElaineEngineExport ComponentFactoryManager :public Singleton<ComponentFactoryManager>
@@ -33,8 +33,8 @@ namespace Elaine
 	public:
 		ComponentFactoryManager() = default;
 		~ComponentFactoryManager();
-		Component* CreateComponent(const Name& InType, GameObject* InObject);
-		ComponentInfo* CreateComponentInfo(const Name& InType);
+		ActorComponent* CreateComponent(const Name& InType, Actor* InObject);
+		ActorComponentInfo* CreateActorComponentInfo(const Name& InType);
 
 		ComponentFactory* GetComponentFactory(const Name& InType);
 		void RegisterFactory(const Name& InType, ComponentFactory* InFactory);

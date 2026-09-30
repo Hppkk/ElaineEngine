@@ -1,4 +1,4 @@
-﻿#include "ElaineEditor.h"
+#include "ElaineEditor.h"
 #include "ElaineImGuiLayer.h"
 #include "ElaineRoot.h"
 #include "ElaineSceneHierarchyPanel.h"

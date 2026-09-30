@@ -4,11 +4,11 @@
 
 namespace Elaine
 {
-	class ElaineEngineExport GameObjectInfoMgr :public ResourceManager, public Singleton<GameObjectInfoMgr>
+	class ElaineEngineExport ActorInfoMgr :public ResourceManager, public Singleton<ActorInfoMgr>
 	{
 	public:
-		GameObjectInfoMgr();
-		~GameObjectInfoMgr();
+		ActorInfoMgr();
+		~ActorInfoMgr();
 	protected:
 		virtual	ResourceBasePtr CreateResourceImpl(const std::string& InPath) override;
 	};

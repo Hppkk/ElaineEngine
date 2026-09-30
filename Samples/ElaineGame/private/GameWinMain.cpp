@@ -1,6 +1,6 @@
 #include "ElaineEngine.h"
 #include "ElaineWorld.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 #include "ElaineMeshComponent.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineSkyComponent.h"
@@ -91,11 +91,11 @@ extern "C" {
 
 		//TEST
 		Elaine::World* Test = NewEngine->CreateWorld();
-		Elaine::GameObject* Scene = Test->CreateGameObject();
+		Elaine::Actor* Scene = Test->CreateActor();
 		Elaine::CameraComponent* NewCamera = Scene->AddComponentType<Elaine::CameraComponent>("CameraComponent");
-		Elaine::SkyComponent* NewSky = Test->CreateGameObject()->AddComponentType<Elaine::SkyComponent>("SkyComponent");
+		Elaine::SkyComponent* NewSky = Test->CreateActor()->AddComponentType<Elaine::SkyComponent>("SkyComponent");
 		//NewSky->SetMaterial("material_instance/SkyBox.mi");
-		Elaine::StaticMeshComponent* NewCom = Test->CreateGameObject()->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
+		Elaine::StaticMeshComponent* NewCom = Test->CreateActor()->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
 		NewCom->ChangeMesh("");
 
 		Elaine::ViewportDesc Desc;

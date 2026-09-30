@@ -1,4 +1,4 @@
-﻿#include "ElainePrecompiledHeader.h"
+#include "ElainePrecompiledHeader.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineCamera.h"
 #include "ElaineSceneManager.h"
@@ -6,8 +6,8 @@
 
 namespace Elaine
 {
-	CameraComponent::CameraComponent(GameObject* InObject)
-		: Component(InObject)
+	CameraComponent::CameraComponent(Actor* InObject)
+		: ActorComponent(InObject)
 	{
 	}
 

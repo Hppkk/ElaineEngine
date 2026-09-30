@@ -11,7 +11,7 @@ namespace Elaine
 		RT_MaterialInstance,
 		RT_Shader,
 		RT_Mesh,
-		RT_GameObject,
+		RT_Actor,
 		RT_Count
 	};
 

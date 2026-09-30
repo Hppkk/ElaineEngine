@@ -7,7 +7,7 @@
 // ============================================================
 
 #include "ElaineComponent.generated.h"
-#include "ElaineGameObject.generated.h"
+#include "ElaineActor.generated.h"
 #include "ElaineTransformComponent.generated.h"
 #include "ElaineCameraComponent.generated.h"
 #include "ElaineMeshComponent.generated.h"

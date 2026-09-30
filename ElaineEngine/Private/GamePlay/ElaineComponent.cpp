@@ -4,17 +4,17 @@
 
 namespace Elaine
 {
-	ComponentInfo::ComponentInfo()
+	ActorComponentInfo::ActorComponentInfo()
 	{
 
 	}
 
-	ComponentInfo::~ComponentInfo()
+	ActorComponentInfo::~ActorComponentInfo()
 	{
 
 	}
 
-	void ComponentInfo::ExportData(JsonCpp& InJson)
+	void ActorComponentInfo::ExportData(JsonCpp& InJson)
 	{
 		if (InJson.empty())
 			return;
@@ -22,7 +22,7 @@ namespace Elaine
 		ExportDataImpl(InJson);
 	}
 
-	void ComponentInfo::ImportData(const JsonCpp& InJson)
+	void ActorComponentInfo::ImportData(const JsonCpp& InJson)
 	{
 		if (InJson.empty())
 			return;
@@ -30,41 +30,41 @@ namespace Elaine
 		ImportDataImpl(InJson);
 	}
 
-	void ComponentInfo::ExportDataImpl(JsonCpp& InJson)
+	void ActorComponentInfo::ExportDataImpl(JsonCpp& InJson)
 	{
 	}
 
-	void ComponentInfo::ImportDataImpl(const JsonCpp& InJson)
+	void ActorComponentInfo::ImportDataImpl(const JsonCpp& InJson)
 	{
 	}
 
-	Component::Component(GameObject* InObject)
+	ActorComponent::ActorComponent(Actor* InObject)
 		:mParent(InObject)
 	{
 
 	}
-	Component::~Component()
+	ActorComponent::~ActorComponent()
 	{
 		
 	}
 
-	void Component::Initialize(ComponentInfo* info)
+	void ActorComponent::Initialize(ActorComponentInfo* info)
 	{
 
 	}
 
-	void Component::OnRegisterWorld(World* InWorld)
+	void ActorComponent::OnRegisterWorld(World* InWorld)
 	{
 		mWorld = InWorld;
 		OnRegisterWorldImpl(InWorld);
 	}
 
-	void Component::OnUnregisterWorld()
+	void ActorComponent::OnUnregisterWorld()
 	{
 		OnUnregisterWorldImpl();
 		mWorld = nullptr;
 	}
-	void Component::SetVisible(bool InVisible)
+	void ActorComponent::SetVisible(bool InVisible)
 	{
 	}
 }

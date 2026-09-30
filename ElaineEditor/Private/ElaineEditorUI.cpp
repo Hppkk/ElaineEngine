@@ -1,4 +1,4 @@
-﻿#include "ElaineEditorUI.h"
+#include "ElaineEditorUI.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "Windows.h"

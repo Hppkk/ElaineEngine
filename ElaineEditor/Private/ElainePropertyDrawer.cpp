@@ -1,4 +1,4 @@
-﻿#include "ElainePropertyDrawer.h"
+#include "ElainePropertyDrawer.h"
 #include <vector>
 #include <algorithm>
 
@@ -247,7 +247,7 @@ namespace Elaine
 	}
 
 	// ============================================================
-	// DrawComponentInspector — full component panel
+	// DrawComponentInspector — full ActorComponent panel
 	// ============================================================
 	bool PropertyDrawer::DrawComponentInspector(void* obj, const TypeDescriptor* desc)
 	{

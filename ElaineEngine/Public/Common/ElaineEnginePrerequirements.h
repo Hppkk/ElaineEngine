@@ -32,8 +32,8 @@ class ComType##Factory :public ComponentFactory \
 public:  \
 	ComType##Factory(const char* InType) : ComponentFactory(InType) {}  \
 	virtual ~ComType##Factory() {}  \
-	virtual Component* CreateComponentImpl(GameObject * InObject) override { Component* NewCom = new ComType(InObject); return NewCom; } \
-	virtual ComponentInfo* CreateComponentInfoImpl() override { ComponentInfo* NewComInfo = new ComType##Info(); return NewComInfo; } \
+	virtual ActorComponent* CreateComponentImpl(Actor * InObject) override { ActorComponent* NewCom = new ComType(InObject); return NewCom; } \
+	virtual ActorComponentInfo* CreateActorComponentInfoImpl() override { ActorComponentInfo* NewComInfo = new ComType##Info(); return NewComInfo; } \
 };
 #endif
 }

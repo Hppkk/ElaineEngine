@@ -79,8 +79,8 @@ namespace Elaine
 			return RT_Shader;
 		else if (Ext == ".obj" || Ext == ".fbx" || Ext == ".gltf" || Ext == ".mesh")
 			return RT_Mesh;
-		else if (Ext == ".prefab" || Ext == ".go")
-			return RT_GameObject;
+		else if (Ext == ".actor")
+			return RT_Actor;
 
 		return RT_Count;  // 未知类型
 	}

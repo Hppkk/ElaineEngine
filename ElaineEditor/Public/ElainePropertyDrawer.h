@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineTypeDescriptor.h"
 #include "imgui.h"
 #include <string>
@@ -62,7 +62,7 @@ namespace Elaine
 		// Draw a single property widget
 		static bool DrawProperty(void* obj, const PropertyDescriptor& prop);
 
-		// Draw a full component inspector (type title + grouped properties)
+		// Draw a full ActorComponent inspector (type title + grouped properties)
 		static bool DrawComponentInspector(void* obj, const TypeDescriptor* desc);
 
 	private:

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineEditorBase.h"
 #include <string>
 #include <vector>

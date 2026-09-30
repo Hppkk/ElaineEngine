@@ -26,7 +26,7 @@ namespace Elaine
 	void ResourceModule::Terminate()
 	{
 		UnregisterResourceLoader(RT_Texture);
-		UnregisterResourceLoader(RT_GameObject);
+		UnregisterResourceLoader(RT_Actor);
 	}
 
 	void ResourceModule::RegisterResourceLoader(ResourceType InType, ResourceManager* InManager)

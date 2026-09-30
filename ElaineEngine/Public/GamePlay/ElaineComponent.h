@@ -5,11 +5,11 @@
 
 namespace Elaine
 {
-	class ElaineEngineExport ComponentInfo
+	class ElaineEngineExport ActorComponentInfo
 	{
 	public:
-		ComponentInfo();
-		virtual ~ComponentInfo();
+		ActorComponentInfo();
+		virtual ~ActorComponentInfo();
 		void				ExportData(JsonCpp& InJson);
 		void				ImportData(const JsonCpp& InJson);
 		virtual void		ExportDataImpl(JsonCpp& InJson);
@@ -19,38 +19,38 @@ namespace Elaine
 		std::string	mGUID;
 	};
 
-	class GameObject;
+	class Actor;
 	class World;
 
 	ECLASS()
-	class ElaineEngineExport Component
+	class ElaineEngineExport ActorComponent
 	{
 		GENERATED_BODY()
-		friend class GameObject;
+		friend class Actor;
 	public:
-		Component(GameObject* InObject);
-		virtual ~Component();
-		void				Initialize(ComponentInfo* info);
+		ActorComponent(Actor* InObject);
+		virtual ~ActorComponent();
+		void				Initialize(ActorComponentInfo* info);
 		const std::string&	GetName() const { return mName; }
-		GameObject*			GetGameObject() { return mParent; }
+		Actor*			GetActor() { return mParent; }
 		void				OnRegisterWorld(World* InWorld);
 		void				OnUnregisterWorld();
 		bool				GetVisible() const { return mbVisible; }
 		EFUNCTION()
 		void				SetVisible(bool InVisible);
 		virtual const Name& GetType() const = 0;
-		//--------------- Component Virtual Functions--------------------
+		//--------------- ActorComponent Virtual Functions--------------------
 		virtual void		OnCreate() { };
 		virtual void		OnDestroy() { };
 		virtual void		OnUpdate(float DeltaTime) { };
 		virtual void		OnRegisterWorldImpl(World* InWorld) { }
 		virtual void		OnUnregisterWorldImpl() { }
 	protected:
-		EPROPERTY(DisplayName="Visible", Category="Component", Tooltip="Whether the component is visible")
+		EPROPERTY(DisplayName="Visible", Category="ActorComponent", Tooltip="Whether the ActorComponent is visible")
 		bool			mbVisible = true;
-		GameObject*		mParent = nullptr;
-		ComponentInfo*	mDescription = nullptr;
-		EPROPERTY(DisplayName="Name", Category="Component")
+		Actor*		mParent = nullptr;
+		ActorComponentInfo*	mDescription = nullptr;
+		EPROPERTY(DisplayName="Name", Category="ActorComponent")
 		std::string		mName;
 		World*			mWorld = nullptr;
 	};

@@ -1,6 +1,6 @@
-﻿#include "ElaineEditorCameraController.h"
+#include "ElaineEditorCameraController.h"
 #include "GamePlay/ElaineCameraComponent.h"
-#include "GamePlay/ElaineGameObject.h"
+#include "GamePlay/ElaineActor.h"
 #include "imgui.h"
 #include "math/ElaineQuaternion.h"
 #include "math/ElaineVector3.h"
@@ -12,7 +12,7 @@ namespace Editor
 		float deltaTime,
 		bool viewportHovered,
 		Elaine::CameraComponent* camera,
-		Elaine::GameObject* selectedObj)
+		Elaine::Actor* selectedObj)
 	{
 		if (!camera || !viewportHovered)
 		{
@@ -209,7 +209,7 @@ namespace Editor
 	// ============================================================
 	// Focus — move camera to look at the selected object
 	// ============================================================
-	void EditorCameraController::HandleFocus(Elaine::CameraComponent* camera, Elaine::GameObject* selectedObj)
+	void EditorCameraController::HandleFocus(Elaine::CameraComponent* camera, Elaine::Actor* selectedObj)
 	{
 		if (!selectedObj) return;
 

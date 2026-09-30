@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineSingleton.h"
 #include "ElaineEditorGridManager.h"
 #include <d3d11.h>
@@ -9,7 +9,7 @@ namespace Elaine
 	class Viewport;
 	class OffscreenRenderTarget;
 	class World;
-	class GameObject;
+	class Actor;
 	class CameraComponent;
 	class RHITexture;
 }
@@ -32,8 +32,8 @@ namespace Editor
 		//=====================================================================
 		// 场景选择状态
 		//=====================================================================
-		void SetSelectedGameObject(Elaine::GameObject* obj) { mSelectedGameObject = obj; }
-		Elaine::GameObject* GetSelectedGameObject() const { return mSelectedGameObject; }
+		void SetSelectedActor(Elaine::Actor* obj) { mSelectedActor = obj; }
+		Elaine::Actor* GetSelectedActor() const { return mSelectedActor; }
 
 		void SetActiveWorld(Elaine::World* world) { mActiveWorld = world; }
 		Elaine::World* GetActiveWorld() const { return mActiveWorld; }
@@ -77,7 +77,7 @@ namespace Editor
 		Elaine::World*                  mActiveWorld = nullptr;
 		Elaine::World*                  mDefaultWorld = nullptr;
 		Elaine::CameraComponent*        mDefaultCamera = nullptr;
-		Elaine::GameObject*             mSelectedGameObject = nullptr;
+		Elaine::Actor*             mSelectedActor = nullptr;
 
 		// 离屏渲染（双缓冲）
 		static constexpr uint32_t       NUM_OFFSCREEN_BUFFERS = 2;

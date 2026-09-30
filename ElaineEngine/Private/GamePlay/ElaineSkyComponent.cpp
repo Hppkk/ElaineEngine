@@ -1,16 +1,16 @@
-﻿#include "ElainePrecompiledHeader.h"
+#include "ElainePrecompiledHeader.h"
 #include "ElaineSkyComponent.h"
 #include "ElaineRenderCommandQueue.h"
 #include "RenderProxy/ElaineSkyRenderProxy.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 #include "ElaineTextureManager.h"
 #include "ElaineMaterialInstanceDynamic.h"
 #include "ElaineMaterialParamSnapshot.h"
 
 namespace Elaine
 {
-    SkyComponent::SkyComponent(GameObject* InObject)
-        : Component(InObject)
+    SkyComponent::SkyComponent(Actor* InObject)
+        : ActorComponent(InObject)
         , mProxy(nullptr)
         , mExposure(1.0f)
         , mMaterial(nullptr)
@@ -26,7 +26,7 @@ namespace Elaine
 
         ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this, Snapshot = std::move(Snapshot), CubeCopy, ExposureCopy](RenderContext& InContext)
             {
-                RenderProxy* NewProxy = self->GetGameObject()->GetSceneManager()->CreateRenderProxy(EProxyType::Sky);
+                RenderProxy* NewProxy = self->GetActor()->GetSceneManager()->CreateRenderProxy(EProxyType::Sky);
                 SkyRenderProxy* SkyProxy = static_cast<SkyRenderProxy*>(NewProxy);
                 if (SkyProxy)
                 {
@@ -58,7 +58,7 @@ namespace Elaine
     SkyComponent::~SkyComponent()
     {
         SkyRenderProxy* ProxyCopy = mProxy;
-        SceneManager* SceneMgr = GetGameObject()->GetSceneManager();
+        SceneManager* SceneMgr = GetActor()->GetSceneManager();
         ENQUEUE_RENDER_COMMAND(DestroySkyRenderProxy)([ProxyCopy, SceneMgr](RenderContext& InContext)
             {
                 if (ProxyCopy)

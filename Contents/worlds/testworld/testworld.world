@@ -1,0 +1,22 @@
+{
+  "Version": 1,
+  "Origin": [0.0, 0.0, 0.0],
+  "Streaming": {
+    "LoadRadius": 1,
+    "UnloadRadius": 2
+  },
+  "Chunks": [
+    {
+      "Id": "chunk_0_0",
+      "Coord": [0, 0],
+      "Bounds": {
+        "Min": [-100.0, -100.0, -100.0],
+        "Max": [100.0, 100.0, 100.0]
+      },
+      "Actors": [
+        "worlds/testworld/actors/test_actor.actor"
+      ],
+      "LoadOnStart": true
+    }
+  ]
+}

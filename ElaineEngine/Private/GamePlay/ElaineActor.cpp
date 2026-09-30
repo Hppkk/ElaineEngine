@@ -1,35 +1,35 @@
 #include "ElainePrecompiledHeader.h"
-#include "GamePlay/ElaineGameObject.h"
+#include "GamePlay/ElaineActor.h"
 #include "GamePlay/ElaineComponent.h"
-#include "GamePlay/ElaineGameObjectMgr.h"
+#include "GamePlay/ElaineActorManager.h"
 #include "GamePlay/ElaineTransformComponent.h"
 #include "GamePlay/ElaineMeshComponent.h"
 #include "ElaineDataStream.h"
-#include "ElaineGameObjectInfoMgr.h"
+#include "ElaineActorInfoMgr.h"
 #include "ElaineWorld.h"
 #include "math/ElaineDynamicBVH.h"
 
 namespace Elaine
 {
-	GameObjectInfo::GameObjectInfo()
+	ActorInfo::ActorInfo()
 	{
 
 	}
 
-	GameObjectInfo::GameObjectInfo(ResourceManager* pManager, const std::string& path)
+	ActorInfo::ActorInfo(ResourceManager* pManager, const std::string& path)
 		: ResourceBase(pManager, path)
 	{
 
 	}
 
-	GameObjectInfo::~GameObjectInfo()
+	ActorInfo::~ActorInfo()
 	{
 
 	}
 
-	bool GameObjectInfo::LoadImpl()
+	bool ActorInfo::LoadImpl()
 	{
-		DataStream JsonFileStream(Root::instance()->GetResourcePath() + mResourceName, DataStream::Out);
+		DataStream JsonFileStream(Root::instance()->GetResourcePath() + mResourceName, DataStream::In);
 		JsonFileStream.ReadAll();
 		JsonCpp JsonData(JsonFileStream.GetDataStream());
 		ImportData(JsonData);
@@ -37,20 +37,20 @@ namespace Elaine
 		return true;
 	}
 
-	void GameObjectInfo::UnloadImpl()
+	void ActorInfo::UnloadImpl()
 	{
 		ExportToFile();
 	}
 
-	void GameObjectInfo::SaveResourceImpl()
+	void ActorInfo::SaveResourceImpl()
 	{
 	}
 
-	void GameObjectInfo::ResourceArrivedImpl()
+	void ActorInfo::ResourceArrivedImpl()
 	{
 	}
 
-	void GameObjectInfo::ExportToFile()
+	void ActorInfo::ExportToFile()
 	{
 		JsonCpp JsonData;
 		ExportData(JsonData);
@@ -60,7 +60,7 @@ namespace Elaine
 		JsonFileStream.Write(JsonStr.data(), JsonStr.size());
 	}
 
-	void GameObjectInfo::ImportData(const JsonCpp& jsonNode)
+	void ActorInfo::ImportData(const JsonCpp& jsonNode)
 	{
 		if (jsonNode.is_null())
 			return;
@@ -72,84 +72,84 @@ namespace Elaine
 			mGUID = jsonNode["GUID"].get<std::string>();
 
 		// Components
-		if (jsonNode.contains("ComponentArray"))
+		if (jsonNode.contains("Components"))
 		{
-			for (const auto& CompJson : jsonNode["ComponentArray"])
+			for (const auto& CompJson : jsonNode["Components"])
 			{
 				if (CompJson.contains("Type"))
 				{
 					Name ComType = CompJson["Type"].get<std::string>().c_str();
-					ComponentInfo* NewComInfo = ComponentFactoryManager::instance()->CreateComponentInfo(ComType);
+					ActorComponentInfo* NewComInfo = ComponentFactoryManager::instance()->CreateActorComponentInfo(ComType);
 					if (NewComInfo != nullptr)
 					{
 						NewComInfo->ImportData(CompJson);
-						mComponentInfos.push_back(NewComInfo);
+						mActorComponentInfos.push_back(NewComInfo);
 					}
 				}
 			}
 		}
 
-		// Children GameObjects
-		if (jsonNode.contains("GameObjectArray"))
+		// Children Actors
+		if (jsonNode.contains("Children"))
 		{
-			for (const auto& childJson : jsonNode["GameObjectArray"])
+			for (const auto& childJson : jsonNode["Children"])
 			{
-				GameObjectInfoPtr NewGameObjectInfo = GameObjectInfoMgr::instance()->GetResource<GameObjectInfo>("");
+				ActorInfoPtr NewActorInfo = ActorInfoMgr::instance()->GetResource<ActorInfo>("");
 
-				NewGameObjectInfo->ImportData(childJson);
-				mChildren.push_back(NewGameObjectInfo);
+				NewActorInfo->ImportData(childJson);
+				mChildren.push_back(NewActorInfo);
 			}
 		}
 	}
 
-	void GameObjectInfo::ExportData(JsonCpp& jsonNode)
+	void ActorInfo::ExportData(JsonCpp& jsonNode)
 	{
 		jsonNode["Name"] = mName;
 		jsonNode["GUID"] = mGUID;
 
-		// ComponentArray
-		jsonNode["ComponentArray"] = JsonCpp::array();
-		for (auto* comp : mComponentInfos)
+		// Components
+		jsonNode["Components"] = JsonCpp::array();
+		for (auto* comp : mActorComponentInfos)
 		{
 			JsonCpp compJson;
 			comp->ExportData(compJson);
-			jsonNode["ComponentArray"].push_back(compJson);
+			jsonNode["Components"].push_back(compJson);
 		}
 
-		// GameObjectArray
-		jsonNode["GameObjectArray"] = JsonCpp::array();
+		// Children
+		jsonNode["Children"] = JsonCpp::array();
 		for (auto& child : mChildren)
 		{
 			JsonCpp childJson;
 			child->ExportData(childJson);
-			jsonNode["GameObjectArray"].push_back(childJson);
+			jsonNode["Children"].push_back(childJson);
 		}
 	}
 
 
 
-	GameObject::GameObject(World* InWorld)
+	Actor::Actor(World* InWorld)
 		: mWorld(InWorld)
 	{
 
 	}
 
-	GameObject::GameObject(const std::string& InName)
+	Actor::Actor(const std::string& InName)
 	{
 
 	}
 
-	GameObject::~GameObject()
+	Actor::~Actor()
 	{
 		Destroy();
 	}
 
-	void GameObject::SetName(const std::string& InName)
+	void Actor::SetName(const std::string& InName)
 	{
 		mName = InName;
 	}
 
-	void GameObject::Initialize(GameObjectInfoPtr InInfo)
+	void Actor::Initialize(ActorInfoPtr InInfo)
 	{
 		if (mbInitialized)
 			return;
@@ -160,7 +160,7 @@ namespace Elaine
 			return;
 		}
 
-		for (auto ComInfo : InInfo->mComponentInfos)
+		for (auto ComInfo : InInfo->mActorComponentInfos)
 		{
 			auto ComFactroy = ComponentFactoryManager::instance()->GetComponentFactory(ComInfo->mType);
 			if (ComFactroy)
@@ -173,14 +173,20 @@ namespace Elaine
 
 		for (auto GoInfo : InInfo->mChildren)
 		{
-			GameObject* childGo = mWorld->GetGameObjectMgr()->CreateGameObjectByInfo(GoInfo);
-			AddChildGameObject(childGo);
+			Actor* childGo = mWorld->GetActorManager()->CreateActorByInfo(GoInfo);
+			AddChildActor(childGo);
 		}
+		if (mTransformCom == nullptr)
+		{
+			mTransformCom = static_cast<TransformComponent*>(ComponentFactoryManager::instance()->CreateComponent(Name("TransformComponent"), this));
+			AddComponent(mTransformCom);
+		}
+		SetName(InInfo->GetName());
 
 		mbInitialized = true;
 	}
 
-	void GameObject::Initialize()
+	void Actor::Initialize()
 	{
 		if (mbInitialized)
 			return;
@@ -193,14 +199,14 @@ namespace Elaine
 		mbInitialized = true;
 	}
 
-	void GameObject::save()
+	void Actor::save()
 	{
 		mDescription->ExportToFile();
 	}
 
-	Component* GameObject::AddComponent(const Name& InType)
+	ActorComponent* Actor::AddComponent(const Name& InType)
 	{
-		Component* NewComponent = ComponentFactoryManager::instance()->CreateComponent(InType, this);
+		ActorComponent* NewComponent = ComponentFactoryManager::instance()->CreateComponent(InType, this);
 		if (NewComponent != nullptr)
 		{
 			NewComponent->Initialize(nullptr);
@@ -210,12 +216,12 @@ namespace Elaine
 		return NewComponent;
 	}
 
-	SceneManager* GameObject::GetSceneManager() const
+	SceneManager* Actor::GetSceneManager() const
 	{
 		return mWorld->GetSceneManager();
 	}
 
-	Component* GameObject::GetComponentByName(const Name& name)
+	ActorComponent* Actor::GetComponentByName(const Name& name)
 	{
 		auto it = mComponents.find(name);
 		if (it != mComponents.end())
@@ -223,16 +229,17 @@ namespace Elaine
 		return nullptr;
 	}
 
-	void GameObject::AddChildGameObject(GameObject* InChild)
+	void Actor::AddChildActor(Actor* InChild)
 	{
 		if (InChild == nullptr)
 			return;
 
 		mChildren.push_back(InChild);
-		mChildrenMap[mDescription->mGUID] = InChild;
+		InChild->mParent = this;
+		mChildrenMap[InChild->GetName()] = InChild;
 	}
 
-	void GameObject::AddComponent(Component* InCom)
+	void Actor::AddComponent(ActorComponent* InCom)
 	{
 		if (InCom == nullptr)
 			return;
@@ -249,18 +256,20 @@ namespace Elaine
 		m_components.push_back(InCom);
 #endif
 		mComponents[InCom->GetType()] = InCom;
+		if (auto* Transform = dynamic_cast<TransformComponent*>(InCom))
+			mTransformCom = Transform;
 
 		//InCom->OnRegisterWorld(mWorld);
 	}
 
-	GameObject* GameObject::CreateChildGameObject()
+	Actor* Actor::CreateChildActor()
 	{
-		GameObject* newGo = mWorld->GetGameObjectMgr()->CreateGameObject();
-		AddChildGameObject(newGo);
+		Actor* newGo = mWorld->GetActorManager()->CreateActor();
+		AddChildActor(newGo);
 		return newGo;
 	}
 
-	void GameObject::AddWorldOffset(const Vector3& InDelta, bool InRecursive)
+	void Actor::AddWorldOffset(const Vector3& InDelta, bool InRecursive)
 	{
 		if (mTransformCom)
 		{
@@ -279,7 +288,7 @@ namespace Elaine
 		}
 	}
 
-	void GameObject::Destroy()
+	void Actor::Destroy()
 	{
 		for (auto com : mComponents)
 		{
@@ -302,7 +311,7 @@ namespace Elaine
 		mChildren.clear();
 	}
 
-	void GameObject::RemoveComponent(Component* InComponent)
+	void Actor::RemoveComponent(ActorComponent* InComponent)
 	{
 		if (InComponent == nullptr)
 			return;
@@ -316,7 +325,7 @@ namespace Elaine
 		if (itIdx == m_componentsIndexMap.end())
 			return;
 
-		Component* removeCom = itIdx->first;
+		ActorComponent* removeCom = itIdx->first;
 		size_t		idx = itIdx->second;
 		m_componentsIndexMap.erase(itIdx);
 		auto iter = m_components.begin() + idx;
@@ -330,7 +339,7 @@ namespace Elaine
 		factory->DestoryComponent(InComponent);
 	}
 
-	void GameObject::RemoveChildGameObject(GameObject* InObject)
+	void Actor::RemoveChildActor(Actor* InObject)
 	{
 		if (InObject == nullptr)
 			return;
@@ -341,68 +350,68 @@ namespace Elaine
 			mChildrenMap.erase(Iter);
 		}
 
-		mWorld->GetGameObjectMgr()->DestroyGameObject(InObject);
+		mWorld->GetActorManager()->DestroyActor(InObject);
 	}
 
-	const Vector3& GameObject::GetWorldPosition() const
+	const Vector3& Actor::GetWorldPosition() const
 	{
 		return mTransformCom->GetWorldPosition();
 	}
 
-	const Vector3& GameObject::GetWorldScale() const
+	const Vector3& Actor::GetWorldScale() const
 	{
 		return mTransformCom->GetWorldScale();
 	}
 
-	const Quaternion& GameObject::GetWorldRotation() const
+	const Quaternion& Actor::GetWorldRotation() const
 	{
 		return mTransformCom->GetWorldRotation();
 	}
 
-	const Matrix4x4& GameObject::GetWorldMatrix() const
+	const Matrix4x4& Actor::GetWorldMatrix() const
 	{
 		return mTransformCom->GetWorldMatrix();
 	}
 
-	const Vector3& GameObject::GetPosition() const
+	const Vector3& Actor::GetPosition() const
 	{
 		return mTransformCom->GetPosition();
 	}
 
-	const Vector3& GameObject::GetScale() const
+	const Vector3& Actor::GetScale() const
 	{
 		return mTransformCom->GetScale();
 	}
 
-	const Quaternion& GameObject::GetRotation() const
+	const Quaternion& Actor::GetRotation() const
 	{
 		return mTransformCom->GetRotation();
 	}
 
-	void GameObject::SetPosition(const Vector3& InPosition)
+	void Actor::SetPosition(const Vector3& InPosition)
 	{
 		mTransformCom->SetPosition(InPosition);
         if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
-	void GameObject::SetScale(const Vector3& InScale)
+	void Actor::SetScale(const Vector3& InScale)
 	{
 		mTransformCom->SetScale(InScale);
         if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
-	void GameObject::SetQuaternion(const Quaternion& InRotation)
+	void Actor::SetQuaternion(const Quaternion& InRotation)
 	{
 		mTransformCom->SetRotation(InRotation);
         if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
-	void GameObject::UpdateNode(bool childUpdate /*= true*/, bool notifyParent /*= true*/)
+	void Actor::UpdateNode(bool childUpdate /*= true*/, bool notifyParent /*= true*/)
 	{
 
 	}
 
-	void GameObject::OnRegisterWorld(World* InWorld)
+	void Actor::OnRegisterWorld(World* InWorld)
 	{
 		mWorld = InWorld;
 		for (auto&& Com : mComponents)
@@ -414,7 +423,7 @@ namespace Elaine
             mWorld->GetSceneBVH()->InsertObject(this);
 	}
 
-	void GameObject::OnUnregisterWorld()
+	void Actor::OnUnregisterWorld()
 	{
         if (mWorld && mWorld->GetSceneBVH() && mBVHNodeID != -1)
             mWorld->GetSceneBVH()->RemoveObject(this);
@@ -426,13 +435,13 @@ namespace Elaine
         mWorld = nullptr;
 	}
 
-	AxisAlignedBox GameObject::GetBoundingBox() const
+	AxisAlignedBox Actor::GetBoundingBox() const
 	{
 		// Accumulate AABB from visual/physical components
 		AxisAlignedBox Box;
 		Box.setNull();
 
-		// Check logic for finding mesh component
+		// Check logic for finding mesh ActorComponent
 		for (auto& Pair : mComponents)
 		{
 			//if (MeshComponent* MeshComp = dynamic_cast<MeshComponent*>(Pair.second))
@@ -443,7 +452,7 @@ namespace Elaine
 
 		if (Box.isNull())
 		{
-			// Fallback if no specific component provides bounds: create small bound around position
+			// Fallback if no specific ActorComponent provides bounds: create small bound around position
 			Vector3 Pos = GetWorldPosition();
 			//Box.setExtents(Pos - Vector3(0.5f, 0.5f, 0.5f), Pos + Vector3(0.5f, 0.5f, 0.5f));
 		}

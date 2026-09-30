@@ -2,24 +2,24 @@
 #include "ElaineEditorUI.h"
 #include "imgui.h"
 #include "ElaineWorld.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 
 namespace Editor
 {
-	void SceneHierarchyPanel::DrawGameObjectNode(Elaine::GameObject* obj)
+	void SceneHierarchyPanel::DrawActorNode(Elaine::Actor* obj)
 	{
 		if (!obj) return;
 
 		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnArrow |
 			ImGuiTreeNodeFlags_SpanAvailWidth;
 
-		bool isSelected = (mContext->GetSelectedGameObject() == obj);
+		bool isSelected = (mContext->GetSelectedActor() == obj);
 		if (isSelected)
 			flags |= ImGuiTreeNodeFlags_Selected;
 
 		// Check if has children - if not, make it a leaf
 		auto& children = obj->GetComponents(); // Use as indicator for now
-		// TODO: check actual children GameObjects
+		// TODO: check actual children Actors
 
 		bool opened = ImGui::TreeNodeEx(
 			(void*)(intptr_t)obj,
@@ -28,28 +28,28 @@ namespace Editor
 
 		if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
 		{
-			mContext->SetSelectedGameObject(obj);
+			mContext->SetSelectedActor(obj);
 		}
 
 		// Right-click context menu
 		if (ImGui::BeginPopupContextItem())
 		{
-			if (ImGui::MenuItem("Add Child GameObject"))
+			if (ImGui::MenuItem("Add Child Actor"))
 			{
-				obj->CreateChildGameObject();
+				obj->CreateChildActor();
 			}
 			if (ImGui::MenuItem("Delete"))
 			{
 				obj->Destroy();
 				if (isSelected)
-					mContext->SetSelectedGameObject(nullptr);
+					mContext->SetSelectedActor(nullptr);
 			}
 			ImGui::EndPopup();
 		}
 
 		if (opened)
 		{
-			// TODO: iterate child GameObjects when API is available
+			// TODO: iterate child Actors when API is available
 			ImGui::TreePop();
 		}
 	}
@@ -64,19 +64,19 @@ namespace Editor
 		}
 
 		// Toolbar
-		if (ImGui::Button("+ Add GameObject"))
+		if (ImGui::Button("+ Add Actor"))
 		{
-			world->CreateGameObject();
+			world->CreateActor();
 		}
 		ImGui::Separator();
 
-		// Draw all root GameObjects
-		auto& gameObjects = world->GetGameObjects();
-		for (auto* obj : gameObjects)
+		// Draw all root Actors
+		auto& Actors = world->GetActors();
+		for (auto* obj : Actors)
 		{
 			if (obj && !obj->GetParent()) // Only root objects
 			{
-				DrawGameObjectNode(obj);
+				DrawActorNode(obj);
 			}
 		}
 	}

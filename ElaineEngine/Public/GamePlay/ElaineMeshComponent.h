@@ -11,7 +11,7 @@ namespace Elaine
 	class MaterialInstanceDynamic;
 	class StaticMeshRenderProxy;
 
-	class ElaineEngineExport StaticMeshComponentInfo : public ComponentInfo
+	class ElaineEngineExport StaticMeshComponentInfo : public ActorComponentInfo
 	{
 	public:
 	public:
@@ -19,11 +19,11 @@ namespace Elaine
 	};
 
 	ECLASS(DisplayName = "Static Mesh")
-	class ElaineEngineExport StaticMeshComponent : public Component
+	class ElaineEngineExport StaticMeshComponent : public ActorComponent
 	{
 		GENERATED_BODY()
 	public:
-		StaticMeshComponent(GameObject* InObject);
+		StaticMeshComponent(Actor* InObject);
 		virtual ~StaticMeshComponent();
 		EFUNCTION(Category="Mesh")
 		void ChangeMesh(const std::string& InPath);

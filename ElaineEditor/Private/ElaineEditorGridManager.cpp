@@ -1,4 +1,4 @@
-﻿#include "ElaineEditorGridManager.h"
+#include "ElaineEditorGridManager.h"
 #include "ElaineWorld.h"
 #include "ElaineSceneManager.h"
 #include "ElaineRenderCommandQueue.h"

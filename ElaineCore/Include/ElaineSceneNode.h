@@ -5,7 +5,7 @@
 namespace Elaine
 {
 	class RenderableObject;
-	class GameObject;
+	class Actor;
 	class RenderQueueSet;
 
 	class ElaineCoreExport SceneNode

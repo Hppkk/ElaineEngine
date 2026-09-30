@@ -6,12 +6,12 @@
 #include "ElaineMeshManager.h"
 #include "ElaineMaterialInstanceDynamic.h"
 #include "ElaineMaterialParamSnapshot.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 
 namespace Elaine
 {
-    StaticMeshComponent::StaticMeshComponent(GameObject* InObject)
-        : Component(InObject)
+    StaticMeshComponent::StaticMeshComponent(Actor* InObject)
+        : ActorComponent(InObject)
     {
 
     }
@@ -66,7 +66,7 @@ namespace Elaine
         ENQUEUE_RENDER_COMMAND(CreateProxy)(
             [this, Snapshots = std::move(Snapshots), CurrentMesh, Count](RenderContext& Context)
             {
-                mRenderProxy = static_cast<StaticMeshRenderProxy*>(GetGameObject()->GetSceneManager()->CreateRenderProxy(EProxyType::StaticMesh));
+                mRenderProxy = static_cast<StaticMeshRenderProxy*>(GetActor()->GetSceneManager()->CreateRenderProxy(EProxyType::StaticMesh));
                 if (mRenderProxy)
                 {
                     mRenderProxy->SetMesh(CurrentMesh);
@@ -76,8 +76,8 @@ namespace Elaine
                     mRenderProxy->SetCastShadow(mbCastShadow);
                     mRenderProxy->SetReceiveShadow(mbReceiveShadow);
                     mRenderProxy->SetRenderLayer(mRenderLayer);
-                    mRenderProxy->mUserData = GetGameObject();
-                    mRenderProxy->mUserType = 1; // 1 = GameObject
+                    mRenderProxy->mUserData = GetActor();
+                    mRenderProxy->mUserType = 1; // 1 = Actor
                 }
             });
     }
@@ -92,7 +92,7 @@ namespace Elaine
             ENQUEUE_RENDER_COMMAND(DestroyProxy)(
                 [ProxyToDestroy, this](RenderContext& Context)
                 {
-                    GetGameObject()->GetSceneManager()->DestroyRenderProxy(ProxyToDestroy);
+                    GetActor()->GetSceneManager()->DestroyRenderProxy(ProxyToDestroy);
                 });
         }
     }
@@ -138,9 +138,9 @@ namespace Elaine
             return;
 
         StaticMeshRenderProxy* Proxy = mRenderProxy;
-        Matrix4x4 WorldMat = GetGameObject()->GetWorldMatrix();
-        Vector3 WorldPos = GetGameObject()->GetWorldPosition();
-        Vector3 WorldScale = GetGameObject()->GetWorldScale();
+        Matrix4x4 WorldMat = GetActor()->GetWorldMatrix();
+        Vector3 WorldPos = GetActor()->GetWorldPosition();
+        Vector3 WorldScale = GetActor()->GetWorldScale();
 
         ENQUEUE_RENDER_COMMAND(UpdateProxy)(
             [=](RenderContext& Context)

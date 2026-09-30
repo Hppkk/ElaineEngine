@@ -1,4 +1,4 @@
-﻿#include "ElaineViewportPanel.h"
+#include "ElaineViewportPanel.h"
 #include "imgui.h"
 #include "ElaineEditorGlobalContext.h"
 #include "ElaineWorld.h"
@@ -6,7 +6,7 @@
 #include "GamePlay/ElaineCameraComponent.h"
 #include "ElaineViewport.h"
 #include "imgui/ImGuizmo/ImGuizmo.h"
-#include "GamePlay/ElaineGameObject.h"
+#include "GamePlay/ElaineActor.h"
 #include "math/ElaineRay.h"
 #include "math/ElaineISpatialObject.h"
 
@@ -82,7 +82,7 @@ namespace Editor
 
 				// ---- Editor Camera Controller ----
 				float deltaTime = ImGui::GetIO().DeltaTime;
-				Elaine::GameObject* selectedObj = ctx->GetSelectedGameObject();
+				Elaine::Actor* selectedObj = ctx->GetSelectedActor();
 				mCameraController.Tick(deltaTime, viewportHovered, camComp, selectedObj);
 
                 ImGuizmo::SetOrthographic(camComp->GetProjectionType() == Elaine::ProjectionType::Orthographic);
@@ -189,7 +189,7 @@ namespace Editor
                             if (!results.empty())
                             {
                                 if(results[0]->GetUserType() == 1)
-                                    ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(results[0]->GetUserData()));
+                                    ctx->SetSelectedActor(static_cast<Elaine::Actor*>(results[0]->GetUserData()));
                             }
                         }
                         mIsBoxSelecting = false;
@@ -219,11 +219,11 @@ namespace Editor
                             auto result = ctx->GetActiveWorld()->Raycast(ray);
                             if (result && result->GetUserType() == 1)
                             {
-                                ctx->SetSelectedGameObject(static_cast<Elaine::GameObject*>(result->GetUserData()));
+                                ctx->SetSelectedActor(static_cast<Elaine::Actor*>(result->GetUserData()));
                             }
                             else
                             {
-                                ctx->SetSelectedGameObject(nullptr);
+                                ctx->SetSelectedActor(nullptr);
                             }
                         }
                     }

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineEnginePrerequirements.h"
 #include "ElaineComponent.h"
 #include "math/ElaineVector3.h"
@@ -11,17 +11,17 @@ namespace Elaine
 {
 	class Camera;
 
-	class ElaineEngineExport CameraComponentInfo : public ComponentInfo
+	class ElaineEngineExport CameraComponentInfo : public ActorComponentInfo
 	{
 	public:
 	};
 
 	ECLASS(DisplayName = "Camera")
-	class ElaineEngineExport CameraComponent : public Component
+	class ElaineEngineExport CameraComponent : public ActorComponent
 	{
 		GENERATED_BODY()
 	public:
-		CameraComponent(GameObject* InObject);
+		CameraComponent(Actor* InObject);
 		virtual ~CameraComponent();
 
 		virtual void OnCreate() override;

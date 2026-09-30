@@ -9,7 +9,7 @@
 struct cJSON;
 namespace Elaine
 {
-	class ElaineEngineExport TransformComponentInfo :public ComponentInfo
+	class ElaineEngineExport TransformComponentInfo :public ActorComponentInfo
 	{
 	public:
 		TransformComponentInfo();
@@ -21,12 +21,12 @@ namespace Elaine
 	};
 
 	ECLASS(DisplayName = "Transform")
-	class ElaineEngineExport TransformComponent :public Component
+	class ElaineEngineExport TransformComponent :public ActorComponent
 	{
 		GENERATED_BODY()
-		friend class GameObject;
+		friend class Actor;
 	public:
-		TransformComponent(GameObject* InObject);
+		TransformComponent(Actor* InObject);
 		virtual ~TransformComponent();
 		const Matrix4x4& GetWorldMatrix() const;
 		const Vector3& GetWorldScale() const;

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineEditorBase.h"
 #include "ElaineEditorCameraController.h"
 #include <d3d11.h>

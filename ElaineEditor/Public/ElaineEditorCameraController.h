@@ -4,7 +4,7 @@
 namespace Elaine
 {
 	class CameraComponent;
-	class GameObject;
+	class Actor;
 }
 
 namespace Editor
@@ -39,7 +39,7 @@ namespace Editor
 		void Tick(float deltaTime,
 				  bool viewportHovered,
 				  Elaine::CameraComponent* camera,
-				  Elaine::GameObject* selectedObj);
+				  Elaine::Actor* selectedObj);
 
 		// ============================================================
 		// Tunable parameters
@@ -85,6 +85,6 @@ namespace Editor
 		void HandlePanMode(float dx, float dy, Elaine::CameraComponent* camera);
 		void HandleOrbitMode(float dx, float dy, Elaine::CameraComponent* camera);
 		void HandleZoom(float scrollDelta, Elaine::CameraComponent* camera);
-		void HandleFocus(Elaine::CameraComponent* camera, Elaine::GameObject* selectedObj);
+		void HandleFocus(Elaine::CameraComponent* camera, Elaine::Actor* selectedObj);
 	};
 }

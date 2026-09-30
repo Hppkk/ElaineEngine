@@ -1,4 +1,4 @@
-﻿#include "ElaineCoreMacroDefinition.h"
+#include "ElaineCoreMacroDefinition.h"
 #include "GamePlay/ElaineComponent.h"
 #include "GamePlay/ElaineComponentSystem.h"
 #include "GamePlay/ElaineComponentFactory.h"

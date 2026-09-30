@@ -1,4 +1,4 @@
-﻿#include "ElaineEditor.h"
+#include "ElaineEditor.h"
 #include "ElaineEngine.h"
 #include "ElainePlatformWindow.h"
 

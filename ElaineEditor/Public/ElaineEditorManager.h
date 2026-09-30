@@ -5,7 +5,7 @@ namespace Editor
 	enum class EditorType
 	{
 		None,
-		GameObject,
+		Actor,
 
 	};
 
@@ -16,7 +16,7 @@ namespace Editor
 
 	};
 
-	class GameObjectEditorManager : public EditorManagerBase
+	class ActorEditorManager : public EditorManagerBase
 	{
 
 	};

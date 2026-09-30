@@ -11,17 +11,17 @@ namespace Elaine
     class SkyRenderProxy;
     class MaterialInstanceDynamic;
 
-    class ElaineEngineExport SkyComponentInfo : public ComponentInfo
+    class ElaineEngineExport SkyComponentInfo : public ActorComponentInfo
     {
     public:
     };
 
     ECLASS(DisplayName = "Sky")
-    class ElaineEngineExport SkyComponent : public Component
+    class ElaineEngineExport SkyComponent : public ActorComponent
     {
         GENERATED_BODY()
     public:
-        SkyComponent(GameObject* InObject);
+        SkyComponent(Actor* InObject);
         ~SkyComponent();
 
         EFUNCTION(Category="Sky")

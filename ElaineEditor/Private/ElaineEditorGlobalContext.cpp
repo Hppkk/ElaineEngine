@@ -1,9 +1,9 @@
-﻿#include "ElaineEditorGlobalContext.h"
+#include "ElaineEditorGlobalContext.h"
 #include "ElaineEngine.h"
 #include "ElaineViewport.h"
 #include "ElaineOffscreenRenderTarget.h"
 #include "ElaineWorld.h"
-#include "ElaineGameObject.h"
+#include "ElaineActor.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineSkyComponent.h"
 #include "ElaineMeshComponent.h"
@@ -83,7 +83,7 @@ namespace Editor
 		SetActiveWorld(mDefaultWorld);
 
 		// Camera
-		Elaine::GameObject* CameraObj = mDefaultWorld->CreateGameObject();
+		Elaine::Actor* CameraObj = mDefaultWorld->CreateActor();
 		mDefaultCamera = CameraObj->AddComponentType<Elaine::CameraComponent>("CameraComponent");
 		mDefaultCamera->SetRotation(Elaine::Vector3(30, 180, 30));
 		mDefaultCamera->SetRotation(Elaine::Vector3(30, 60, 30));
@@ -92,14 +92,14 @@ namespace Editor
 
 
 		// Sky
-		Elaine::GameObject* SkyObj = mDefaultWorld->CreateGameObject();
+		Elaine::Actor* SkyObj = mDefaultWorld->CreateActor();
 		SkyObj->AddComponentType<Elaine::SkyComponent>("SkyComponent");
 
 		// Editor Grid (infinite ground plane at Y=0)
 		mGridManager.Initialize(mDefaultWorld);
 
 		// Test Mesh
-		Elaine::GameObject* MeshObj = mDefaultWorld->CreateGameObject();
+		Elaine::Actor* MeshObj = mDefaultWorld->CreateActor();
 		Elaine::StaticMeshComponent* MeshComp = MeshObj->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
 		MeshComp->ChangeMesh("");
 

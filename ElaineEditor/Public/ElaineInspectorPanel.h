@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "ElaineEditorBase.h"
 
 namespace Editor
@@ -6,7 +6,7 @@ namespace Editor
 	class EditorUI;
 
 	// ============================================================
-	// InspectorPanel — shows selected GameObject's components
+	// InspectorPanel — shows selected Actor's components
 	// ============================================================
 	class InspectorPanel : public EditorPanel
 	{

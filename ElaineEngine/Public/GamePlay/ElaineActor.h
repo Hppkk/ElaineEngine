@@ -5,26 +5,26 @@
 #include "GamePlay/ElaineComponent.h"
 #include "ElaineMatrix4.h"
 #include "math/ElaineISpatialObject.h"
-#include "ElaineGameObject.generated.h"
+#include "ElaineActor.generated.h"
 
 
 /*----------------------------------------------
-*Engine Component Architecture: one gameobject each type of component can only hold one.
+*Engine ActorComponent Architecture: one Actor each type of ActorComponent can only hold one.
 --------------------------------------------*/
 
 namespace Elaine
 {
-	class GameObjectInfo;
-	using GameObjectInfoPtr = ResourcePtr<GameObjectInfo>;
+	class ActorInfo;
+	using ActorInfoPtr = ResourcePtr<ActorInfo>;
 
 
-	class ElaineEngineExport GameObjectInfo :public ResourceBase
+	class ElaineEngineExport ActorInfo :public ResourceBase
 	{
-		friend class GameObject;
+		friend class Actor;
 	public:
-		GameObjectInfo();
-		GameObjectInfo(ResourceManager* InManager, const std::string& InPath);
-		~GameObjectInfo();
+		ActorInfo();
+		ActorInfo(ResourceManager* InManager, const std::string& InPath);
+		~ActorInfo();
 		virtual bool	LoadImpl() override;
 		virtual	void	UnloadImpl() override;
 		virtual void	SaveResourceImpl() override;
@@ -37,15 +37,15 @@ namespace Elaine
 	private:
 		std::string mGUID;
 		std::string mName;
-		std::set<GameObject*> mInstances;
-		std::vector<GameObjectInfoPtr> mChildren;
-		std::vector<ComponentInfo*> mComponentInfos;
+		std::set<Actor*> mInstances;
+		std::vector<ActorInfoPtr> mChildren;
+		std::vector<ActorComponentInfo*> mActorComponentInfos;
 	};
 	
-	class GameObjectNameGenerator
+	class ActorNameGenerator
 	{
 	public:
-		GameObjectNameGenerator() = default;
+		ActorNameGenerator() = default;
 
 		std::string operator()()
 		{
@@ -57,49 +57,49 @@ namespace Elaine
 			if (mNextIndex == 0)
 			{
 				mNextIndex++;
-				return "GameObject";
+				return "Actor";
 			}
-			return std::format("GameObject({})", mNextIndex);
+			return std::format("Actor({})", mNextIndex);
 		}
 	private:
 		size_t mNextIndex = 0;
 	};
 
-	class Component;
+	class ActorComponent;
 	class World;
 	class TransformComponent;
 	class SceneManager;
 
-	ECLASS(DisplayName = "Game Object")
-	class ElaineEngineExport GameObject : public ISpatialObject
+	ECLASS(DisplayName = "Actor")
+	class ElaineEngineExport Actor : public ISpatialObject
 	{
 		GENERATED_BODY()
-		friend class GameObjectMgr;
+		friend class ActorManager;
 	public:
-		GameObject(World* InWorld);
-		GameObject(const std::string& InName);
-		~GameObject();
+		Actor(World* InWorld);
+		Actor(const std::string& InName);
+		~Actor();
 		const std::string&				GetName() const { return mName; }
-		EFUNCTION(DisplayName="Set Name", Category="GameObject")
+		EFUNCTION(DisplayName="Set Name", Category="Actor")
 		void							SetName(const std::string& InName);
-		void							Initialize(GameObjectInfoPtr info);
+		void							Initialize(ActorInfoPtr info);
 		void							Initialize();
-		Component*						GetComponentByName(const Name& name);
+		ActorComponent*						GetComponentByName(const Name& name);
 #ifdef _HAS_EDITOR_
-		std::vector<Component*>&		GetEditorComponents() { return m_components; }
+		std::vector<ActorComponent*>&		GetEditorComponents() { return m_components; }
 #endif
-		std::map<Name, Component*>&		GetComponents() { return mComponents; }
-		void							AddChildGameObject(GameObject* InChild);
-		void							AddComponent(Component* InCom);
-		GameObject*						CreateChildGameObject();
+		std::map<Name, ActorComponent*>&		GetComponents() { return mComponents; }
+		void							AddChildActor(Actor* InChild);
+		void							AddComponent(ActorComponent* InCom);
+		Actor*						CreateChildActor();
 		EFUNCTION(DisplayName="Add World Offset", Category="Transform")
 		void							AddWorldOffset(const Vector3& InDelta, bool InRecursive = true);
 		EFUNCTION(Category="Lifecycle")
 		void							Destroy();
-		void							RemoveComponent(Component* InComponent);
-		void							RemoveChildGameObject(GameObject* InObject);
+		void							RemoveComponent(ActorComponent* InComponent);
+		void							RemoveChildActor(Actor* InObject);
 		void							save();
-		Component*						AddComponent(const Name& InType);
+		ActorComponent*						AddComponent(const Name& InType);
 		SceneManager*					GetSceneManager() const;
 
 		template<typename ComponentType>
@@ -112,13 +112,13 @@ namespace Elaine
 		{
 			for (auto& com : mComponents)
 			{
-				if(com.second->mType == ComponentType::mType)
-					return static_cast<ComponentType*>(com.second);
+				if (auto* TypedComponent = dynamic_cast<ComponentType*>(com.second))
+					return TypedComponent;
 			}
 			return nullptr;
 		}
 
-		GameObject*						GetParent() { return mParent; }
+		Actor*						GetParent() { return mParent; }
 		const Vector3&					GetWorldPosition() const;
 		const Vector3&					GetWorldScale() const;
 		const Quaternion&				GetWorldRotation() const;
@@ -138,26 +138,26 @@ namespace Elaine
 
 		// ISpatialObject interface
 		virtual AxisAlignedBox			GetBoundingBox() const override;
-		virtual void*					GetUserData() const override { return const_cast<GameObject*>(this); }
-		virtual uint32_t				GetUserType() const override { return 1; } // 1 = GameObject
+		virtual void*					GetUserData() const override { return const_cast<Actor*>(this); }
+		virtual uint32_t				GetUserType() const override { return 1; } // 1 = Actor
 		virtual void					SetBVHNodeID(int32_t ID) override { mBVHNodeID = ID; }
 		virtual int32_t					GetBVHNodeID() const override { return mBVHNodeID; }
 		
 	private:
 #ifdef _HAS_EDITOR_
-		std::vector<Component*>			m_components;
-		std::map<Component*, size_t>	m_componentsIndexMap;
+		std::vector<ActorComponent*>			m_components;
+		std::map<ActorComponent*, size_t>	m_componentsIndexMap;
 #endif
-		std::map<Name, Component*>		mComponents;
-		std::vector<GameObject*>		mChildren;
-		std::map<std::string, GameObject*>	mChildrenMap;
-		GameObjectInfo*					mDescription = nullptr;
-		GameObject*						mParent = nullptr;
+		std::map<Name, ActorComponent*>		mComponents;
+		std::vector<Actor*>		mChildren;
+		std::map<std::string, Actor*>	mChildrenMap;
+		ActorInfo*					mDescription = nullptr;
+		Actor*						mParent = nullptr;
 		World*							mWorld = nullptr;
 		TransformComponent*				mTransformCom = nullptr;
-		EPROPERTY(DisplayName="Name", Category="GameObject", Tooltip="The name of this game object")
+		EPROPERTY(DisplayName="Name", Category="Actor", Tooltip="The name of this game object")
 		std::string						mName;
-		GameObjectNameGenerator			mNameGenerator;
+		ActorNameGenerator			mNameGenerator;
 		bool							mbInitialized = false;
 
 		// ISpatialObject state

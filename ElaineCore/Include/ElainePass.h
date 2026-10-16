@@ -37,9 +37,15 @@ namespace Elaine
 		void CompilePipeline();
 		GRAPHICS_PIPELINE_STATE_DESC& GetGfxState() { return mRHIDesc; }
 		RHIPipeline* GetPipelineRHI() const { return mPipeline; }
+		const std::vector<RHIPipeline::MaterialParameterInfo>& GetMaterialParameters() const
+		{
+			static const std::vector<RHIPipeline::MaterialParameterInfo> Empty;
+			return mPipeline ? mPipeline->GetMaterialParameters() : Empty;
+		}
 		void MarkDirty() { mDirty = true; }
 		bool PipelineDirty() const { return mDirty; }
 		const Name& GetPassName() const { return mPassName; }
+		const std::string& GetRenderQueueName() const { return mRenderQueueName; }
 		//const std::vector<ResourceEvent>& GetResourceEvents() const { return mResourceEvents; }
 		//void AddResourceEvent(const ResourceEvent& InEvent);
 
@@ -50,6 +56,7 @@ namespace Elaine
 		std::string		mVsMacros;
 		std::string		mPsMacros;
 		Name			mPassName;
+		std::string		mRenderQueueName = "opaque";
 		RHIPipeline*	mPipeline = nullptr;
 		bool			mDirty = false;
 		std::vector<ShaderStageEntry> mShaders;

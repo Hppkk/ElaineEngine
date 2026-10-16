@@ -34,6 +34,7 @@ namespace Elaine
 		const Name& GetType() const override;
         void MarkRenderStateDirty();
         void MarkTransformDirty();
+		const std::vector<MaterialInstanceDynamic*>& GetMaterialInstances() const { return mMaterials; }
 	private:
 		StaticMeshRenderProxy* mRenderProxy = nullptr;
 		std::vector<MaterialInstanceDynamic*> mMaterials;

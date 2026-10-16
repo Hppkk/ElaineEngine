@@ -35,11 +35,25 @@ namespace Elaine
 
 	void ResourceBase::LoadResource(bool InAsync/* = true*/)
 	{
+		std::lock_guard<std::recursive_mutex> LifecycleLock(mLifecycleMutex);
 		if (mLoadState == Loaded)
 			return;
 
 		mLoadState = Loading;
-		if (!LoadImpl())
+		bool LoadSucceeded = false;
+		try
+		{
+			LoadSucceeded = LoadImpl();
+		}
+		catch (const std::exception& Exception)
+		{
+			LOG_ERROR("Resource '{}' load exception: {}", mResourceName, Exception.what());
+		}
+		catch (...)
+		{
+			LOG_ERROR("Resource '{}' load exception.", mResourceName);
+		}
+		if (!LoadSucceeded)
 		{
 			mLoadState = Failed;
 			SetMemoryUsage(0);
@@ -54,6 +68,7 @@ namespace Elaine
 
 	void ResourceBase::UnloadResource()
 	{
+		std::lock_guard<std::recursive_mutex> LifecycleLock(mLifecycleMutex);
 		const bool WasLoaded = mLoadState == Loaded;
 		UnloadImpl();
 		SetMemoryUsage(0);
@@ -63,6 +78,7 @@ namespace Elaine
 
 	void ResourceBase::ReloadResource()
 	{
+		std::lock_guard<std::recursive_mutex> LifecycleLock(mLifecycleMutex);
 		UnloadResource();
 		LoadResource();
 	}

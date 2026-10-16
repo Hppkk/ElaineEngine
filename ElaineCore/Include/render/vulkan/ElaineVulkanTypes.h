@@ -107,6 +107,41 @@ namespace VulkanRHI
         }
     }
 
+    inline VkFrontFace TransRHIFrontFaceToVk(RHIFrontFace InFrontFace)
+    {
+        return InFrontFace == FRONT_FACE_CLOCKWISE ? VK_FRONT_FACE_CLOCKWISE : VK_FRONT_FACE_COUNTER_CLOCKWISE;
+    }
+
+    inline VkBlendFactor TransRHIBlendFactorToVk(RHIBlendFactor InFactor)
+    {
+        switch (InFactor)
+        {
+        case RHI_BLEND_FACTOR_ZERO: return VK_BLEND_FACTOR_ZERO;
+        case RHI_BLEND_FACTOR_ONE: return VK_BLEND_FACTOR_ONE;
+        case RHI_BLEND_FACTOR_SRC_COLOR: return VK_BLEND_FACTOR_SRC_COLOR;
+        case RHI_BLEND_FACTOR_ONE_MINUS_SRC_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
+        case RHI_BLEND_FACTOR_DST_COLOR: return VK_BLEND_FACTOR_DST_COLOR;
+        case RHI_BLEND_FACTOR_ONE_MINUS_DST_COLOR: return VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
+        case RHI_BLEND_FACTOR_SRC_ALPHA: return VK_BLEND_FACTOR_SRC_ALPHA;
+        case RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+        case RHI_BLEND_FACTOR_DST_ALPHA: return VK_BLEND_FACTOR_DST_ALPHA;
+        case RHI_BLEND_FACTOR_ONE_MINUS_DST_ALPHA: return VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
+        default: return VK_BLEND_FACTOR_ONE;
+        }
+    }
+
+    inline VkBlendOp TransRHIBlendOpToVk(RHIBlendOp InOp)
+    {
+        switch (InOp)
+        {
+        case RHI_BLEND_OP_SUBTRACT: return VK_BLEND_OP_SUBTRACT;
+        case RHI_BLEND_OP_REVERSE_SUBTRACT: return VK_BLEND_OP_REVERSE_SUBTRACT;
+        case RHI_BLEND_OP_MIN: return VK_BLEND_OP_MIN;
+        case RHI_BLEND_OP_MAX: return VK_BLEND_OP_MAX;
+        default: return VK_BLEND_OP_ADD;
+        }
+    }
+
     inline VkSampleCountFlagBits TransRHIMultiSampleToVk(RHIMultiSampleCount InRHIMultiSampleCount)
     {
         switch (InRHIMultiSampleCount)

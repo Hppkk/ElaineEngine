@@ -1,8 +1,16 @@
 {
-  "version": "1.0",
+  "version": "2.0.0",
   "origin": "material/grid.material",
 
   "textures": {},
 
-  "scalars": {}
+  "parameters": {
+    "SmallGridScale": 1.0,
+    "LargeGridScale": 0.1,
+    "FadeNear": 20.0,
+    "FadeFar": 150.0,
+    "GridColor": [0.3, 0.3, 0.3, 1.0],
+    "XAxisColor": [1.0, 0.2, 0.2, 1.0],
+    "ZAxisColor": [0.0, 0.3, 1.0, 1.0]
+  }
 }

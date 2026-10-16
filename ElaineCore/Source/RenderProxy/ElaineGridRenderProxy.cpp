@@ -21,6 +21,7 @@ namespace Elaine
         mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = nullptr;
         mResourceBinding.mVertexCount = 3;
         mResourceBinding.mInstanceCount = 1;
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
     }
 
     void GridRenderProxy::UpdateRenderQueue(RenderQueueSet* InRenderQueue)

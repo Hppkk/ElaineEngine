@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
 
   "macros": [ "USE_SKYBOX" ],
 
-  "renderqueue": "background",
+  "renderQueue": "background",
 
   "textures": {
     "CubeMap": "texture/sky/sky.tex"
@@ -22,7 +22,7 @@
         "PASS_SKY": 1
       },
 
-      "depthstate": {
+      "depth": {
         "test": true,
         "write": true,
         "func": "less_equal"
@@ -31,12 +31,15 @@
       "raster": {
         "cull": "front",
         "fill": "solid",
-        "frontccw": false
+        "frontFace": "cw"
       },
 
       "blend": {
         "enable": false
       }
     }
-  ]
+  ],
+  "parameters": {
+    "Exposure": { "type": "scalar", "default": 1.0, "min": 0.0, "max": 8.0 }
+  }
 }

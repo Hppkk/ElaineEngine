@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "render/vulkan/ElaineVulkanRenderPassCache.h"
+#include "render/vulkan/ElaineVulkanShader.h"
 
 namespace VulkanRHI
 {
@@ -62,6 +63,8 @@ namespace VulkanRHI
 		}
 
 		const std::vector<VulkanDescriptorSet*>& GetDescriptorSets() const { return mDescriptorSets; }
+		const std::vector<MaterialParameterInfo>& GetVulkanMaterialParameters() const { return mMaterialParameters; }
+		const std::vector<RHIPipeline::MaterialParameterInfo>& GetMaterialParameters() const override { return mMaterialParametersRHI; }
 		const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return mDescriptorSetLayouts; }
 		VulkanDescriptorSet* GetDescriptorSet(int32 InSlot);
 	protected:
@@ -72,6 +75,8 @@ namespace VulkanRHI
 		std::vector<VulkanDescriptorSet*> mDescriptorSets;
 		std::unordered_map<int32, VulkanDescriptorSet*> mDescriptorSetMap;
 		std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
+		std::vector<MaterialParameterInfo> mMaterialParameters;
+		std::vector<RHIPipeline::MaterialParameterInfo> mMaterialParametersRHI;
 		Type mType = Graphic;
 		friend class VulkanShaderManager;
 		friend class VulkanShaderCompileManager;

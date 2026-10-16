@@ -763,6 +763,23 @@ namespace Elaine
 	{
 	public:
 		RHIPipeline() : RHIResource(RRT_Pipeline) {}
+		enum class MaterialParameterType : uint8 { Unknown, Scalar, Vector, Integer, Boolean, Matrix, Array };
+		struct MaterialParameterInfo
+		{
+			std::string Name;
+			uint64 NameHash = 0;
+			MaterialParameterType Type = MaterialParameterType::Unknown;
+			uint32 Offset = 0;
+			uint32 Size = 0;
+			uint32 ArrayCount = 1;
+			uint32 Set = 0;
+			uint32 Binding = 0;
+		};
+		virtual const std::vector<MaterialParameterInfo>& GetMaterialParameters() const
+		{
+			static const std::vector<MaterialParameterInfo> Empty;
+			return Empty;
+		}
 	};
 
 	class RHIShader : public RHIResource
@@ -1182,6 +1199,12 @@ namespace Elaine
 		POLYGON_POINT, //绘制三角形的顶点
 	};
 
+	enum RHIFrontFace
+	{
+		FRONT_FACE_COUNTER_CLOCKWISE,
+		FRONT_FACE_CLOCKWISE,
+	};
+
 	enum RHIMultiSampleCount
 	{
 		SAMPLE_COUNT_1 = 0x00000001,
@@ -1477,6 +1500,7 @@ namespace Elaine
 		std::vector<RHIRectScissor2D>	mScissors;
 		uint64							mStateHash = 0;
 		RHICullMode						mCullMode = CULL_BACK;
+		RHIFrontFace					mFrontFace = FRONT_FACE_COUNTER_CLOCKWISE;
 		RHIPolygonMode					mPolygonMode = POLYGON_FILL;
 		RHIMultiSampleCount				mMultiSampleCount = SAMPLE_COUNT_1;
 		RHICompareOp					mDepthOp = COMPARE_OP_LESS;
@@ -1489,6 +1513,14 @@ namespace Elaine
 		bool							mbDepthWriteEnable = true;
 		bool							mStencilTestEnable = false;
 		bool							mbEnableColorBlend = false;
+		RHIBlendFactor				mSrcColorBlendFactor = RHI_BLEND_FACTOR_SRC_ALPHA;
+		RHIBlendFactor				mDstColorBlendFactor = RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+		RHIBlendOp					mColorBlendOp = RHI_BLEND_OP_ADD;
+		RHIBlendFactor				mSrcAlphaBlendFactor = RHI_BLEND_FACTOR_ONE;
+		RHIBlendFactor				mDstAlphaBlendFactor = RHI_BLEND_FACTOR_ZERO;
+		RHIBlendOp					mAlphaBlendOp = RHI_BLEND_OP_ADD;
+		uint8							mColorWriteMask = RHI_COLOR_COMPONENT_R_BIT | RHI_COLOR_COMPONENT_G_BIT |
+											 RHI_COLOR_COMPONENT_B_BIT | RHI_COLOR_COMPONENT_A_BIT;
 		//SubPassInfo					mSubpass; todo for some support subpass
 	};
 

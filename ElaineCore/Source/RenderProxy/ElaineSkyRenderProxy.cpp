@@ -75,6 +75,7 @@ namespace Elaine
 
         mResourceBinding.mVertexCount = 36;
         mResourceBinding.mInstanceCount = 1;
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
 
         // 从 RenderMaterialProxy 获取已解析的 RHI 纹理
         RHITexture* CubeRHI = mMaterialProxy.GetResolvedTexture(BaseColor);

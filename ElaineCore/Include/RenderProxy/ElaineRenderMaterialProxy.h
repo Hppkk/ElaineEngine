@@ -3,11 +3,28 @@
 #include "ElaineCorePrerequirements.h"
 #include "ElaineUniformGPUManager.h"
 #include "ElaineMaterialParamSnapshot.h"
+#include "math/ElaineVector4.h"
+#include "render/common/ElaineRHIProtocol.h"
+#include <vector>
 
 namespace Elaine
 {
     class ShaderPass;
     class RHITexture;
+    class RHIUniformBuffer;
+    class RenderContext;
+
+    struct alignas(16) MaterialUniformData
+    {
+        Vector4 BaseColorFactor = Vector4(1, 1, 1, 1);
+        Vector4 EmissiveFactor = Vector4(0, 0, 0, 0);
+        Vector4 PBRParams = Vector4(0.0f, 0.5f, 1.0f, 0.0f);
+        Vector4 MaterialFlags = Vector4(0, 0, 0, 0);
+        Vector4 GridParams = Vector4(1.0f, 0.1f, 20.0f, 150.0f);
+        Vector4 GridColor = Vector4(0.3f, 0.3f, 0.3f, 1.0f);
+        Vector4 XAxisColor = Vector4(1.0f, 0.2f, 0.2f, 1.0f);
+        Vector4 ZAxisColor = Vector4(0.0f, 0.3f, 1.0f, 1.0f);
+    };
 
     /**
      * RenderMaterialProxy — 渲染线程材质代理
@@ -43,6 +60,7 @@ namespace Elaine
          * 必须在渲染线程调用。
          */
         void UpdateFromSnapshot(const MaterialParamSnapshot& InSnapshot);
+        void UpdateFromSnapshot(const MaterialParamSnapshot& InSnapshot, RenderContext& InContext);
 
         // ============ 渲染线程查询接口 ============
 
@@ -60,6 +78,10 @@ namespace Elaine
 
         /** 获取向量参数 */
         Vector4 GetVector(uint64_t InParamHash, const Vector4& InDefault = Vector4::ZERO) const;
+        int32_t GetInt(uint64_t InParamHash, int32_t InDefault = 0) const;
+        bool GetBool(uint64_t InParamHash, bool InDefault = false) const;
+        RHIUniformBuffer* GetMaterialUniformBuffer() const { return mMaterialUniformBuffer; }
+        void BindToResourceBinding(RHI_DRAW_RESOURCE_BINDING& OutBinding) { mBoundResourceBinding = &OutBinding; OutBinding.SetPSUniformBuffer(0, mMaterialUniformBuffer); }
 
         /** 是否已准备就绪（资源链全部加载 + RHI 资源已解析） */
         bool IsReady() const { return mReady; }
@@ -73,6 +95,7 @@ namespace Elaine
     private:
         /// 解析纹理资源为 RHI 句柄
         void ResolveTextures(const MaterialParamSnapshot& InSnapshot);
+        void BuildUniformData();
 
     private:
         // ---------- 缓存的资源引用（ResourcePtr，引用计数安全） ----------
@@ -84,6 +107,15 @@ namespace Elaine
         // ---------- 参数副本 ----------
         std::unordered_map<uint64_t, float> mScalars;
         std::unordered_map<uint64_t, Vector4> mVectors;
+        std::unordered_map<uint64_t, int32_t> mInts;
+        std::unordered_map<uint64_t, bool> mBools;
+        MaterialUniformData mUniformData;
+        std::vector<uint8_t> mPackedUniformData;
+        size_t mUniformDataSize = sizeof(MaterialUniformData);
+        size_t mAllocatedUniformSize = 0;
+        RHI_DRAW_RESOURCE_BINDING* mBoundResourceBinding = nullptr;
+        RHIUniformBuffer* mMaterialUniformBuffer = nullptr;
+        uint64_t mUploadedRevision = ~uint64_t(0);
 
         // ---------- 状态 ----------
         bool mReady = false;

@@ -2,6 +2,9 @@
 #include "ElaineResourceManager.h"
 #include "ElaineResourceBase.h"
 #include "TaskGraph/ElaineTaskGraph.h"
+#include "ElaineRoot.h"
+#include <filesystem>
+#include <array>
 
 namespace Elaine
 {
@@ -41,12 +44,23 @@ namespace Elaine
 		}
 
 		RB = CreateResourceImpl(InPath);
+		bool ShouldStartLoad = false;
 		{
 			std::lock_guard<std::mutex> Lock_Guard(mMtx);
-			mResources.emplace(InPath, RB);
+			auto [It, Inserted] = mResources.emplace(InPath, RB);
+			if (!Inserted)
+			{
+				RB = It->second;
+				if (!RB.isNull() && (RB->IsLoaded() || RB->GetLoadState() == ResourceBase::Pending || RB->GetLoadState() == ResourceBase::Loading))
+					return RB;
+			}
+			if (!RB.isNull())
+			{
+				RB->mLoadState = ResourceBase::Pending;
+				ShouldStartLoad = true;
+			}
 		}
-
-		RB->mLoadState = ResourceBase::Pending;
+		if (!ShouldStartLoad) return RB;
 
 		if (InAsync)
 		{
@@ -92,6 +106,68 @@ namespace Elaine
 		Result.LoadedResources = mLoadedResources.load(std::memory_order_relaxed);
 		Result.TotalAllocatedBytes = mTotalAllocatedBytes.load(std::memory_order_relaxed);
 		return Result;
+	}
+
+	static bool SameResourcePath(const std::string& A, const std::string& B)
+	{
+		std::error_code EA, EB;
+		const auto PA = std::filesystem::weakly_canonical(std::filesystem::path(A), EA);
+		const auto PB = std::filesystem::weakly_canonical(std::filesystem::path(B), EB);
+		if (!EA && !EB) return PA == PB;
+		return std::filesystem::path(A).lexically_normal() == std::filesystem::path(B).lexically_normal();
+	}
+
+	bool ResourceManager::ReloadIfFileChanged(const std::string& InFullPath)
+	{
+		ResourceBasePtr Target;
+		std::string RootPath;
+		RootPath = Root::instance()->GetResourcePath();
+		{
+			std::lock_guard<std::mutex> Lock(mMtx);
+			for (const auto& Pair : mResources)
+			{
+				if (Pair.second.isNull() || !Pair.second->IsLoaded()) continue;
+				std::vector<std::string> Candidates;
+				Candidates.push_back(RootPath + Pair.second->GetPath());
+				Candidates.push_back(RootPath + "shader/vulkan/" + Pair.second->GetPath());
+				Candidates.push_back(RootPath + "shader/" + Pair.second->GetPath());
+				for (const auto& Candidate : Candidates)
+					if (SameResourcePath(Candidate, InFullPath)) { Target = Pair.second; break; }
+				if (!Target.isNull()) break;
+			}
+		}
+		if (Target.isNull()) return false;
+		Target->ReloadResource();
+		return true;
+	}
+
+	uint32_t ResourceManager::ReloadResourcesDependingOn(const std::string& InFullPath)
+	{
+		std::vector<ResourceBasePtr> Targets;
+		{
+			std::lock_guard<std::mutex> Lock(mMtx);
+			for (const auto& Pair : mResources)
+			{
+				if (Pair.second.isNull() || !Pair.second->IsLoaded()) continue;
+				std::vector<ResourceBasePtr> Dependencies;
+				Pair.second->GetDirectDependencies(Dependencies);
+				for (const auto& Dependency : Dependencies)
+				{
+					if (Dependency.isNull()) continue;
+					const std::string RootPath = Root::instance()->GetResourcePath();
+					const std::array<std::string, 3> Candidates = { RootPath + Dependency->GetPath(), RootPath + "shader/vulkan/" + Dependency->GetPath(), RootPath + "shader/" + Dependency->GetPath() };
+					bool Matches = false;
+					for (const auto& Candidate : Candidates)
+					{
+						Matches = SameResourcePath(Candidate, InFullPath);
+						if (Matches) break;
+					}
+					if (Matches) { Targets.push_back(Pair.second); break; }
+				}
+			}
+		}
+		for (const auto& Target : Targets) Target->ReloadResource();
+		return static_cast<uint32_t>(Targets.size());
 	}
 
 	void ResourceManager::OnResourceMemoryChanged(int64_t Delta, size_t AllocatedBytes)

@@ -6,6 +6,7 @@
 #include "imgui.h"
 #include "ElaineActor.h"
 #include "ElaineComponent.h"
+#include "GamePlay/ElaineMeshComponent.h"
 
 namespace Editor
 {
@@ -71,6 +72,22 @@ namespace Editor
 					{
 						ImGui::TextDisabled("No reflection data available");
 					}
+				}
+			}
+
+			if (auto* MeshComponent = dynamic_cast<Elaine::StaticMeshComponent*>(ActorComponent))
+			{
+				const auto& Materials = MeshComponent->GetMaterialInstances();
+				for (size_t MaterialIndex = 0; MaterialIndex < Materials.size(); ++MaterialIndex)
+				{
+					if (!Materials[MaterialIndex]) continue;
+					ImGui::PushID(static_cast<int>(MaterialIndex));
+					if (ImGui::TreeNode("Material Parameters"))
+					{
+						Elaine::PropertyDrawer::DrawMaterialParameters(Materials[MaterialIndex]);
+						ImGui::TreePop();
+					}
+					ImGui::PopID();
 				}
 			}
 

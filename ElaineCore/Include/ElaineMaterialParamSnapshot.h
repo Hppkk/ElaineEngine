@@ -30,6 +30,9 @@ namespace Elaine
 
         /// 覆盖的向量参数（Key 为参数名 hash）
         std::unordered_map<uint64_t, Vector4> OverridedVectors;
+        std::unordered_map<uint64_t, int32_t> OverridedInts;
+        std::unordered_map<uint64_t, bool> OverridedBools;
+        uint64_t Revision = 0;
 
         /// 快照是否有效（Source 非空且已加载）
         bool IsValid() const

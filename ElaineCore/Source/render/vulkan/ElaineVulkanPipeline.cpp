@@ -245,9 +245,9 @@ namespace VulkanRHI
         RasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         RasterizationStateCreateInfo.depthClampEnable = VK_TRUE;
         RasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-        RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;//TransRHICullModeToVk(InState.mCullMode);
+        RasterizationStateCreateInfo.cullMode = TransRHICullModeToVk(InState.mCullMode);
         RasterizationStateCreateInfo.polygonMode = TransRHIPolygonModeToVk(InState.mPolygonMode);
-        RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        RasterizationStateCreateInfo.frontFace = TransRHIFrontFaceToVk(InState.mFrontFace);
         RasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;
         RasterizationStateCreateInfo.depthBiasConstantFactor = 0.01f;
         RasterizationStateCreateInfo.depthBiasClamp = 0.0f;
@@ -285,15 +285,13 @@ namespace VulkanRHI
         VkPipelineColorBlendAttachmentState ColorBlendAttachmentState;
         Elaine::Memory::MemoryZero(ColorBlendAttachmentState);
         ColorBlendAttachmentState.blendEnable = InState.mbEnableColorBlend;
-        ColorBlendAttachmentState.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-        ColorBlendAttachmentState.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-        ColorBlendAttachmentState.colorBlendOp = VK_BLEND_OP_ADD;
-        ColorBlendAttachmentState.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE;
-        ColorBlendAttachmentState.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-        ColorBlendAttachmentState.alphaBlendOp = VK_BLEND_OP_ADD;
-        ColorBlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT
-            | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-            VK_COLOR_COMPONENT_A_BIT;
+        ColorBlendAttachmentState.srcColorBlendFactor = TransRHIBlendFactorToVk(InState.mSrcColorBlendFactor);
+        ColorBlendAttachmentState.dstColorBlendFactor = TransRHIBlendFactorToVk(InState.mDstColorBlendFactor);
+        ColorBlendAttachmentState.colorBlendOp = TransRHIBlendOpToVk(InState.mColorBlendOp);
+        ColorBlendAttachmentState.srcAlphaBlendFactor = TransRHIBlendFactorToVk(InState.mSrcAlphaBlendFactor);
+        ColorBlendAttachmentState.dstAlphaBlendFactor = TransRHIBlendFactorToVk(InState.mDstAlphaBlendFactor);
+        ColorBlendAttachmentState.alphaBlendOp = TransRHIBlendOpToVk(InState.mAlphaBlendOp);
+        ColorBlendAttachmentState.colorWriteMask = InState.mColorWriteMask;
 
         VkPipelineColorBlendStateCreateInfo ColorBlendStateCreateInfo;
         Elaine::Memory::MemoryZero(ColorBlendStateCreateInfo);
@@ -539,9 +537,9 @@ namespace VulkanRHI
         RasterizationStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
         RasterizationStateCreateInfo.depthClampEnable = VK_TRUE;
         RasterizationStateCreateInfo.rasterizerDiscardEnable = VK_FALSE;
-        RasterizationStateCreateInfo.cullMode = VK_CULL_MODE_NONE;
+        RasterizationStateCreateInfo.cullMode = TransRHICullModeToVk(InState.mCullMode);
         RasterizationStateCreateInfo.polygonMode = TransRHIPolygonModeToVk(InState.mPolygonMode);
-        RasterizationStateCreateInfo.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        RasterizationStateCreateInfo.frontFace = TransRHIFrontFaceToVk(InState.mFrontFace);
         RasterizationStateCreateInfo.depthBiasEnable = VK_TRUE;
         RasterizationStateCreateInfo.lineWidth = 1.0f;
         CreateInfo.pRasterizationState = &RasterizationStateCreateInfo;
@@ -567,9 +565,14 @@ namespace VulkanRHI
         // 颜色混合
         VkPipelineColorBlendAttachmentState BlendAttachmentState;
         Elaine::Memory::MemoryZero(BlendAttachmentState);
-        BlendAttachmentState.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
-                                               VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-        BlendAttachmentState.blendEnable = VK_FALSE;
+        BlendAttachmentState.colorWriteMask = InState.mColorWriteMask;
+        BlendAttachmentState.blendEnable = InState.mbEnableColorBlend;
+        BlendAttachmentState.srcColorBlendFactor = TransRHIBlendFactorToVk(InState.mSrcColorBlendFactor);
+        BlendAttachmentState.dstColorBlendFactor = TransRHIBlendFactorToVk(InState.mDstColorBlendFactor);
+        BlendAttachmentState.colorBlendOp = TransRHIBlendOpToVk(InState.mColorBlendOp);
+        BlendAttachmentState.srcAlphaBlendFactor = TransRHIBlendFactorToVk(InState.mSrcAlphaBlendFactor);
+        BlendAttachmentState.dstAlphaBlendFactor = TransRHIBlendFactorToVk(InState.mDstAlphaBlendFactor);
+        BlendAttachmentState.alphaBlendOp = TransRHIBlendOpToVk(InState.mAlphaBlendOp);
 
         std::vector<VkPipelineColorBlendAttachmentState> BlendAttachments(RPKey.GetNumColorAttachments(), BlendAttachmentState);
 

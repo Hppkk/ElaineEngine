@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "2.0.0",
 
   "macros": [ "USE_GRID" ],
 
-  "renderqueue": "transparent",
+  "renderQueue": "transparent",
 
   "textures": {},
 
@@ -20,7 +20,7 @@
         "PASS_GRID": 1
       },
 
-      "depthstate": {
+      "depth": {
         "test": true,
         "write": false,
         "func": "less_equal"
@@ -28,8 +28,8 @@
 
       "raster": {
         "cull": "none",
-        "fill": "solid",
-        "frontccw": false
+        "frontFace": "ccw",
+        "fill": "solid"
       },
 
       "blend": {
@@ -37,8 +37,19 @@
         "srcColor": "src_alpha",
         "dstColor": "one_minus_src_alpha",
         "srcAlpha": "one",
-        "dstAlpha": "one_minus_src_alpha"
+        "dstAlpha": "one_minus_src_alpha",
+        "colorOp": "add",
+        "alphaOp": "add"
       }
     }
-  ]
+  ],
+  "parameters": {
+    "SmallGridScale": { "type": "scalar", "default": 1.0, "min": 0.01, "max": 100.0 },
+    "LargeGridScale": { "type": "scalar", "default": 0.1, "min": 0.001, "max": 10.0 },
+    "FadeNear": { "type": "scalar", "default": 20.0, "min": 0.0, "max": 1000.0 },
+    "FadeFar": { "type": "scalar", "default": 150.0, "min": 1.0, "max": 5000.0 },
+    "GridColor": { "type": "color", "default": [0.3, 0.3, 0.3, 1.0] },
+    "XAxisColor": { "type": "color", "default": [1.0, 0.2, 0.2, 1.0] },
+    "ZAxisColor": { "type": "color", "default": [0.0, 0.3, 1.0, 1.0] }
+  }
 }

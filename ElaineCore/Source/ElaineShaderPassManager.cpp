@@ -65,6 +65,33 @@ namespace Elaine
         return POLYGON_FILL;
     }
 
+    inline static RHIFrontFace ParseFrontFace(const std::string& value)
+    {
+        return value == "cw" || value == "clockwise" ? FRONT_FACE_CLOCKWISE : FRONT_FACE_COUNTER_CLOCKWISE;
+    }
+
+    inline static RHIBlendFactor ParseBlendFactor(const std::string& value)
+    {
+        static const std::unordered_map<std::string, RHIBlendFactor> Map = {
+            {"zero", RHI_BLEND_FACTOR_ZERO}, {"one", RHI_BLEND_FACTOR_ONE},
+            {"src_color", RHI_BLEND_FACTOR_SRC_COLOR}, {"one_minus_src_color", RHI_BLEND_FACTOR_ONE_MINUS_SRC_COLOR},
+            {"dst_color", RHI_BLEND_FACTOR_DST_COLOR}, {"one_minus_dst_color", RHI_BLEND_FACTOR_ONE_MINUS_DST_COLOR},
+            {"src_alpha", RHI_BLEND_FACTOR_SRC_ALPHA}, {"one_minus_src_alpha", RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA},
+            {"dst_alpha", RHI_BLEND_FACTOR_DST_ALPHA}, {"one_minus_dst_alpha", RHI_BLEND_FACTOR_ONE_MINUS_DST_ALPHA}
+        };
+        auto It = Map.find(value);
+        return It == Map.end() ? RHI_BLEND_FACTOR_ONE : It->second;
+    }
+
+    inline static RHIBlendOp ParseBlendOp(const std::string& value)
+    {
+        if (value == "subtract") return RHI_BLEND_OP_SUBTRACT;
+        if (value == "reverse_subtract") return RHI_BLEND_OP_REVERSE_SUBTRACT;
+        if (value == "min") return RHI_BLEND_OP_MIN;
+        if (value == "max") return RHI_BLEND_OP_MAX;
+        return RHI_BLEND_OP_ADD;
+    }
+
 	Elaine::ShaderPassManager::ShaderPassManager()
 	{
 
@@ -101,9 +128,17 @@ namespace Elaine
         HashCombine(hash, InShaderPass->mRHIDesc.mDepthOp);
 
         HashCombine(hash, InShaderPass->mRHIDesc.mCullMode);
+        HashCombine(hash, InShaderPass->mRHIDesc.mFrontFace);
         HashCombine(hash, InShaderPass->mRHIDesc.mPolygonMode);
 
         HashCombine(hash, InShaderPass->mRHIDesc.mbEnableColorBlend);
+        HashCombine(hash, InShaderPass->mRHIDesc.mSrcColorBlendFactor);
+        HashCombine(hash, InShaderPass->mRHIDesc.mDstColorBlendFactor);
+        HashCombine(hash, InShaderPass->mRHIDesc.mColorBlendOp);
+        HashCombine(hash, InShaderPass->mRHIDesc.mSrcAlphaBlendFactor);
+        HashCombine(hash, InShaderPass->mRHIDesc.mDstAlphaBlendFactor);
+        HashCombine(hash, InShaderPass->mRHIDesc.mAlphaBlendOp);
+        HashCombine(hash, InShaderPass->mRHIDesc.mColorWriteMask);
         HashCombine(hash, (uint64_t)InShaderPass->mRHIDesc.mMultiSampleCount);
 
         for (auto& s : InShaderPass->mShaders)
@@ -117,6 +152,7 @@ namespace Elaine
             HashCombine(hash, FNV_1A_HASH_64(m));
         }
 
+        HashCombine(hash, FNV_1A_HASH_64(InShaderPass->mRenderQueueName));
         InShaderPass->mRHIDesc.mStateHash = hash;
 	}
 
@@ -126,6 +162,7 @@ namespace Elaine
             return nullptr;
 
         ShaderPass* NewPass = new ShaderPass(InJson.value("name", "UnnamedPass").c_str());
+        NewPass->mRenderQueueName = InJson.value("renderQueue", "opaque");
 
         // ---------- Shaders ----------
         const JsonCpp& JsonShaders = InJson["shaders"];
@@ -190,9 +227,9 @@ namespace Elaine
         }
 
         // ---------- Depth ----------
-        if (InJson.contains("depthstate"))
+        if (InJson.contains("depth"))
         {
-            const JsonCpp& d = InJson["depthstate"];
+            const JsonCpp& d = InJson["depth"];
             NewPass->mRHIDesc.mbDepthTestEnable = d.value("test", true);
             NewPass->mRHIDesc.mbDepthWriteEnable = d.value("write", true);
             NewPass->mRHIDesc.mDepthOp = ParseDepthFunc(d.value("func", "less_equal"));
@@ -202,8 +239,9 @@ namespace Elaine
         if (InJson.contains("raster"))
         {
             const JsonCpp& r = InJson["raster"];
-            NewPass->mRHIDesc.mCullMode = ParseCullMode(r.value("cull_mode", "back"));
-            NewPass->mRHIDesc.mPolygonMode = ParseFillMode(r.value("polygon_mode", "solid"));
+            NewPass->mRHIDesc.mCullMode = ParseCullMode(r.value("cull", "back"));
+            NewPass->mRHIDesc.mFrontFace = ParseFrontFace(r.value("frontFace", "ccw"));
+            NewPass->mRHIDesc.mPolygonMode = ParseFillMode(r.value("fill", "solid"));
         }
 
         NewPass->mRHIDesc.mMultiSampleCount = (RHIMultiSampleCount)InJson.value("multi_sample_count", 1);
@@ -213,6 +251,12 @@ namespace Elaine
         {
             const JsonCpp& b = InJson["blend"];
             NewPass->mRHIDesc.mbEnableColorBlend = b.value("enable", false);
+            NewPass->mRHIDesc.mSrcColorBlendFactor = ParseBlendFactor(b.value("srcColor", "src_alpha"));
+            NewPass->mRHIDesc.mDstColorBlendFactor = ParseBlendFactor(b.value("dstColor", "one_minus_src_alpha"));
+            NewPass->mRHIDesc.mColorBlendOp = ParseBlendOp(b.value("colorOp", "add"));
+            NewPass->mRHIDesc.mSrcAlphaBlendFactor = ParseBlendFactor(b.value("srcAlpha", "one"));
+            NewPass->mRHIDesc.mDstAlphaBlendFactor = ParseBlendFactor(b.value("dstAlpha", "zero"));
+            NewPass->mRHIDesc.mAlphaBlendOp = ParseBlendOp(b.value("alphaOp", "add"));
         }
 
         // ---------- Hash & PSO ----------
@@ -240,6 +284,15 @@ namespace Elaine
 
 	void ShaderPassManager::DestroyShaderPass(ShaderPass* InShaderPass)
 	{
-
+		if (InShaderPass == nullptr)
+			return;
+		for (auto It = mShaderPasses.begin(); It != mShaderPasses.end(); )
+		{
+			if (It->second == InShaderPass)
+				It = mShaderPasses.erase(It);
+			else
+				++It;
+		}
+		delete InShaderPass;
 	}
 }

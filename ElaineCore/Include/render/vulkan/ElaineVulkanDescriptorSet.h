@@ -75,8 +75,8 @@ namespace VulkanRHI
 		VkDescriptorSetLayout CreateDescriptorSetLayout(const  VkDescriptorSetLayoutCreateInfo& InCreateInfo);
 		bool AllocateDescriptorSets(const VkDescriptorSetAllocateInfo& InDescriptorSetAllocateInfo, VulkanDescriptorSet** OutSets);
 
-		void WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet);
-		void WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet);
+		void WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet, uint32_t InBinding = 0);
+		void WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet, uint32_t InBinding = 0);
 
 	private:
 		std::vector<VulkanDescriptorPool*> mPools;

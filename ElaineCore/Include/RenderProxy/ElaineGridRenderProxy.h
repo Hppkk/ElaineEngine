@@ -16,6 +16,7 @@ namespace Elaine
          * 必须在渲染线程（ENQUEUE_RENDER_COMMAND 的 lambda 中）调用。
          */
         void UpdateMaterial(const MaterialParamSnapshot& InSnapshot) { mMaterialProxy.UpdateFromSnapshot(InSnapshot); }
+        void UpdateMaterial(const MaterialParamSnapshot& InSnapshot, RenderContext& InContext) { mMaterialProxy.UpdateFromSnapshot(InSnapshot, InContext); }
 
         /** 获取渲染线程材质代理（仅渲染线程访问） */
         RenderMaterialProxy& GetMaterialProxy() { return mMaterialProxy; }

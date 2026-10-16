@@ -73,7 +73,7 @@ namespace Elaine
 		virtual ~ResourceBase();
 		void					LoadResource(bool async = true);
 		void					UnloadResource();
-		void					ReloadResource();
+		virtual void				ReloadResource();
 		void					SaveResource();
 		void					ResourceArrived();
 		LoadState				GetLoadState() const;
@@ -116,6 +116,7 @@ namespace Elaine
 		// 加载完成回调列表
 		std::vector<LoadCompleteCallback> mLoadCompleteCallbacks;
 		std::mutex mCallbackMutex;
+		mutable std::recursive_mutex mLifecycleMutex;
 		std::atomic<bool> mResourceArrived{false};  // 标记 ResourceArrived 是否已调用
 	};
 }

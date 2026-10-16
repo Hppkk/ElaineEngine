@@ -27,7 +27,19 @@ namespace Elaine
             return mOriginMaterialResource->GetPass(InPassType);
         }
         const MaterialPtr& GetOriginMaterial() const { return mOriginMaterialResource; }
+		uint64_t GetLayoutRevision() const { return mOriginMaterialResource.isNull() ? 0 : mOriginMaterialResource->GetLayoutRevision(); }
         TexturePtr GetTexture(TextureSemantics InSemantics) const;
+        float GetScalar(uint64_t InParamHash, float InDefault = 0.0f) const;
+        Vector4 GetVector(uint64_t InParamHash, const Vector4& InDefault = Vector4::ZERO) const;
+        int32_t GetInt(uint64_t InParamHash, int32_t InDefault = 0) const;
+        bool GetBool(uint64_t InParamHash, bool InDefault = false) const;
+        bool HasScalar(uint64_t InParamHash) const;
+        bool HasVector(uint64_t InParamHash) const;
+        const std::vector<MaterialParameterDesc>& GetParameterLayout() const
+        {
+            static const std::vector<MaterialParameterDesc> Empty;
+            return mOriginMaterialResource.isNull() ? Empty : mOriginMaterialResource->GetParameterLayout();
+        }
 
     protected:
         virtual bool LoadImpl() override;
@@ -42,6 +54,10 @@ namespace Elaine
     private:
         MaterialPtr mOriginMaterialResource;
         std::unordered_map<TextureSemantics, TexturePtr> mOverridedTextures;
+        std::unordered_map<uint64_t, float> mOverridedScalars;
+        std::unordered_map<uint64_t, Vector4> mOverridedVectors;
+        std::unordered_map<uint64_t, int32_t> mOverridedInts;
+        std::unordered_map<uint64_t, bool> mOverridedBools;
     };
 
     using MaterialInstanceStaticPtr = ResourcePtr<MaterialInstanceStatic>;

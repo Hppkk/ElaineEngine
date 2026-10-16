@@ -35,7 +35,7 @@ namespace Elaine
                         SkyProxy->SetCubeTexture(CubeCopy);
 
                     // 用快照更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
-                    SkyProxy->UpdateMaterial(Snapshot);
+                    SkyProxy->UpdateMaterial(Snapshot, InContext);
                     self->mProxy = SkyProxy;
 
                     // ========== 资源依赖追踪 ==========
@@ -126,7 +126,7 @@ namespace Elaine
         ENQUEUE_RENDER_COMMAND(UpdateSkyMaterial)([ProxyCopy, Snapshot = std::move(Snapshot)](RenderContext& InContext)
             {
                 if (ProxyCopy)
-                    ProxyCopy->UpdateMaterial(Snapshot);
+                    ProxyCopy->UpdateMaterial(Snapshot, InContext);
             });
     }
 

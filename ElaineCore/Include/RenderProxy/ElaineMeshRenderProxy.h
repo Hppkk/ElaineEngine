@@ -22,6 +22,7 @@ namespace Elaine
          * 必须在渲染线程（ENQUEUE_RENDER_COMMAND 的 lambda 中）调用。
          */
         void UpdateMaterials(const std::vector<MaterialParamSnapshot>& InSnapshots);
+        void UpdateMaterials(const std::vector<MaterialParamSnapshot>& InSnapshots, RenderContext& InContext);
 
         /** 获取指定索引的渲染线程材质代理（仅渲染线程访问） */
         RenderMaterialProxy* GetMaterialProxy(uint32 InIndex);

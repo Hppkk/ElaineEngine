@@ -206,7 +206,7 @@ namespace VulkanRHI
 					{
 						// 如果是静态资源（IsStaticResourceBinding），则直接更新
 						// WriteImageToDescriptorSet 内部已添加去重检测，所以静态资源其实只会在第一次真写
-						mDescriptorSetManager->WriteImageToDescriptorSet(VkTexture, Sampler, CurrentDescriptorSet);
+						mDescriptorSetManager->WriteImageToDescriptorSet(VkTexture, Sampler, CurrentDescriptorSet, i);
 						bFound = true;
 						break;
 					}
@@ -246,7 +246,15 @@ namespace VulkanRHI
 			if (InResourceBinding.mPSUniformBuffers[i] != nullptr)
 			{
 				VulkanUniformBuffer* VkPSUB = static_cast<VulkanUniformBuffer*>(InResourceBinding.mPSUniformBuffers[i]);
-				// TODO: 获取PS对应的描述符集并写入
+				for (auto* CurrentDescriptorSet : mCurrentGfxPipeline->GetDescriptorSets())
+				{
+					if (CurrentDescriptorSet && CurrentDescriptorSet->GetSet() == 2)
+					{
+						// MaterialParams is conventionally set=2, binding=5.
+						mDescriptorSetManager->WriteUniformBufferToDescriptorSet(VkPSUB, CurrentDescriptorSet, 5);
+						break;
+					}
+				}
 			}
 		}
 		// ========== 5. Bind Descriptor Sets ==========

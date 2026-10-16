@@ -14,6 +14,12 @@
 #include "ElaineDeferredRenderPipeline.h"
 #include "ElaineRenderCommandQueue.h"
 #include "platform/ElaineSystemInfo.h"
+#include "ElaineTextureManager.h"
+#include "ElaineMaterialManager.h"
+#include "ElaineMaterialInstanceStaticManager.h"
+#include "ElaineMeshManager.h"
+#include "ElaineShaderManager.h"
+#include <filesystem>
 
 namespace Elaine
 {
@@ -58,6 +64,23 @@ namespace Elaine
 		TaskGraph::TaskGraph::instance()->Initialize();
 		new ModuleManager();
 		ModuleManager::instance()->Initialize();
+		// 文件监控只产生事件，所有资源重载都在逻辑线程的 TickTime 中执行。
+		FileMonitor::instance()->RegisterCallback([this](const std::string& ChangedPath)
+		{
+			const bool ShaderChanged = ChangedPath.find("/shader/") != std::string::npos || ChangedPath.find("\\shader\\") != std::string::npos;
+			ShaderManager::instance()->ReloadIfFileChanged(ChangedPath);
+			TextureManager::instance()->ReloadIfFileChanged(ChangedPath);
+			MeshManager::instance()->ReloadIfFileChanged(ChangedPath);
+			MaterialManager::instance()->ReloadIfFileChanged(ChangedPath);
+			MaterialInstanceStaticManager::instance()->ReloadIfFileChanged(ChangedPath);
+			MaterialInstanceStaticManager::instance()->ReloadResourcesDependingOn(ChangedPath);
+			if (ShaderChanged)
+			{
+				MaterialManager::instance()->ReloadResourcesDependingOn(ChangedPath);
+				MaterialInstanceStaticManager::instance()->ReloadResourcesDependingOn(ChangedPath);
+			}
+		});
+		FileMonitor::instance()->Start(mResourcePath);
 		GETMODULE(RenderModule)->LoadDynamicRHI(InDesc);
 		//new WindowSystem();
 
@@ -164,8 +187,15 @@ namespace Elaine
 
 	void Root::TickTime()
 	{
+		DispatchFileChanges();
 		CalculateDeltaTime();
 		CalculateFPS(mDeltaTime);
+	}
+
+	void Root::DispatchFileChanges()
+	{
+		if (FileMonitor::instance()->IsRunning())
+			FileMonitor::instance()->DispatchChanges();
 	}
 
 	SceneManager* Root::GetSceneManager(const String& name)
@@ -230,6 +260,7 @@ namespace Elaine
 
 	void Root::Terminate()
 	{
+		if (FileMonitor::instance()->IsRunning()) FileMonitor::instance()->Stop();
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
 		delete LogSystem::instance();

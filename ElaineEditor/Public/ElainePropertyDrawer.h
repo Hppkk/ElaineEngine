@@ -5,6 +5,7 @@
 #include <cstring>
 #include <unordered_map>
 #include <functional>
+#include "ElaineMaterialInstanceDynamic.h"
 
 namespace Elaine
 {
@@ -64,6 +65,7 @@ namespace Elaine
 
 		// Draw a full ActorComponent inspector (type title + grouped properties)
 		static bool DrawComponentInspector(void* obj, const TypeDescriptor* desc);
+		static bool DrawMaterialParameters(MaterialInstanceDynamic* material);
 
 	private:
 		// Built-in type widget dispatch

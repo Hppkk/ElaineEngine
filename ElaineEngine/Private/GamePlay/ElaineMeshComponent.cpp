@@ -71,7 +71,7 @@ namespace Elaine
                 {
                     mRenderProxy->SetMesh(CurrentMesh);
                     // 用快照数组更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
-                    mRenderProxy->UpdateMaterials(Snapshots);
+                    mRenderProxy->UpdateMaterials(Snapshots, Context);
                     mRenderProxy->SetSubMeshCount(Count);
                     mRenderProxy->SetCastShadow(mbCastShadow);
                     mRenderProxy->SetReceiveShadow(mbReceiveShadow);
@@ -125,7 +125,7 @@ namespace Elaine
                 Proxy->SetMesh(CurrentMesh);
                 Proxy->SetSubMeshCount(Count);
                 // 用快照数组更新渲染线程的 RenderMaterialProxy
-                Proxy->UpdateMaterials(Snapshots);
+                Proxy->UpdateMaterials(Snapshots, Context);
                 Proxy->SetCastShadow(Cast);
                 Proxy->SetReceiveShadow(Recv);
                 Proxy->SetRenderLayer(Layer);

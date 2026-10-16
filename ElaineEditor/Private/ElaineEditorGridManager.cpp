@@ -48,7 +48,7 @@ namespace Editor
 				State->Proxy.store(GridProxy);
 				GridProxy->SetVisible(State->Visible.load());
 				// 用快照更新渲染线程的 RenderMaterialProxy
-				GridProxy->UpdateMaterial(Snapshot);
+				GridProxy->UpdateMaterial(Snapshot, InContext);
 
 				// Track material resources and begin initialization
 				if (Snapshot.IsValid())

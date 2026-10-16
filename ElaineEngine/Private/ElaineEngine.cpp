@@ -37,6 +37,7 @@ namespace Elaine
 
 	void ElaineEngine::RenderOneFrame()
 	{
+		Root::instance()->DispatchFileChanges();
 		TickTime();
 		for (World* CurrentWorld : mWorlds)
 		{

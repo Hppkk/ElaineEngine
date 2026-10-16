@@ -54,6 +54,12 @@ namespace Elaine
         void SetVector(const Name& InParamName, const Vector4& InValue);
         Vector4 GetVector(const Name& InParamName, const Vector4& InDefault = Vector4::ZERO) const;
         bool HasVectorOverride(const Name& InParamName) const;
+        void SetInt(const Name& InParamName, int32_t InValue);
+        int32_t GetInt(const Name& InParamName, int32_t InDefault = 0) const;
+        bool HasIntOverride(const Name& InParamName) const;
+        void SetBool(const Name& InParamName, bool InValue);
+        bool GetBool(const Name& InParamName, bool InDefault = false) const;
+        bool HasBoolOverride(const Name& InParamName) const;
 
         // ============ 快照生成（逻辑线程调用，用于跨线程传递） ============
         
@@ -67,6 +73,11 @@ namespace Elaine
 
         // ============ 底层资源访问（逻辑线程） ============
         MaterialInstanceStaticPtr GetSourceMaterial() const { return mSource; }
+        const std::vector<MaterialParameterDesc>& GetParameterLayout() const
+        {
+            static const std::vector<MaterialParameterDesc> Empty;
+            return mSource.isNull() ? Empty : mSource->GetParameterLayout();
+        }
 
     private:
         MaterialInstanceStaticPtr mSource;
@@ -74,5 +85,8 @@ namespace Elaine
         std::unordered_map<TextureSemantics, TexturePtr> mOverridedTextures;
         std::unordered_map<uint64_t, float> mOverridedScalars;
         std::unordered_map<uint64_t, Vector4> mOverridedVectors;
+        std::unordered_map<uint64_t, int32_t> mOverridedInts;
+        std::unordered_map<uint64_t, bool> mOverridedBools;
+        uint64_t mRevision = 0;
     };
 }

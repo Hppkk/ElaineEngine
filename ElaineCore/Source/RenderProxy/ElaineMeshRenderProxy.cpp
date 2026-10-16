@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineMeshRenderProxy.h"
+#include "ElaineRenderContext.h"
 
 namespace Elaine
 {
@@ -22,6 +23,17 @@ namespace Elaine
 		for (size_t i = 0; i < InSnapshots.size(); ++i)
 		{
 			mMaterialProxies[i].UpdateFromSnapshot(InSnapshots[i]);
+			mMaterialProxies[i].BindToResourceBinding(mResourceBinding);
+		}
+	}
+
+	void StaticMeshRenderProxy::UpdateMaterials(const std::vector<MaterialParamSnapshot>& InSnapshots, RenderContext& InContext)
+	{
+		mMaterialProxies.resize(InSnapshots.size());
+		for (size_t i = 0; i < InSnapshots.size(); ++i)
+		{
+			mMaterialProxies[i].UpdateFromSnapshot(InSnapshots[i], InContext);
+			mMaterialProxies[i].BindToResourceBinding(mResourceBinding);
 		}
 	}
 

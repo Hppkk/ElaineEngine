@@ -32,6 +32,9 @@ namespace Elaine
 		virtual ResourceBasePtr	GetResource(const std::string& InPath, bool InAsync = true);
 		ResourceBasePtr CreateEmptyResource(const std::string& InPath);
 		ResourceMemoryStats GetMemoryStats() const;
+		bool ReloadIfFileChanged(const std::string& InFullPath);
+		uint32_t ReloadResourcesDependingOn(const std::string& InFullPath);
+		ResourceType GetResourceType() const { return mResourceType; }
 		void OnResourceMemoryChanged(int64_t Delta, size_t AllocatedBytes = 0);
 		void OnResourceLoaded(bool Loaded);
 

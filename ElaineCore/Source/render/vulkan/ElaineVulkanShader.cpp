@@ -5,6 +5,7 @@
 #include "spirv_cross/spirv_reflect.hpp"
 #include "ElaineFileManager.h"
 #include "ElaineMD5.h"
+#include "ElaineHash.h"
 #include "ElaineMemoryMap.h"
 #include "render/vulkan/ElaineVulkanCommandContext.h"
 #include "render/vulkan/ElaineVulkanDescriptorSet.h"
@@ -380,6 +381,37 @@ namespace VulkanRHI
 					bindingInfo.blockSize = reflection.get_declared_struct_size(type);
 					bindingInfo.count = 1;
 					PipelineRefData.descriptorSets[bindingInfo.set].push_back(bindingInfo);
+					if (bindingInfo.set == 2)
+					{
+						for (uint32_t MemberIndex = 0; MemberIndex < type.member_types.size(); ++MemberIndex)
+						{
+							MaterialParameterInfo Parameter;
+							Parameter.name = reflection.get_member_name(resource.base_type_id, MemberIndex);
+							Parameter.nameHash = Elaine::FNV_1A_HASH_64(Parameter.name);
+							Parameter.offset = reflection.type_struct_member_offset(type, MemberIndex);
+							Parameter.size = static_cast<uint32_t>(reflection.get_declared_struct_member_size(type, MemberIndex));
+							Parameter.set = bindingInfo.set;
+							Parameter.binding = bindingInfo.binding;
+							const auto& MemberType = reflection.get_type(type.member_types[MemberIndex]);
+							Parameter.arrayCount = MemberType.array.empty() ? 1u : static_cast<uint32_t>(MemberType.array[0]);
+							if (!MemberType.array.empty())
+								Parameter.parameterType = MaterialParameterType::Array;
+							else if (MemberType.basetype == spirv_cross::SPIRType::Boolean)
+								Parameter.parameterType = MaterialParameterType::Boolean;
+							else if (MemberType.basetype == spirv_cross::SPIRType::Int || MemberType.basetype == spirv_cross::SPIRType::UInt)
+								Parameter.parameterType = MaterialParameterType::Integer;
+							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.vecsize == 1)
+								Parameter.parameterType = MaterialParameterType::Scalar;
+							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.columns > 1)
+								Parameter.parameterType = MaterialParameterType::Matrix;
+							else if (MemberType.basetype == spirv_cross::SPIRType::Float)
+								Parameter.parameterType = MaterialParameterType::Vector;
+							auto Existing = std::find_if(PipelineRefData.materialParameters.begin(), PipelineRefData.materialParameters.end(),
+								[&Parameter](const MaterialParameterInfo& Item) { return Item.nameHash == Parameter.nameHash && Item.binding == Parameter.binding; });
+							if (Existing == PipelineRefData.materialParameters.end())
+								PipelineRefData.materialParameters.push_back(std::move(Parameter));
+						}
+					}
 				}
 
 				for (const auto& resource : resources.storage_buffers)
@@ -401,7 +433,7 @@ namespace VulkanRHI
 					DescriptorBindingInfo bindingInfo{};
 					bindingInfo.set = reflection.get_decoration(resource.id, spv::DecorationDescriptorSet);
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
-					bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // »ò VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
+					bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // ï¿½ï¿½ VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
 					bindingInfo.name = reflection.get_name(resource.id);
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 
@@ -472,7 +504,7 @@ namespace VulkanRHI
 					TempInputBindingDesc.binding = 0;
 					TempInputBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-					// 1. ¶¨ÒåÒ»¸ö¸¨Öú½á¹¹À´ÔÝ´æÐÅÏ¢
+					// 1. ï¿½ï¿½ï¿½ï¿½Ò»ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½á¹¹ï¿½ï¿½ï¿½Ý´ï¿½ï¿½ï¿½Ï¢
 					struct ReflectedAttribute
 					{
 						uint32_t location;
@@ -484,7 +516,7 @@ namespace VulkanRHI
 
 					std::vector<ReflectedAttribute> sortedAttributes;
 
-					// 2. µÚÒ»±éÑ­»·£ºÊÕ¼¯ÐÅÏ¢²¢È·¶¨ Format
+					// 2. ï¿½ï¿½Ò»ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½Õ¼ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½È·ï¿½ï¿½ Format
 					for (const auto& resource : resources.stage_inputs)
 					{
 						ReflectedAttribute attribute{};
@@ -565,6 +597,21 @@ namespace VulkanRHI
 		if (!GeneratePipelineDescriptors(PipelineRefData))
 		{
 			return false;
+		}
+		InVertexShader->mPipeline->mMaterialParameters = PipelineRefData.materialParameters;
+		InVertexShader->mPipeline->mMaterialParametersRHI.clear();
+		for (const auto& Parameter : PipelineRefData.materialParameters)
+		{
+			RHIPipeline::MaterialParameterInfo RHIParameter;
+			RHIParameter.Name = Parameter.name;
+			RHIParameter.NameHash = Parameter.nameHash;
+			RHIParameter.Type = static_cast<RHIPipeline::MaterialParameterType>(Parameter.parameterType);
+			RHIParameter.Offset = Parameter.offset;
+			RHIParameter.Size = Parameter.size;
+			RHIParameter.ArrayCount = Parameter.arrayCount;
+			RHIParameter.Set = Parameter.set;
+			RHIParameter.Binding = Parameter.binding;
+			InVertexShader->mPipeline->mMaterialParametersRHI.push_back(std::move(RHIParameter));
 		}
 
 

@@ -83,14 +83,14 @@ namespace VulkanRHI
         return mFreePool->AllocateDescriptorSets(InDescriptorSetAllocateInfo, &(*OutSets)->mHandle);;
     }
 
-    void VulkanDescriptorSetManager::WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet)
+    void VulkanDescriptorSetManager::WriteUniformBufferToDescriptorSet(VulkanUniformBuffer* InUniformBuffer, VulkanDescriptorSet* InDescriptorSet, uint32_t InBinding)
     {
         VkBuffer Buffer = InUniformBuffer->GetHandle();
         VkDeviceSize Offset = InUniformBuffer->GetOffset();
         VkDeviceSize Range = InUniformBuffer->GetBufferSize();
         
         // 检查绑定是否变化，避免重复更新导致验证错误
-        if (InDescriptorSet->IsSameBufferBinding(Buffer, Offset, Range))
+        if (InBinding == 0 && InDescriptorSet->IsSameBufferBinding(Buffer, Offset, Range))
         {
             return;  // 绑定未变化，跳过更新
         }
@@ -102,7 +102,7 @@ namespace VulkanRHI
         VkWriteDescriptorSet DescriptorWrite{};
         DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         DescriptorWrite.dstSet = InDescriptorSet->mHandle;
-        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstBinding = InBinding;
         DescriptorWrite.dstArrayElement = 0;
         DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         DescriptorWrite.descriptorCount = 1;
@@ -112,10 +112,11 @@ namespace VulkanRHI
         vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &DescriptorWrite, 0, RHI_NULL_HANDLE);
         
         // 记录绑定状态
-        InDescriptorSet->SetBoundBuffer(Buffer, Offset, Range);
+        if (InBinding == 0)
+            InDescriptorSet->SetBoundBuffer(Buffer, Offset, Range);
     }
 
-    void VulkanDescriptorSetManager::WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet)
+    void VulkanDescriptorSetManager::WriteImageToDescriptorSet(VulkanTexture* InImage, VkSampler InSampler, VulkanDescriptorSet* InDescriptorSet, uint32_t InBinding)
     {
         VkImageView ImageView = InImage->GetTextureView().mView;
         
@@ -132,7 +133,7 @@ namespace VulkanRHI
         VkWriteDescriptorSet DescriptorWrite{};
         DescriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         DescriptorWrite.dstSet = InDescriptorSet->mHandle;
-        DescriptorWrite.dstBinding = 0;
+        DescriptorWrite.dstBinding = InBinding;
         DescriptorWrite.dstArrayElement = 0;
         DescriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         DescriptorWrite.descriptorCount = 1;

@@ -38,6 +38,7 @@ namespace Elaine
 		void					PostFrame(float dt);
 		void					RenderOneFrame();
 		void					TickTime();
+		void					DispatchFileChanges();
 		SceneManager*			GetSceneManager(const String& name);
 		SceneManager*			GetMainSceneManager();
 		SceneManager*			CreateSceneManager(const String& name);

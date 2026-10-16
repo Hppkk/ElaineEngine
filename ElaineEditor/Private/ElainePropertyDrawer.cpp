@@ -4,6 +4,48 @@
 
 namespace Elaine
 {
+	bool PropertyDrawer::DrawMaterialParameters(MaterialInstanceDynamic* material)
+	{
+		if (!material || !material->IsValid()) return false;
+		bool changed = false;
+		for (const auto& param : material->GetParameterLayout())
+		{
+			ImGui::PushID(static_cast<int>(param.Hash));
+			switch (param.Kind)
+			{
+			case MaterialParameterKind::Scalar:
+			{
+				float value = material->GetScalar(Name(param.Name.c_str()), param.DefaultValue.x);
+				bool edit = param.HasRange ? ImGui::SliderFloat(param.Name.c_str(), &value, param.Min, param.Max) : ImGui::DragFloat(param.Name.c_str(), &value, 0.01f);
+				if (edit) { material->SetScalar(Name(param.Name.c_str()), value); changed = true; }
+				break;
+			}
+			case MaterialParameterKind::Vector:
+			case MaterialParameterKind::Color:
+			{
+				Vector4 value = material->GetVector(Name(param.Name.c_str()), param.DefaultValue);
+				bool edit = param.Kind == MaterialParameterKind::Color ? ImGui::ColorEdit4(param.Name.c_str(), value.ptr()) : ImGui::DragFloat4(param.Name.c_str(), value.ptr(), 0.01f);
+				if (edit) { material->SetVector(Name(param.Name.c_str()), value); changed = true; }
+				break;
+			}
+			case MaterialParameterKind::Integer:
+			{
+				int value = material->GetInt(Name(param.Name.c_str()), static_cast<int>(param.DefaultValue.x));
+				if (ImGui::DragInt(param.Name.c_str(), &value)) { material->SetInt(Name(param.Name.c_str()), value); changed = true; }
+				break;
+			}
+			case MaterialParameterKind::Boolean:
+			{
+				bool value = material->GetBool(Name(param.Name.c_str()), param.DefaultValue.x != 0.0f);
+				if (ImGui::Checkbox(param.Name.c_str(), &value)) { material->SetBool(Name(param.Name.c_str()), value); changed = true; }
+				break;
+			}
+			default: ImGui::TextDisabled("%s (unsupported)", param.Name.c_str()); break;
+			}
+			ImGui::PopID();
+		}
+		return changed;
+	}
 	// ============================================================
 	// DrawFloat
 	// ============================================================

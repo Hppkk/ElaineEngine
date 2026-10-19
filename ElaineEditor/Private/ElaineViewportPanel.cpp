@@ -1,5 +1,7 @@
 #include "ElaineViewportPanel.h"
 #include "imgui.h"
+#include "imgui_internal.h"
+#include "ElaineImGuiLayer.h"
 #include "ElaineEditorGlobalContext.h"
 #include "ElaineWorld.h"
 #include "ElaineViewport.h"
@@ -33,12 +35,79 @@ namespace Editor
             }
             return Result;
         }
-        bool InRect(const ImageRect& Rect, const ImVec2& Point)
-        {
-            return Point.x >= Rect.Min.x && Point.x <= Rect.Max.x && Point.y >= Rect.Min.y && Point.y <= Rect.Max.y;
-        }
     }
 
+    ViewportPanel::~ViewportPanel()
+    {
+        mGizmoInput.Reset();
+        mSceneInput.Reset();
+        if (auto* input = Elaine::InputSystem::TryGet(); input && mRegisteredWindow)
+            input->RemoveViewport(mRegisteredWindow, 1);
+    }
+
+    void ViewportPanel::InitializeInput()
+    {
+        using namespace Elaine;
+        auto* input = InputSystem::instance();
+        mSceneDesc.Name = "SceneViewport";
+        mSceneDesc.Priority = 100;
+        mSceneDesc.Viewport = 1;
+        mSceneDesc.Domain = InputDomain::Scene;
+        mSceneDesc.Enabled = false;
+        mSceneDesc.HitTest = [this](const InputEvent& e) { return ContainsInput(e); };
+        mSceneInput = input->RegisterLayer(mSceneDesc, [this, input](const InputEvent& e) {
+            if (e.Type == InputEventType::Button && e.Action == EInputAction::Press)
+                input->CapturePointer(mSceneInput, e.Window);
+            return e.Type == InputEventType::Cancel ? InputReply::Unhandled : InputReply::Handled;
+        });
+        mGizmoDesc = mSceneDesc;
+        mGizmoDesc.Name = "SceneGizmo";
+        mGizmoDesc.Priority = 200;
+        mGizmoDesc.KeyboardFocused = false;
+        mGizmoDesc.HitTest = [this](const InputEvent& e) {
+            return mGizmoHit && (e.Type != InputEventType::Button || e.Button == EMouseButton::Left);
+        };
+        mGizmoInput = input->RegisterLayer(mGizmoDesc, [this, input](const InputEvent& e) {
+            if (e.Type == InputEventType::Button && e.Action == EInputAction::Press)
+                input->CapturePointer(mGizmoInput, e.Window);
+            return InputReply::Handled;
+        });
+    }
+
+    void ViewportPanel::BeginInputFrame()
+    {
+        mImageVisible = false;
+        mWindowFocused = false;
+        mDrawList = nullptr;
+        mGizmoHit = false;
+    }
+    bool ViewportPanel::ContainsInput(const Elaine::InputEvent& e) const
+    {
+        return mImageVisible && e.Window == mInputWindow && mImageRect.Contains(e.X, e.Y) &&
+            ImGuiLayer::IsWindowAtPosition(mImageWindowId, e);
+    }
+    bool ViewportPanel::IsDragging() const
+    {
+        auto* input = Elaine::InputSystem::instance();
+        return input->HasPointerCapture(mSceneInput) || input->HasPointerCapture(mGizmoInput);
+    }
+    void ViewportPanel::UpdateInputLayers()
+    {
+        auto* input = Elaine::InputSystem::instance();
+        if (mRegisteredWindow && (!mImageVisible || mRegisteredWindow != mInputWindow))
+            input->RemoveViewport(mRegisteredWindow, 1);
+        mRegisteredWindow = mImageVisible ? mInputWindow : 0;
+        if (mImageVisible)
+        {
+            input->SetViewport(mInputWindow, 1, Elaine::InputDomain::Scene, mImageRect);
+            if (mWindowFocused) input->SetKeyboardFocus(mInputWindow, 1);
+        }
+        mSceneDesc.Window = mGizmoDesc.Window = mInputWindow;
+        mSceneDesc.Enabled = mGizmoDesc.Enabled = mImageVisible;
+        mSceneDesc.KeyboardFocused = mWindowFocused || IsDragging();
+        input->UpdateLayer(mSceneInput, mSceneDesc);
+        input->UpdateLayer(mGizmoInput, mGizmoDesc);
+    }
     void ViewportPanel::OnDraw()
     {
         auto* Context = EditorGlobalContext::instance();
@@ -63,44 +132,93 @@ namespace Editor
         ImGui::SetCursorScreenPos(AreaPos);
         ImGui::Dummy(AreaSize);
 
-        const bool HoveredImage = InRect(Image, ImGui::GetMousePos());
-        const bool RightMouseDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-        if (HoveredImage && !ImGui::IsAnyItemActive() && !RightMouseDown)
+        auto* input = Elaine::InputSystem::instance();
+        mImageVisible = true;
+        mImageRect = {Image.Min.x, Image.Min.y, Image.Max.x, Image.Max.y};
+        mDrawList = DrawList;
+        mImageWindowId = ImGui::GetCurrentWindow()->ID;
+        mWindowFocused = ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows);
+        mInputWindow = reinterpret_cast<Elaine::InputWindowId>(ImGui::GetWindowViewport()->PlatformHandleRaw);
+        const bool hovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem) &&
+            mImageRect.Contains(ImGui::GetMousePos().x, ImGui::GetMousePos().y);
+        auto& io = ImGui::GetIO();
+        const bool modal = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+        const auto& gizmoState = input->GetState(mGizmoInput);
+        const bool allowGizmo = !modal && !io.KeyAlt && !io.MouseDown[1] &&
+            (hovered || input->HasPointerCapture(mGizmoInput)) &&
+            (!io.MouseDown[0] || io.MouseClicked[0] || gizmoState.IsMouseDown(Elaine::EMouseButton::Left));
+        auto* viewport = Context->GetSceneViewport();
+        auto* selected = Context->GetSelectedActor();
+        if (viewport && viewport->GetCamera() && selected &&
+            (Gizmos.IsVisible(GizmoType::Transform) || Gizmos.IsVisible(GizmoType::Bounds)))
         {
-            if (ImGui::IsKeyPressed(ImGuiKey_W)) { Gizmos.SetOperation(ImGuizmo::TRANSLATE); ImGui::MarkIniSettingsDirty(); }
-            if (ImGui::IsKeyPressed(ImGuiKey_E)) { Gizmos.SetOperation(ImGuizmo::ROTATE); ImGui::MarkIniSettingsDirty(); }
-            if (ImGui::IsKeyPressed(ImGuiKey_R)) { Gizmos.SetOperation(ImGuizmo::SCALE); ImGui::MarkIniSettingsDirty(); }
-            if (ImGui::IsKeyPressed(ImGuiKey_X)) { Gizmos.SetMode(Gizmos.GetMode() == ImGuizmo::LOCAL ? ImGuizmo::WORLD : ImGuizmo::LOCAL); ImGui::MarkIniSettingsDirty(); }
-        }
-
-        if (Context->GetSceneViewport() && Context->GetSceneViewport()->GetCamera())
-        {
-            Elaine::CameraComponent* Camera = Context->GetSceneViewport()->GetCamera();
-            mCameraController.Tick(ImGui::GetIO().DeltaTime, HoveredImage, Camera, Context->GetSelectedActor());
+            auto* camera = viewport->GetCamera();
             ImGuizmo::SetDrawlist(DrawList);
-            ImGuizmo::SetOrthographic(Camera->GetProjectionType() == Elaine::ProjectionType::Orthographic);
-            DrawList->PushClipRect(Image.Min, Image.Max, true);
+            ImGuizmo::SetOrthographic(camera->GetProjectionType() == Elaine::ProjectionType::Orthographic);
+            Gizmos.DrawTransform(selected, camera->GetViewMatrix(), camera->GetProjMatrix(),
+                Image.Min.x, Image.Min.y, Image.Size().x, Image.Size().y, allowGizmo);
+            mGizmoHit = allowGizmo && (ImGuizmo::IsUsing() || ImGuizmo::IsOver());
+        }
+        else ImGuizmo::Enable(false);
+    }
 
-            Elaine::Actor* Selected = Context->GetSelectedActor();
-            if (Selected && (Gizmos.IsVisible(GizmoType::Transform) || Gizmos.IsVisible(GizmoType::Bounds)))
-                Gizmos.DrawTransform(Selected, Camera->GetViewMatrix(), Camera->GetProjMatrix(), Image.Min.x, Image.Min.y, Image.Size().x, Image.Size().y);
-
-            const bool GizmoInput = ImGuizmo::IsUsing() || ImGuizmo::IsOver();
-            if (HoveredImage && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !GizmoInput)
+    void ViewportPanel::ProcessInput()
+    {
+        using namespace Elaine;
+        auto* input = InputSystem::instance();
+        auto* Context = EditorGlobalContext::instance();
+        auto& Gizmos = Context->GetGizmoManager();
+        const auto& state = input->GetState(mSceneInput);
+        const auto& gizmo = input->GetState(mGizmoInput);
+        // A hidden/closed panel must still discard cancelled gestures this frame.
+        for (const auto& event : state.Events)
+            if (event.Type == InputEventType::Cancel)
             {
-                const ImVec2 Mouse = ImGui::GetMousePos();
-                mBoxSelectStartX = Mouse.x; mBoxSelectStartY = Mouse.y; mIsBoxSelecting = false;
+                if (event.CancelPointer) mSelectionActive = mIsBoxSelecting = mRightDown = false;
+                if (event.CancelKeyboard && (event.Key == EKeyCode::Unknown || event.Key == EKeyCode::LeftAlt || event.Key == EKeyCode::RightAlt)) mAltDown = false;
             }
-            if (HoveredImage && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 5.0f) && !GizmoInput)
+        Gizmos.CommitTransform(mImageVisible && !gizmo.Cancelled &&
+            (gizmo.IsMouseDown(EMouseButton::Left) || gizmo.IsMouseReleased(EMouseButton::Left)));
+        if (gizmo.Cancelled) ImGuizmo::Enable(false);
+        auto* viewport = Context->GetSceneViewport();
+        if (!viewport || !viewport->GetCamera()) return;
+        auto* Camera = viewport->GetCamera();
+        mCameraController.Tick(ImGui::GetIO().DeltaTime, mImageVisible && !state.Cancelled,
+            state, Camera, Context->GetSelectedActor());
+        if (!mImageVisible || !mDrawList) return;
+        const ImageRect Image{{mImageRect.Left, mImageRect.Top}, {mImageRect.Right, mImageRect.Bottom}};
+        if (!state.IsMouseDown(EMouseButton::Right))
+        {
+            if (state.IsKeyPressed(EKeyCode::W)) { Gizmos.SetOperation(ImGuizmo::TRANSLATE); ImGui::MarkIniSettingsDirty(); }
+            if (state.IsKeyPressed(EKeyCode::E)) { Gizmos.SetOperation(ImGuizmo::ROTATE); ImGui::MarkIniSettingsDirty(); }
+            if (state.IsKeyPressed(EKeyCode::R)) { Gizmos.SetOperation(ImGuizmo::SCALE); ImGui::MarkIniSettingsDirty(); }
+            if (state.IsKeyPressed(EKeyCode::X)) { Gizmos.SetMode(Gizmos.GetMode() == ImGuizmo::LOCAL ? ImGuizmo::WORLD : ImGuizmo::LOCAL); ImGui::MarkIniSettingsDirty(); }
+        }
+        for (const auto& event : state.Events)
+        {
+            if (event.Type == InputEventType::Cancel)
             {
-                mIsBoxSelecting = true;
-                const ImVec2 End = ImGui::GetMousePos();
-                DrawList->AddRect(ImVec2(mBoxSelectStartX, mBoxSelectStartY), End, IM_COL32(0, 255, 0, 255));
-                DrawList->AddRectFilled(ImVec2(mBoxSelectStartX, mBoxSelectStartY), End, IM_COL32(0, 255, 0, 30));
+                if (event.CancelPointer) mSelectionActive = mIsBoxSelecting = mRightDown = false;
+                if (event.CancelKeyboard && (event.Key == EKeyCode::Unknown || event.Key == EKeyCode::LeftAlt || event.Key == EKeyCode::RightAlt)) mAltDown = false;
+                continue;
             }
-            if ((HoveredImage || mIsBoxSelecting) && ImGui::IsMouseReleased(ImGuiMouseButton_Left) && !GizmoInput)
+            if (event.Type == InputEventType::Key && (event.Key == EKeyCode::LeftAlt || event.Key == EKeyCode::RightAlt))
+                mAltDown = event.Action != EInputAction::Release;
+            if (event.Type == InputEventType::Button && event.Button == EMouseButton::Right)
+                mRightDown = event.Action != EInputAction::Release;
+            if (event.Type == InputEventType::Button && event.Button == EMouseButton::Left && event.Action == EInputAction::Press && !mAltDown && !mRightDown)
             {
-                ImVec2 Mouse = ImGui::GetMousePos();
+                mSelectionActive = true; mIsBoxSelecting = false;
+                mBoxSelectStartX = event.X; mBoxSelectStartY = event.Y;
+            }
+            if (event.Type == InputEventType::Move && mSelectionActive)
+            {
+                const float dx = event.X - mBoxSelectStartX, dy = event.Y - mBoxSelectStartY;
+                mIsBoxSelecting |= dx * dx + dy * dy >= 25.0f;
+            }
+            if (event.Type == InputEventType::Button && event.Button == EMouseButton::Left && event.Action == EInputAction::Release && mSelectionActive)
+            {
+                ImVec2 Mouse(event.X, event.Y);
                 Mouse.x = std::max(Image.Min.x, std::min(Image.Max.x, Mouse.x));
                 Mouse.y = std::max(Image.Min.y, std::min(Image.Max.y, Mouse.y));
                 const Elaine::Matrix4x4 View = Camera->GetViewMatrix();
@@ -156,9 +274,15 @@ namespace Editor
                         }
                     }
                 }
-                mIsBoxSelecting = false;
+                mIsBoxSelecting = mSelectionActive = false;
             }
-            DrawList->PopClipRect();
+        }
+        if (mIsBoxSelecting && mSelectionActive)
+        {
+            mDrawList->PushClipRect(Image.Min, Image.Max, true);
+            mDrawList->AddRect(ImVec2(mBoxSelectStartX, mBoxSelectStartY), ImVec2(state.MouseX, state.MouseY), IM_COL32(0, 255, 0, 255));
+            mDrawList->AddRectFilled(ImVec2(mBoxSelectStartX, mBoxSelectStartY), ImVec2(state.MouseX, state.MouseY), IM_COL32(0, 255, 0, 30));
+            mDrawList->PopClipRect();
         }
     }
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "imgui/ImGuizmo/ImGuizmo.h"
+#include <array>
 
 namespace Elaine { class Actor; class Matrix4x4; }
 
@@ -40,9 +41,12 @@ namespace Editor
 
         void DrawSettings();
         bool DrawTransform(Elaine::Actor* Actor, const Elaine::Matrix4x4& View,
-            const Elaine::Matrix4x4& Projection, float X, float Y, float Width, float Height);
+            const Elaine::Matrix4x4& Projection, float X, float Y, float Width, float Height, bool AllowInput);
+        bool CommitTransform(bool AllowCommit);
 
     private:
+        Elaine::Actor* mPendingActor = nullptr;
+        std::array<float, 16> mPendingWorld{};
         unsigned int mVisibilityMask = static_cast<unsigned int>(GizmoType::Transform) |
             static_cast<unsigned int>(GizmoType::Grid) |
             static_cast<unsigned int>(GizmoType::Bounds);

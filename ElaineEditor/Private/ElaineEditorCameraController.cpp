@@ -1,7 +1,7 @@
 #include "ElaineEditorCameraController.h"
 #include "GamePlay/ElaineCameraComponent.h"
 #include "GamePlay/ElaineActor.h"
-#include "imgui.h"
+
 #include "math/ElaineQuaternion.h"
 #include "math/ElaineVector3.h"
 #include "math/ElaineMath.h"
@@ -10,11 +10,12 @@ namespace Editor
 {
 	void EditorCameraController::Tick(
 		float deltaTime,
-		bool viewportHovered,
+		bool inputActive,
+        const Elaine::InputState& input,
 		Elaine::CameraComponent* camera,
 		Elaine::Actor* selectedObj)
 	{
-		if (!camera || !viewportHovered)
+		if (!camera || !inputActive)
 		{
 			// Reset drag state when not active
 			mCurrentMode = ECameraMode::None;
@@ -22,15 +23,15 @@ namespace Editor
 			return;
 		}
 
-		ImGuiIO& io = ImGui::GetIO();
+		using namespace Elaine;
 
 		// ============================================================
 		// Determine current mode from input
 		// ============================================================
-		bool altDown   = io.KeyAlt;
-		bool rightDown = ImGui::IsMouseDown(ImGuiMouseButton_Right);
-		bool midDown   = ImGui::IsMouseDown(ImGuiMouseButton_Middle);
-		bool leftDown  = ImGui::IsMouseDown(ImGuiMouseButton_Left);
+		bool altDown   = (input.IsKeyDown(EKeyCode::LeftAlt) || input.IsKeyDown(EKeyCode::RightAlt));
+		bool rightDown = input.IsMouseDown(EMouseButton::Right);
+		bool midDown   = input.IsMouseDown(EMouseButton::Middle);
+		bool leftDown  = input.IsMouseDown(EMouseButton::Left);
 
 		ECameraMode desiredMode = ECameraMode::None;
 
@@ -60,16 +61,13 @@ namespace Editor
 		// ============================================================
 		// Compute mouse delta
 		// ============================================================
-		ImVec2 mousePos = ImGui::GetMousePos();
 		float dx = 0.0f, dy = 0.0f;
 
 		if (mMouseDragStarted)
 		{
-			dx = mousePos.x - mLastMouseX;
-			dy = mousePos.y - mLastMouseY;
+			dx = input.MouseDeltaX;
+			dy = input.MouseDeltaY;
 		}
-		mLastMouseX = mousePos.x;
-		mLastMouseY = mousePos.y;
 		mMouseDragStarted = true;
 
 		// ============================================================
@@ -78,7 +76,7 @@ namespace Editor
 		switch (mCurrentMode)
 		{
 		case ECameraMode::Fly:
-			HandleFlyMode(deltaTime, camera);
+			HandleFlyMode(deltaTime, input, camera);
 			// Also rotate camera with mouse delta
 			if (dx != 0.0f || dy != 0.0f)
 			{
@@ -110,15 +108,15 @@ namespace Editor
 		// ============================================================
 		// Scroll zoom (always available when hovered, no mode required)
 		// ============================================================
-		if (io.MouseWheel != 0.0f)
+		if (input.ScrollY != 0.0f)
 		{
-			HandleZoom(io.MouseWheel, camera);
+			HandleZoom(input.ScrollY, camera);
 		}
 
 		// ============================================================
 		// F = Focus on selection
 		// ============================================================
-		if (ImGui::IsKeyPressed(ImGuiKey_F) && !ImGui::IsAnyItemActive())
+		if (input.IsKeyPressed(EKeyCode::F))
 		{
 			HandleFocus(camera, selectedObj);
 		}
@@ -127,12 +125,12 @@ namespace Editor
 	// ============================================================
 	// Fly Mode — FPS-style WASD + QE
 	// ============================================================
-	void EditorCameraController::HandleFlyMode(float deltaTime, Elaine::CameraComponent* camera)
+	void EditorCameraController::HandleFlyMode(float deltaTime, const Elaine::InputState& input, Elaine::CameraComponent* camera)
 	{
 		float speed = mSettings.flySpeed;
-		if (ImGui::GetIO().KeyShift)
+		if ((input.IsKeyDown(Elaine::EKeyCode::LeftShift) || input.IsKeyDown(Elaine::EKeyCode::RightShift)))
 			speed = mSettings.flySpeedFast;
-		else if (ImGui::GetIO().KeyCtrl)
+		else if ((input.IsKeyDown(Elaine::EKeyCode::LeftControl) || input.IsKeyDown(Elaine::EKeyCode::RightControl)))
 			speed = mSettings.flySpeedSlow;
 
 		Elaine::Vector3 move = Elaine::Vector3::ZERO;
@@ -140,12 +138,12 @@ namespace Editor
 		Elaine::Vector3 right   = camera->GetRight();
 		Elaine::Vector3 up      = Elaine::Vector3::UNIT_Y;
 
-		if (ImGui::IsKeyDown(ImGuiKey_W))  move += forward;
-		if (ImGui::IsKeyDown(ImGuiKey_S))  move -= forward;
-		if (ImGui::IsKeyDown(ImGuiKey_D))  move += right;
-		if (ImGui::IsKeyDown(ImGuiKey_A))  move -= right;
-		if (ImGui::IsKeyDown(ImGuiKey_E))  move += up;
-		if (ImGui::IsKeyDown(ImGuiKey_Q))  move -= up;
+		if (input.IsKeyDown(Elaine::EKeyCode::W))  move += forward;
+		if (input.IsKeyDown(Elaine::EKeyCode::S))  move -= forward;
+		if (input.IsKeyDown(Elaine::EKeyCode::D))  move += right;
+		if (input.IsKeyDown(Elaine::EKeyCode::A))  move -= right;
+		if (input.IsKeyDown(Elaine::EKeyCode::E))  move += up;
+		if (input.IsKeyDown(Elaine::EKeyCode::Q))  move -= up;
 
 		if (move != Elaine::Vector3::ZERO)
 		{

@@ -1,10 +1,15 @@
 #include "ElaineImGuiLayer.h"
+#include "ElaineInputSystem.h"
+#include "imgui_internal.h"
+#include "platform/Windows/ElaineWindowsInput.h"
 #include "imgui.h"
 #include "backends/imgui_impl_win32.h"
 #include "backends/imgui_impl_dx11.h"
 #include "imgui/ImGuizmo/ImGuizmo.h"
 #include <d3d11.h>
 #include <CommCtrl.h>
+#include <vector>
+#include <algorithm>
 #pragma comment(lib, "comctl32.lib")
 
 // Forward declare Win32 message handler from imgui
@@ -14,6 +19,37 @@ namespace Editor
 {
 	// Subclass ID for our ImGui hook
 	static const UINT_PTR IMGUI_SUBCLASS_ID = 1001;
+    static const UINT_PTR INPUT_SUBCLASS_ID = 1002;
+    static void (*OriginalCreateWindow)(ImGuiViewport*) = nullptr;
+    static void (*OriginalDestroyWindow)(ImGuiViewport*) = nullptr;
+    static std::vector<HWND> InputWindows;
+
+    static LRESULT CALLBACK FloatingInputProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam,
+        UINT_PTR, DWORD_PTR)
+    {
+        Elaine::WindowsInput::QueueMessage(window, message, wParam, lParam);
+        if (message == WM_NCDESTROY)
+        {
+            RemoveWindowSubclass(window, FloatingInputProc, INPUT_SUBCLASS_ID);
+            InputWindows.erase(std::remove(InputWindows.begin(), InputWindows.end(), window), InputWindows.end());
+        }
+        return DefSubclassProc(window, message, wParam, lParam);
+    }
+    static void CreateInputWindow(ImGuiViewport* viewport)
+    {
+        OriginalCreateWindow(viewport);
+        auto window = static_cast<HWND>(viewport->PlatformHandleRaw);
+        if (window)
+        {
+            SetWindowSubclass(window, FloatingInputProc, INPUT_SUBCLASS_ID, 0);
+            InputWindows.push_back(window);
+        }
+    }
+    static void DestroyInputWindow(ImGuiViewport* viewport)
+    {
+        // WM_NCDESTROY is collected by FloatingInputProc before the backend frees its data.
+        OriginalDestroyWindow(viewport);
+    }
 
 	// ============================================================
 	// SubclassProc — intercepts messages before PlatformWindow's WndProc
@@ -23,8 +59,9 @@ namespace Editor
 		UINT_PTR uIdSubclass, DWORD_PTR dwRefData)
 	{
 		// Let ImGui handle the message first
-		if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam))
-			return true;
+		const auto imguiResult = ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam);
+        // Cursor messages contain no input event; preserve the backend's native cursor.
+        if (msg == WM_SETCURSOR && imguiResult) return imguiResult;
 
 		// Handle resize for DX11 swapchain
 		ImGuiLayer* layer = reinterpret_cast<ImGuiLayer*>(dwRefData);
@@ -41,6 +78,19 @@ namespace Editor
 	{
 		Shutdown();
 	}
+
+    bool ImGuiLayer::IsWindowAtPosition(unsigned int windowId, const Elaine::InputEvent& event)
+    {
+        const auto& windows = ImGui::GetCurrentContext()->Windows;
+        for (int i = windows.Size - 1; i >= 0; --i)
+        {
+            const auto* window = windows[i];
+            if (!window->Active || window->Hidden || (window->Flags & ImGuiWindowFlags_NoMouseInputs)) continue;
+            if (reinterpret_cast<Elaine::InputWindowId>(window->Viewport->PlatformHandleRaw) != event.Window) continue;
+            if (window->OuterRectClipped.Contains(ImVec2(event.X, event.Y))) return window->ID == windowId;
+        }
+        return false;
+    }
 
 	// ============================================================
 	// CreateDeviceD3D
@@ -179,6 +229,8 @@ namespace Editor
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 		io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
+        // Both ImGui and the engine process the same complete OS batch this frame.
+        io.ConfigInputTrickleEventQueue = false;
 
 		SetupImGuiStyle();
 
@@ -191,6 +243,11 @@ namespace Editor
 
 		ImGui_ImplWin32_Init(hwnd);
 		ImGui_ImplDX11_Init(mDevice, mDeviceContext);
+        auto& platform = ImGui::GetPlatformIO();
+        OriginalCreateWindow = platform.Platform_CreateWindow;
+        OriginalDestroyWindow = platform.Platform_DestroyWindow;
+        platform.Platform_CreateWindow = CreateInputWindow;
+        platform.Platform_DestroyWindow = DestroyInputWindow;
 
 		mInitialized = true;
 		return true;
@@ -204,6 +261,12 @@ namespace Editor
 		// Remove subclass
 		if (mHwnd)
 			RemoveWindowSubclass(mHwnd, ImGuiSubclassProc, IMGUI_SUBCLASS_ID);
+        for (auto window : InputWindows)
+            RemoveWindowSubclass(window, FloatingInputProc, INPUT_SUBCLASS_ID);
+        InputWindows.clear();
+        auto& platform = ImGui::GetPlatformIO();
+        platform.Platform_CreateWindow = OriginalCreateWindow;
+        platform.Platform_DestroyWindow = OriginalDestroyWindow;
 
 		ImGui_ImplDX11_Shutdown();
 		ImGui_ImplWin32_Shutdown();

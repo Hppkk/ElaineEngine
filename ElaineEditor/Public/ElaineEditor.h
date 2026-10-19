@@ -1,6 +1,7 @@
 #pragma once
 #include "ElaineEditorPrerequirements.h"
 #include "ElainePlatformWindow.h"
+#include "ElaineInputRouter.h"
 
 namespace Elaine
 {
@@ -38,6 +39,7 @@ namespace Editor
 		ConsolePanel* GetConsole() const { return mConsolePanel; }
 
 	private:
+        Elaine::InputLayerHandle mUIInputLayer;
 		Elaine::ElaineEngine*   mEngineImpl = nullptr;
 		Elaine::PlatformWindow* mMainWindow = nullptr;
 		ImGuiLayer*             mImGuiLayer = nullptr;

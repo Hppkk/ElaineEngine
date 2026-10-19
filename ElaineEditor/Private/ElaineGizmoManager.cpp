@@ -139,8 +139,10 @@ namespace Editor
     }
 
     bool EditorGizmoManager::DrawTransform(Elaine::Actor* Actor, const Elaine::Matrix4x4& View,
-        const Elaine::Matrix4x4& Projection, float X, float Y, float Width, float Height)
+        const Elaine::Matrix4x4& Projection, float X, float Y, float Width, float Height, bool AllowInput)
     {
+        mPendingActor = nullptr;
+        ImGuizmo::Enable(AllowInput);
         if (!Actor || (!IsVisible(GizmoType::Transform) && !IsVisible(GizmoType::Bounds)) || Width <= 1.0f || Height <= 1.0f)
             return false;
 
@@ -181,7 +183,18 @@ namespace Editor
             IsVisible(GizmoType::Bounds) ? LocalBounds : nullptr);
         if (!ImGuizmo::IsUsing()) return false;
 
-        Elaine::Matrix4x4 NewWorld(ModelData);
+        mPendingActor = Actor;
+        std::copy(ModelData, ModelData + 16, mPendingWorld.begin());
+        return true;
+    }
+
+    bool EditorGizmoManager::CommitTransform(bool AllowCommit)
+    {
+        auto* Actor = mPendingActor;
+        mPendingActor = nullptr;
+        if (!AllowCommit || !Actor) return false;
+
+        Elaine::Matrix4x4 NewWorld(mPendingWorld.data());
         Elaine::Vector3 Position, Scale;
         Elaine::Quaternion Rotation;
         NewWorld.decomposition(Position, Scale, Rotation);

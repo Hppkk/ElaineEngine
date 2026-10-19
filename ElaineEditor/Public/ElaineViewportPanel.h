@@ -1,7 +1,10 @@
 #pragma once
 #include "ElaineEditorBase.h"
 #include "ElaineEditorCameraController.h"
+#include "ElaineInputSystem.h"
 #include <d3d11.h>
+
+struct ImDrawList;
 
 namespace Editor
 {
@@ -13,8 +16,17 @@ namespace Editor
 	public:
 		ViewportPanel()
 			: EditorPanel("Viewport") {}
+        ~ViewportPanel() override;
 
 		void OnDraw() override;
+        void InitializeInput();
+        void BeginInputFrame();
+        void UpdateInputLayers();
+        void ProcessInput();
+        bool ContainsInput(const Elaine::InputEvent& event) const;
+        bool WantsKeyboard() const { return mImageVisible && mWindowFocused; }
+        bool IsDragging() const;
+        Elaine::InputWindowId GetInputWindow() const { return mInputWindow; }
 
 		// Set the texture to display (from engine RTT readback)
 		void SetViewportTexture(ID3D11ShaderResourceView* srv, int w, int h)
@@ -25,6 +37,14 @@ namespace Editor
 		}
 
 	private:
+        Elaine::InputLayerHandle mSceneInput, mGizmoInput;
+        Elaine::InputLayerDesc mSceneDesc, mGizmoDesc;
+        Elaine::InputRect mImageRect;
+        Elaine::InputWindowId mInputWindow = 0, mRegisteredWindow = 0;
+        ImDrawList* mDrawList = nullptr;
+        unsigned int mImageWindowId = 0;
+        bool mImageVisible = false, mWindowFocused = false, mGizmoHit = false;
+        bool mSelectionActive = false, mAltDown = false, mRightDown = false;
 		ID3D11ShaderResourceView* mViewportSRV = nullptr;
 		int mTexWidth = 0;
 		int mTexHeight = 0;

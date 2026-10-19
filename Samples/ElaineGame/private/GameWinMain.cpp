@@ -5,6 +5,7 @@
 #include "ElaineCameraComponent.h"
 #include "ElaineSkyComponent.h"
 #include "ElainePlatformWindow.h"
+#include "ElaineInputSystem.h"
 
 
 #ifdef __cplusplus
@@ -108,6 +109,9 @@ extern "C" {
 		while (!NewWindow->shouldClose())
 		{
 			NewWindow->pollEvents();
+            auto* input = Elaine::InputSystem::instance();
+            input->BeginFrame();
+            input->DispatchEvents();
 			//Tick();
 		}
 

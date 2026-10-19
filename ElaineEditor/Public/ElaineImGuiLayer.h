@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <Windows.h>
 #include <string>
+#include "ElaineInputRouter.h"
 
 namespace Editor
 {
@@ -24,6 +25,7 @@ namespace Editor
 		// Frame lifecycle
 		void BeginFrame();
 		void EndFrame();     // Render + Present
+        static bool IsWindowAtPosition(unsigned int windowId, const Elaine::InputEvent& event);
 
 		// Accessors
 		HWND GetHWND() const { return mHwnd; }

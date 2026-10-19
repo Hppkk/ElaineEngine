@@ -1,5 +1,6 @@
 #pragma once
 #include "math/ElaineVector3.h"
+#include "ElaineInputRouter.h"
 
 namespace Elaine
 {
@@ -15,8 +16,7 @@ namespace Editor
 	// Unity-style editor Scene View camera controller.
 	// Handles fly-mode, orbit, pan, zoom, and focus controls.
 	//
-	// Usage: Call Tick() once per frame from ViewportPanel when
-	//        the viewport window is hovered/focused.
+	// Usage: Call Tick() after routing, including inactive frames to reset gestures.
 	//
 	// Controls:
 	//   Right-Click + WASD/QE  : Fly mode (FPS-style move + look)
@@ -31,13 +31,14 @@ namespace Editor
 	public:
 		EditorCameraController() = default;
 
-		// Call once per frame while the viewport is hovered/active.
+		// Call once per frame with the viewport's routed input.
 		// deltaTime: frame time in seconds
-		// viewportHovered: is the viewport window hovered
+		// inputActive: whether the viewport is enabled and its gesture is valid
 		// camera: the editor scene camera to manipulate
 		// selectedObj: currently selected object (for focus/orbit)
 		void Tick(float deltaTime,
-				  bool viewportHovered,
+				  bool inputActive,
+				  const Elaine::InputState& input,
 				  Elaine::CameraComponent* camera,
 				  Elaine::Actor* selectedObj);
 
@@ -73,15 +74,13 @@ namespace Editor
 		ECameraMode mCurrentMode = ECameraMode::None;
 
 		// Mouse state for delta computation
-		float mLastMouseX = 0.0f;
-		float mLastMouseY = 0.0f;
 		bool  mMouseDragStarted = false;
 
 		// Orbit pivot point
 		Elaine::Vector3 mOrbitPivot = Elaine::Vector3::ZERO;
 
 		// Helpers
-		void HandleFlyMode(float deltaTime, Elaine::CameraComponent* camera);
+		void HandleFlyMode(float deltaTime, const Elaine::InputState& input, Elaine::CameraComponent* camera);
 		void HandlePanMode(float dx, float dy, Elaine::CameraComponent* camera);
 		void HandleOrbitMode(float dx, float dy, Elaine::CameraComponent* camera);
 		void HandleZoom(float scrollDelta, Elaine::CameraComponent* camera);

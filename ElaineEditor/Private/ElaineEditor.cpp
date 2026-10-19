@@ -53,6 +53,12 @@ namespace Editor
 		mInspectorPanel = new InspectorPanel(mEditorUI);
 		mConsolePanel   = new ConsolePanel();
 		mViewportPanel  = new ViewportPanel();
+        mViewportPanel->InitializeInput();
+        Elaine::InputLayerDesc uiInput;
+        uiInput.Name = "EditorUI";
+        uiInput.Priority = 1000;
+        uiInput.Enabled = false;
+        mUIInputLayer = Elaine::InputSystem::instance()->RegisterLayer(uiInput);
 		mContentBrowserPanel = new ContentBrowserPanel();
 
 		mEditorUI->AddPanel(mHierarchyPanel);
@@ -73,6 +79,7 @@ namespace Editor
 
 	void ElaineEditor::Destroy()
 	{
+        mUIInputLayer.Reset();
 		EditorGlobalContext::instance()->Destroy();
 
 		delete mHierarchyPanel;  mHierarchyPanel = nullptr;
@@ -110,25 +117,6 @@ namespace Editor
 			Ctx->UpdateDX11TextureFromReadback(mImGuiLayer->GetDeviceContext());
 		}
 
-		// ============================================================
-		// 3. 提交渲染命令（渲染到 writeIndex 纹理）
-		// ============================================================
-		mEngineImpl->RenderOneFrame();
-
-		// ============================================================
-		// 4. Staging 路径：在渲染命令中加入 image→buffer copy，然后交换
-		// ============================================================
-		if (Ctx->IsStagingReady())
-		{
-			Ctx->EnqueueCopyToReadbackBuffer();
-			Ctx->SwapOffscreenBuffers();
-		}
-
-		Elaine::LogicToRender_Barrier->Signal();
-
-		// ============================================================
-		// 5. 更新 ViewportPanel
-		// ============================================================
 		ID3D11ShaderResourceView* srv = Ctx->GetViewportSRV();
 		if (srv)
 		{
@@ -137,16 +125,40 @@ namespace Editor
 				Ctx->GetViewportHeight());
 		}
 
-		mImGuiLayer->BeginFrame();
+        auto* input = Elaine::InputSystem::instance();
+        input->BeginFrame();
+        mViewportPanel->BeginInputFrame();
+        const bool popupBeforeFrame = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+        mImGuiLayer->BeginFrame();
+        mEditorUI->Draw();
+        mViewportPanel->UpdateInputLayers();
 
-		// 同步 ImGui 的输入捕获标志到引擎 InputSystem
-		{
-			ImGuiIO& io = ImGui::GetIO();
-			Elaine::InputSystem::instance()->SetUIWantsKeyboard(io.WantCaptureKeyboard);
-			Elaine::InputSystem::instance()->SetUIWantsMouse(io.WantCaptureMouse);
-		}
+        const auto& io = ImGui::GetIO();
+        // Closing an overlay must not send its closing click through to the scene.
+        const bool popup = popupBeforeFrame || ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+        const bool widgetActive = ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing();
+        Elaine::InputLayerDesc ui;
+        ui.Name = "EditorUI";
+        ui.Priority = 1000;
+        ui.Modal = popup;
+        ui.KeyboardFocused = popup || io.WantTextInput || widgetActive ||
+            (!mViewportPanel->WantsKeyboard() && !mViewportPanel->IsDragging());
+        ui.Propagation.fill(Elaine::InputPropagation::Block);
+        ui.HitTest = [this, popup, widgetActive](const Elaine::InputEvent& e) {
+            return popup || widgetActive || !mViewportPanel->ContainsInput(e);
+        };
+        input->UpdateLayer(mUIInputLayer, std::move(ui));
+        input->DispatchEvents();
+        mViewportPanel->ProcessInput();
 
-		mEditorUI->Draw();
+        // Input and editor operations must precede world ticking and render submission.
+        mEngineImpl->RenderOneFrame();
+        if (Ctx->IsStagingReady())
+        {
+            Ctx->EnqueueCopyToReadbackBuffer();
+            Ctx->SwapOffscreenBuffers();
+        }
+        Elaine::LogicToRender_Barrier->Signal();
 		mImGuiLayer->EndFrame();
 	}
 

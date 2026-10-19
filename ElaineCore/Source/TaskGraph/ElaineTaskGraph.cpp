@@ -114,7 +114,7 @@ namespace TaskGraph
     {
         uint32_t MinTaskCount = UINT32_MAX;
         Worker* IdleWorker = nullptr;
-        for (int Index = 6; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
+        for (int Index = 4; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
             if (mWorkers[Index] == nullptr)
                 continue;

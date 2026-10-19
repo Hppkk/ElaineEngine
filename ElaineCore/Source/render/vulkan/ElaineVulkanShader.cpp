@@ -385,29 +385,29 @@ namespace VulkanRHI
 					{
 						for (uint32_t MemberIndex = 0; MemberIndex < type.member_types.size(); ++MemberIndex)
 						{
-							MaterialParameterInfo Parameter;
-							Parameter.name = reflection.get_member_name(resource.base_type_id, MemberIndex);
-							Parameter.nameHash = Elaine::FNV_1A_HASH_64(Parameter.name);
-							Parameter.offset = reflection.type_struct_member_offset(type, MemberIndex);
-							Parameter.size = static_cast<uint32_t>(reflection.get_declared_struct_member_size(type, MemberIndex));
-							Parameter.set = bindingInfo.set;
-							Parameter.binding = bindingInfo.binding;
+							RHIPipeline::MaterialParameterInfo Parameter;
+							Parameter.Name = reflection.get_member_name(resource.base_type_id, MemberIndex);
+							Parameter.NameHash = Elaine::FNV_1A_HASH_64(Parameter.Name);
+							Parameter.Offset = reflection.type_struct_member_offset(type, MemberIndex);
+							Parameter.Size = static_cast<uint32_t>(reflection.get_declared_struct_member_size(type, MemberIndex));
+							Parameter.Set = bindingInfo.set;
+							Parameter.Binding = bindingInfo.binding;
 							const auto& MemberType = reflection.get_type(type.member_types[MemberIndex]);
-							Parameter.arrayCount = MemberType.array.empty() ? 1u : static_cast<uint32_t>(MemberType.array[0]);
+							Parameter.ArrayCount = MemberType.array.empty() ? 1u : static_cast<uint32_t>(MemberType.array[0]);
 							if (!MemberType.array.empty())
-								Parameter.parameterType = MaterialParameterType::Array;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Array;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Boolean)
-								Parameter.parameterType = MaterialParameterType::Boolean;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Boolean;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Int || MemberType.basetype == spirv_cross::SPIRType::UInt)
-								Parameter.parameterType = MaterialParameterType::Integer;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Integer;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.vecsize == 1)
-								Parameter.parameterType = MaterialParameterType::Scalar;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Scalar;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.columns > 1)
-								Parameter.parameterType = MaterialParameterType::Matrix;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Matrix;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Float)
-								Parameter.parameterType = MaterialParameterType::Vector;
+								Parameter.Type = RHIPipeline::MaterialParameterType::Vector;
 							auto Existing = std::find_if(PipelineRefData.materialParameters.begin(), PipelineRefData.materialParameters.end(),
-								[&Parameter](const MaterialParameterInfo& Item) { return Item.nameHash == Parameter.nameHash && Item.binding == Parameter.binding; });
+								[&Parameter](const RHIPipeline::MaterialParameterInfo& Item) { return Item.NameHash == Parameter.NameHash && Item.Binding == Parameter.Binding; });
 							if (Existing == PipelineRefData.materialParameters.end())
 								PipelineRefData.materialParameters.push_back(std::move(Parameter));
 						}
@@ -603,14 +603,14 @@ namespace VulkanRHI
 		for (const auto& Parameter : PipelineRefData.materialParameters)
 		{
 			RHIPipeline::MaterialParameterInfo RHIParameter;
-			RHIParameter.Name = Parameter.name;
-			RHIParameter.NameHash = Parameter.nameHash;
-			RHIParameter.Type = static_cast<RHIPipeline::MaterialParameterType>(Parameter.parameterType);
-			RHIParameter.Offset = Parameter.offset;
-			RHIParameter.Size = Parameter.size;
-			RHIParameter.ArrayCount = Parameter.arrayCount;
-			RHIParameter.Set = Parameter.set;
-			RHIParameter.Binding = Parameter.binding;
+			RHIParameter.Name = Parameter.Name;
+			RHIParameter.NameHash = Parameter.NameHash;
+			RHIParameter.Type = static_cast<RHIPipeline::MaterialParameterType>(Parameter.Type);
+			RHIParameter.Offset = Parameter.Offset;
+			RHIParameter.Size = Parameter.Size;
+			RHIParameter.ArrayCount = Parameter.ArrayCount;
+			RHIParameter.Set = Parameter.Set;
+			RHIParameter.Binding = Parameter.Binding;
 			InVertexShader->mPipeline->mMaterialParametersRHI.push_back(std::move(RHIParameter));
 		}
 

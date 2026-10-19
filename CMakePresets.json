@@ -1,0 +1,46 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 26,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "x64-msvc-v144",
+      "displayName": "Visual Studio x64 MSVC v144",
+      "description": "ElaineEngine Editor and Runtime configurations",
+      "generator": "Visual Studio 18 2026",
+      "architecture": "x64",
+      "toolset": "v143,version=14.44",
+      "binaryDir": "${sourceDir}/Build",
+      "cacheVariables": {
+        "CMAKE_CXX_STANDARD": "20",
+        "CMAKE_CXX_STANDARD_REQUIRED": "ON",
+        "CMAKE_CONFIGURATION_TYPES": "EditorDebug;EditorRelease;RuntimeDebug;RuntimeRelease"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "editor-debug",
+      "configurePreset": "x64-msvc-v144",
+      "configuration": "EditorDebug"
+    },
+    {
+      "name": "editor-release",
+      "configurePreset": "x64-msvc-v144",
+      "configuration": "EditorRelease"
+    },
+    {
+      "name": "runtime-debug",
+      "configurePreset": "x64-msvc-v144",
+      "configuration": "RuntimeDebug"
+    },
+    {
+      "name": "runtime-release",
+      "configurePreset": "x64-msvc-v144",
+      "configuration": "RuntimeRelease"
+    }
+  ]
+}

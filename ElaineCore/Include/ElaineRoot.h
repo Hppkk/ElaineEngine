@@ -44,7 +44,7 @@ namespace Elaine
 		SceneManager*			CreateSceneManager(const String& name);
 		void					DestroySceneManager(SceneManager* InSceneManager);
 
-		RHITYPE					GetRHIType() const { return mRHIType;}
+		ERHI_TYPE					GetRHIType() const { return mRHIType;}
 		bool					IsEnableVulkanValidationLayer() const { return mbEnableVulkanValidationLayer;}
 		bool					CheckThread(NamedThread InNamedThread);
 		void					RegisterRenderView(RenderView* InRenderView);
@@ -66,7 +66,7 @@ namespace Elaine
 		std::set<SceneManager*>					mSceneMgrs;
 		std::set<RenderView*>					mRenderViews;
 		SceneManager*							mMainSceneMgr = nullptr;
-		RHITYPE									mRHIType = Vulkan;
+		ERHI_TYPE									mRHIType = Vulkan;
 		bool									mbEnableVulkanValidationLayer = true;
 		ThreadWrap*								mRenderThread = nullptr;
 		RenderPipeline*							mRenderPipeline[RP_Count] = {};

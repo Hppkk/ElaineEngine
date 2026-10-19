@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineCorePrerequirements.h"
 #include "RenderProxy/ElaineRenderProxy.h"
 #include "RenderProxy/ElaineRenderMaterialProxy.h"

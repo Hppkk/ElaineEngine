@@ -113,6 +113,26 @@ namespace Elaine
             m_mat[3][3] = float_array[15];
         }
 
+        Matrix4x4(const float float_array[16])
+        {
+            m_mat[0][0] = float_array[0];
+            m_mat[0][1] = float_array[1];
+            m_mat[0][2] = float_array[2];
+            m_mat[0][3] = float_array[3];
+            m_mat[1][0] = float_array[4];
+            m_mat[1][1] = float_array[5];
+            m_mat[1][2] = float_array[6];
+            m_mat[1][3] = float_array[7];
+            m_mat[2][0] = float_array[8];
+            m_mat[2][1] = float_array[9];
+            m_mat[2][2] = float_array[10];
+            m_mat[2][3] = float_array[11];
+            m_mat[3][0] = float_array[12];
+            m_mat[3][1] = float_array[13];
+            m_mat[3][2] = float_array[14];
+            m_mat[3][3] = float_array[15];
+        }
+
         Matrix4x4(float m00,
             float m01,
             float m02,

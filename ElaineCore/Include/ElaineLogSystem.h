@@ -49,7 +49,7 @@ namespace Elaine
 #endif // !LOG_FATAL
 
 
-	class ElaineCoreExport LogSystem : public Singleton<LogSystem>
+	class ElaineCoreExport LogSystem
 	{
 	public:
 		enum LogLevel : uint8_t
@@ -63,6 +63,13 @@ namespace Elaine
 	public:
 		LogSystem();
 		~LogSystem();
+
+		static LogSystem* instance()
+		{
+			static LogSystem Ins;
+			return &Ins;
+		}
+
 		template<typename... TARGS>
 		void log(LogLevel level, fmt::format_string<TARGS...> fmtStr, TARGS&&... args)
 		{

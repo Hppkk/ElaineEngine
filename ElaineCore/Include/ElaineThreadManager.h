@@ -9,17 +9,15 @@ namespace Elaine
 		AnyThread, //Any thread, indicating that tasks in the TaskGraph can be executed on any thread.
 		GameThread, //Game Logic Thread. Usually is main threrd.
 		RenderThread, //Render Logic Thread
-		RHIGraphicThread, //Render API Command Thread
-		RHIComputeThread,
-		RHITransferThread,
-		StreamingThread0,
-		StreamingThread1,
-		StreamingThread2,
-		StreamingThread3,
-		StreamingThread4,
-		StreamingThread5,
-		StreamingThread6,
-		StreamingThread7,
+		RHIThread, //Render API Command Thread
+		TaskThread0,
+		TaskThread1,
+		TaskThread2,
+		TaskThread3,
+		TaskThread4,
+		TaskThread5,
+		TaskThread6,
+		TaskThread7,
 		GeneralThread0,
 		GeneralThread1,
 		GeneralThread2,

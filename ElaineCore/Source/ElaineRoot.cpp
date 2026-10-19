@@ -29,7 +29,7 @@ namespace Elaine
 
 	Root::Root()
 	{
-		new LogSystem();
+		//new LogSystem();
 	}
 
 	Root::~Root()
@@ -255,7 +255,7 @@ namespace Elaine
 		 char* stream = static_cast<char*>(mapFile.MapPointer());
 		 JsonCpp ConfigJson = JsonCpp::parse(stream);
 		 JsonCpp WinConfigJson = ConfigJson["Windows"];
-		 mRHIType = (RHITYPE)WinConfigJson.value("RenderRHI", 0);
+		 mRHIType = (ERHI_TYPE)WinConfigJson.value("RenderRHI", 0);
 	}
 
 	void Root::Terminate()
@@ -263,7 +263,7 @@ namespace Elaine
 		if (FileMonitor::instance()->IsRunning()) FileMonitor::instance()->Stop();
 		delete RenderSystem::instance();
 		delete ThreadManager::instance();
-		delete LogSystem::instance();
+		//delete LogSystem::instance();
 		//delete WindowSystem::instance();
 		SAFE_DELETE(mTimer);
 		delete InputSystem::instance();

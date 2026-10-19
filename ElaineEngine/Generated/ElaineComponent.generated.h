@@ -1,6 +1,6 @@
 // ============================================================
 // AUTO-GENERATED FILE by ElaineBuildTool - DO NOT EDIT
-// Source: ElaineActorComponent.h
+// Source: ElaineComponent.h
 // ============================================================
 #pragma once
 

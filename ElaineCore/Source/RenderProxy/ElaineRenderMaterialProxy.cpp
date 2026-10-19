@@ -1,4 +1,4 @@
-
+﻿
 #include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineRenderMaterialProxy.h"
 #include "ElainePass.h"
@@ -119,17 +119,17 @@ namespace Elaine
 
     void RenderMaterialProxy::BuildUniformData()
     {
-        const uint64_t BaseColorHash = Name("BaseColorFactor").GetHash();
-        const uint64_t EmissiveHash = Name("EmissiveFactor").GetHash();
-        const uint64_t RoughnessHash = Name("Roughness").GetHash();
-        const uint64_t MetallicHash = Name("Metallic").GetHash();
-        const uint64_t SmallGridHash = Name("SmallGridScale").GetHash();
-        const uint64_t LargeGridHash = Name("LargeGridScale").GetHash();
-        const uint64_t FadeNearHash = Name("FadeNear").GetHash();
-        const uint64_t FadeFarHash = Name("FadeFar").GetHash();
-        const uint64_t GridColorHash = Name("GridColor").GetHash();
-        const uint64_t XAxisHash = Name("XAxisColor").GetHash();
-        const uint64_t ZAxisHash = Name("ZAxisColor").GetHash();
+        const uint64_t BaseColorHash = Name("BaseColorFactor").GetHashValue();
+        const uint64_t EmissiveHash = Name("EmissiveFactor").GetHashValue();
+        const uint64_t RoughnessHash = Name("Roughness").GetHashValue();
+        const uint64_t MetallicHash = Name("Metallic").GetHashValue();
+        const uint64_t SmallGridHash = Name("SmallGridScale").GetHashValue();
+        const uint64_t LargeGridHash = Name("LargeGridScale").GetHashValue();
+        const uint64_t FadeNearHash = Name("FadeNear").GetHashValue();
+        const uint64_t FadeFarHash = Name("FadeFar").GetHashValue();
+        const uint64_t GridColorHash = Name("GridColor").GetHashValue();
+        const uint64_t XAxisHash = Name("XAxisColor").GetHashValue();
+        const uint64_t ZAxisHash = Name("ZAxisColor").GetHashValue();
 
         mUniformData.BaseColorFactor = GetVector(BaseColorHash, mUniformData.BaseColorFactor);
         mUniformData.EmissiveFactor = GetVector(EmissiveHash, mUniformData.EmissiveFactor);

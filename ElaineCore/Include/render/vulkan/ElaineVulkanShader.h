@@ -3,28 +3,28 @@
 
 namespace VulkanRHI
 {
-	enum class MaterialParameterType : uint8_t
-	{
-		Unknown,
-		Scalar,
-		Vector,
-		Integer,
-		Boolean,
-		Matrix,
-		Array
-	};
+	//enum class MaterialParameterType : uint8_t
+	//{
+	//	Unknown,
+	//	Scalar,
+	//	Vector,
+	//	Integer,
+	//	Boolean,
+	//	Matrix,
+	//	Array
+	//};
 
-	struct MaterialParameterInfo
-	{
-		std::string name;
-		uint64_t nameHash = 0;
-		MaterialParameterType parameterType = MaterialParameterType::Unknown;
-		uint32_t offset = 0;
-		uint32_t size = 0;
-		uint32_t arrayCount = 1;
-		uint32_t set = 0;
-		uint32_t binding = 0;
-	};
+	//struct MaterialParameterInfo
+	//{
+	//	std::string name;
+	//	uint64_t nameHash = 0;
+	//	MaterialParameterType parameterType = MaterialParameterType::Unknown;
+	//	uint32_t offset = 0;
+	//	uint32_t size = 0;
+	//	uint32_t arrayCount = 1;
+	//	uint32_t set = 0;
+	//	uint32_t binding = 0;
+	//};
 	class VulkanDevice;
 	class VulkanPipeline;
 	class VulkanShader;
@@ -61,7 +61,7 @@ namespace VulkanRHI
 		std::unordered_map<uint32_t, std::vector<DescriptorBindingInfo>> descriptorSets;
 		std::vector<PushConstantRange> pushConstants;
 		std::vector<VkVertexInputAttributeDescription> inputAttributes;
-		std::vector<MaterialParameterInfo> materialParameters;
+		std::vector<RHIPipeline::MaterialParameterInfo> materialParameters;
 		VulkanPipeline* mPipeline = nullptr;
 	};
 

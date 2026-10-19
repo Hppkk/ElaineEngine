@@ -144,23 +144,23 @@ namespace Elaine
 	};
 }
 
-void* operator new(std::size_t Size);
-void* operator new[](std::size_t Size);
-void* operator new(std::size_t Size, const std::nothrow_t&) noexcept;
-void* operator new[](std::size_t Size, const std::nothrow_t&) noexcept;
-void* operator new(std::size_t Size, std::align_val_t Alignment);
-void* operator new[](std::size_t Size, std::align_val_t Alignment);
-void* operator new(std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
-void* operator new[](std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
-void operator delete(void* Ptr) noexcept;
-void operator delete[](void* Ptr) noexcept;
-void operator delete(void* Ptr, std::size_t Size) noexcept;
-void operator delete[](void* Ptr, std::size_t Size) noexcept;
-void operator delete(void* Ptr, std::align_val_t Alignment) noexcept;
-void operator delete[](void* Ptr, std::align_val_t Alignment) noexcept;
-void operator delete(void* Ptr, std::size_t Size, std::align_val_t Alignment) noexcept;
-void operator delete[](void* Ptr, std::size_t Size, std::align_val_t Alignment) noexcept;
-void operator delete(void* Ptr, const std::nothrow_t&) noexcept;
-void operator delete[](void* Ptr, const std::nothrow_t&) noexcept;
-void operator delete(void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
-void operator delete[](void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept;
+//void* operator new(std::size_t Size) { if (void* Ptr = Elaine::Memory::Allocate(Size)) return Ptr; throw std::bad_alloc(); }
+//void* operator new[](std::size_t Size) { if (void* Ptr = Elaine::Memory::Allocate(Size)) return Ptr; throw std::bad_alloc(); }
+//void* operator new(std::size_t Size, const std::nothrow_t&) noexcept { return Elaine::Memory::Allocate(Size); }
+//void* operator new[](std::size_t Size, const std::nothrow_t&) noexcept { return Elaine::Memory::Allocate(Size); }
+//void* operator new(std::size_t Size, std::align_val_t Alignment) { if (void* Ptr = Elaine::Memory::Allocate(Size, static_cast<size_t>(Alignment))) return Ptr; throw std::bad_alloc(); }
+//void* operator new[](std::size_t Size, std::align_val_t Alignment) { if (void* Ptr = Elaine::Memory::Allocate(Size, static_cast<size_t>(Alignment))) return Ptr; throw std::bad_alloc(); }
+//void* operator new(std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept { return Elaine::Memory::Allocate(Size, static_cast<size_t>(Alignment)); }
+//void* operator new[](std::size_t Size, std::align_val_t Alignment, const std::nothrow_t&) noexcept { return Elaine::Memory::Allocate(Size, static_cast<size_t>(Alignment)); }
+//void operator delete(void* Ptr) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete[](void* Ptr) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete(void* Ptr, std::size_t) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete[](void* Ptr, std::size_t) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete(void* Ptr, std::align_val_t Alignment) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }
+//void operator delete[](void* Ptr, std::align_val_t Alignment) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }
+//void operator delete(void* Ptr, std::size_t, std::align_val_t Alignment) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }
+//void operator delete[](void* Ptr, std::size_t, std::align_val_t Alignment) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }
+//void operator delete(void* Ptr, const std::nothrow_t&) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete[](void* Ptr, const std::nothrow_t&) noexcept { Elaine::Memory::Deallocate(Ptr); }
+//void operator delete(void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }
+//void operator delete[](void* Ptr, std::align_val_t Alignment, const std::nothrow_t&) noexcept { Elaine::Memory::Deallocate(Ptr, static_cast<size_t>(Alignment)); }

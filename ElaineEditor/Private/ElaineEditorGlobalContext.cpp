@@ -1,4 +1,4 @@
-#include "ElaineEditorGlobalContext.h"
+﻿#include "ElaineEditorGlobalContext.h"
 #include "ElaineEngine.h"
 #include "ElaineViewport.h"
 #include "ElaineOffscreenRenderTarget.h"

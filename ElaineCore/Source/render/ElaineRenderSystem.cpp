@@ -12,7 +12,7 @@ namespace Elaine
 
 	void RenderSystem::Initialize(const RHI_PARAM_DESC& InDesc)
 	{
-		mWindowHandle = InDesc.WindowHandle;
+		mWindowHandle = InDesc.NativeHandle;
 		InitEngineRHI(InDesc);
 		mImmedCommandCtx = GetDynamicRHI()->GetDefaultCommandContext();
 		mRenderCommandQueue = new RenderCommandQueue();

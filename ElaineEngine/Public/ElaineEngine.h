@@ -35,7 +35,6 @@ namespace Elaine
 
 	private:
 		WorldManager* mWorldManager = nullptr;
-		std::vector<World*> mWorlds;
 		std::set<Viewport*> mViewports;
 		std::set<Viewport*> mActiveViewports;
 		const float	mFPSAlpha = 1.f / 100;

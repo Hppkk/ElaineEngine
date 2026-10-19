@@ -109,6 +109,7 @@ void EditTransform(const Camera& camera, matrix_t& matrix)
 #endif
 #ifndef IMGUI_API
 #define IMGUI_API
+#include "imgui.h"
 #endif
 
 #ifndef IMGUIZMO_NAMESPACE

@@ -1,4 +1,4 @@
-
+﻿
 #pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineUniformGPUManager.h"
@@ -31,7 +31,7 @@ namespace Elaine
      *
      * 设计原则：
      * - 仅在渲染线程创建、更新、访问
-     * - 持有已解析的 RHI 资源（RHITexture*, ShaderPass*/RHIPipeline*）
+     * - 持有已解析的 RHI 资源（RHITexture*, ShaderPass*, RHIPipeline*）
      * - 通过 UpdateFromSnapshot() 从逻辑线程的 MaterialParamSnapshot 同步数据
      * - 逻辑线程对象（MaterialInstanceDynamic 等）不会直接引用此类
      *

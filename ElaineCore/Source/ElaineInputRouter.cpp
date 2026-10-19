@@ -1,6 +1,4 @@
-#ifndef ELAINE_INPUT_STANDALONE
 #include "ElainePrecompiledHeader.h"
-#endif
 #include "ElaineInputRouter.h"
 #include <algorithm>
 #include <map>

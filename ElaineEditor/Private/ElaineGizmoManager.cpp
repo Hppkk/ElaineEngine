@@ -1,4 +1,4 @@
-#include "ElaineGizmoManager.h"
+﻿#include "ElaineGizmoManager.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -12,6 +12,24 @@
 
 namespace
 {
+
+    template <typename T>
+    bool ParseValue(const std::string& line, const std::string& key, T& value)
+    {
+        if (!line.starts_with(key))
+            return false;
+
+        if (line.size() <= key.size() || line[key.size()] != '=')
+            return false;
+
+        const char* first = line.data() + key.size() + 1;
+        const char* last = line.data() + line.size();
+
+        const auto result = std::from_chars(first, last, value);
+
+        return result.ec == std::errc{} && result.ptr == last;
+    }
+
     Editor::EditorGizmoManager* GManager = nullptr;
 
     void ClearSettings(ImGuiContext*, ImGuiSettingsHandler*) {}
@@ -28,15 +46,15 @@ namespace
         int Operation = 0;
         int Mode = 1;
         float Size = 0.1f;
-        if (std::sscanf(Line, "Visibility=%u", &Mask) == 1)
+        if (ParseValue(Line, "Visibility", Mask))
             Manager->SetVisible(Editor::GizmoType::Transform, (Mask & 1u) != 0);
-        else if (std::sscanf(Line, "Operation=%d", &Operation) == 1)
+        else if (ParseValue(Line, "Operation=%d", Operation))
             Manager->SetOperation(static_cast<ImGuizmo::OPERATION>(Operation));
-        else if (std::sscanf(Line, "Mode=%d", &Mode) == 1)
+        else if (ParseValue(Line, "Mode=%d", Mode))
             Manager->SetMode(static_cast<ImGuizmo::MODE>(Mode));
-        else if (std::sscanf(Line, "Size=%f", &Size) == 1)
+        else if (ParseValue(Line, "Size=%f", Size))
             Manager->SetSize(Size);
-        if (std::sscanf(Line, "Visibility=%u", &Mask) == 1)
+        if (ParseValue(Line, "Visibility=%u", Mask))
         {
             Manager->SetVisible(Editor::GizmoType::Grid, (Mask & 2u) != 0);
             Manager->SetVisible(Editor::GizmoType::Bounds, (Mask & 4u) != 0);

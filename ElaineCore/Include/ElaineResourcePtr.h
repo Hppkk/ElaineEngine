@@ -21,12 +21,13 @@ namespace Elaine
 
 		ResourcePtr(const ResourcePtr<_Ty>& InOther)
 		{
-			InOther._Used->_Incref();
+			if (InOther._Used)
+				InOther._Used->_Incref();
 			_Used = InOther._Used;
 			_Ptr = InOther._Ptr;
 		}
 
-		ResourcePtr(ResourcePtr<_Ty>&& InOther)
+		ResourcePtr(ResourcePtr<_Ty>&& InOther) noexcept
 		{
 			_Used = InOther._Used;
 			_Ptr = InOther._Ptr;
@@ -128,7 +129,8 @@ namespace Elaine
 
 		ResourcePtr& operator=(const ResourcePtr<_Ty>& InOther)
 		{
-			InOther._Used->_Incref();
+			if (InOther._Used)
+				InOther._Used->_Incref();
 			_Used = InOther._Used;
 			_Ptr = InOther._Ptr;
 			return *this;
@@ -136,7 +138,8 @@ namespace Elaine
 
 		ResourcePtr& operator=(ResourcePtr<_Ty>& InOther)
 		{
-			InOther._Used->_Incref();
+			if (InOther._Used)
+				InOther._Used->_Incref();
 			_Used = InOther._Used;
 			_Ptr = InOther._Ptr;
 			return *this;

@@ -13,29 +13,25 @@ namespace Elaine
 	_RHIPrivate* _GRHI = nullptr;
 	EBarrier* G_GfxBarrier = nullptr;
 	EBarrier* G_RenderBarrier = nullptr;
-	ThreadWrap* G_GfxThread = nullptr;
-	ThreadWrap* G_ComputeThread = nullptr;
-	ThreadWrap* G_TransfThread = nullptr;
+	ThreadWrap* G_RHIThread = nullptr;
 
-	static void GraphicThreadMain();
-	static void ComputeThreadMain();
-	static void TransfThreadMain();
+	static void RHIThreadMain();
 
 	class _RHIPrivate
 	{
 	public:
 		void _Initilize(const RHI_PARAM_DESC& InDesc)
 		{
-			_RHIType = InDesc.RHIType;
+			mRHIType = InDesc.RHIType;
 			switch (InDesc.RHIType)
 			{
 			case Elaine::Vulkan:
-				_DynamicRHI = new VulkanRHI::VulkanDynamicRHI();
-				_DynamicRHI->Initialize(InDesc);
+				mDynamicRHI = new VulkanRHI::VulkanDynamicRHI();
+				mDynamicRHI->Initialize(InDesc);
 				break;
-			case Elaine::Dx11:
+			case Elaine::DirectX11:
 				break;
-			case Elaine::Dx12:
+			case Elaine::DirectX12:
 				break;
 			case Elaine::Metal:
 				break;
@@ -48,14 +44,14 @@ namespace Elaine
 
 		void _Destroy()
 		{
-			_DynamicRHI = nullptr;
+			mDynamicRHI = nullptr;
 		}
-		RHITYPE GetType() const { return _RHIType; }
-		DynamicRHI* GetDynamicRHI() const { return _DynamicRHI; }
+		ERHI_TYPE GetType() const { return mRHIType; }
+		DynamicRHI* GetDynamicRHI() const { return mDynamicRHI; }
 
 	private:
-		RHITYPE _RHIType = Vulkan;
-		DynamicRHI* _DynamicRHI = nullptr;
+		ERHI_TYPE mRHIType = Vulkan;
+		DynamicRHI* mDynamicRHI = nullptr;
 	};
 
 	DynamicRHI::~DynamicRHI()
@@ -68,12 +64,11 @@ namespace Elaine
 	bool InitEngineRHI(const RHI_PARAM_DESC& InDesc)
 	{
 		_GRHI = new _RHIPrivate();
+		//@TODO : move to rhi thread init.
 		_GRHI->_Initilize(InDesc);
 		G_GfxBarrier = new EBarrier();
 		G_RenderBarrier = new EBarrier();
-		G_GfxThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIGraphicThread, GraphicThreadMain);
-		G_ComputeThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIComputeThread, ComputeThreadMain);
-		G_TransfThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHITransferThread, TransfThreadMain);
+		G_RHIThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RHIThread, RHIThreadMain);
 		return true;
 	}
 
@@ -85,7 +80,7 @@ namespace Elaine
 		return true;
 	}
 
-	static void GraphicThreadMain()
+	static void RHIThreadMain()
 	{
 		G_RenderBarrier->Signal();
 		RHICommandContext* GfxCommandCtx = GetDynamicRHI()->GetDefaultCommandContext();
@@ -98,24 +93,6 @@ namespace Elaine
 			RHICmdListMgr->ExecuteCommands();
 			//GfxCommandCtx->RHIEndFrame();
 			G_RenderBarrier->Signal();
-		}
-	}
-
-	static void ComputeThreadMain()
-	{
-		RHICommandContext* ComputeCommandCtx = GetDynamicRHI()->GetDefaultComputeContext();
-		while (true)
-		{
-
-		}
-	}
-
-	static void TransfThreadMain()
-	{
-		RHICommandContext* TransfCommandCtx = GetDynamicRHI()->GetDefaultTransferContext();
-		while (true)
-		{
-
 		}
 	}
 

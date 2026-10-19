@@ -5,17 +5,17 @@
 
 namespace VulkanRHI
 {
-    static MaterialParameterType GetParameterType(const spirv_cross::SPIRType& Type)
+    static RHIPipeline::MaterialParameterType GetParameterType(const spirv_cross::SPIRType& Type)
     {
-        if (!Type.array.empty()) return MaterialParameterType::Array;
-        if (Type.basetype == spirv_cross::SPIRType::Boolean) return MaterialParameterType::Boolean;
-        if (Type.basetype == spirv_cross::SPIRType::Int || Type.basetype == spirv_cross::SPIRType::UInt) return MaterialParameterType::Integer;
-        if (Type.basetype != spirv_cross::SPIRType::Float) return MaterialParameterType::Unknown;
-        if (Type.columns > 1) return MaterialParameterType::Matrix;
-        return Type.vecsize == 1 ? MaterialParameterType::Scalar : MaterialParameterType::Vector;
+        if (!Type.array.empty()) return RHIPipeline::MaterialParameterType::Array;
+        if (Type.basetype == spirv_cross::SPIRType::Boolean) return RHIPipeline::MaterialParameterType::Boolean;
+        if (Type.basetype == spirv_cross::SPIRType::Int || Type.basetype == spirv_cross::SPIRType::UInt) return RHIPipeline::MaterialParameterType::Integer;
+        if (Type.basetype != spirv_cross::SPIRType::Float) return RHIPipeline::MaterialParameterType::Unknown;
+        if (Type.columns > 1) return RHIPipeline::MaterialParameterType::Matrix;
+        return Type.vecsize == 1 ? RHIPipeline::MaterialParameterType::Scalar : RHIPipeline::MaterialParameterType::Vector;
     }
 
-    bool ReflectMaterialParameters(const SPVCodeDesc& InCode, std::vector<MaterialParameterInfo>& OutParameters)
+    bool ReflectMaterialParameters(const SPVCodeDesc& InCode, std::vector<RHIPipeline::MaterialParameterInfo>& OutParameters)
     {
         OutParameters.clear();
         if (InCode.mSPVCodeContent == nullptr || InCode.mContentSize == 0)
@@ -34,16 +34,16 @@ namespace VulkanRHI
             const auto& BlockType = Reflection.get_type(Resource.base_type_id);
             for (uint32_t Index = 0; Index < BlockType.member_types.size(); ++Index)
             {
-                MaterialParameterInfo Info;
-                Info.name = Reflection.get_member_name(Resource.base_type_id, Index);
-                Info.nameHash = Elaine::FNV_1A_HASH_64(Info.name);
-                Info.parameterType = GetParameterType(Reflection.get_type(BlockType.member_types[Index]));
-                Info.offset = Reflection.type_struct_member_offset(BlockType, Index);
-                Info.size = static_cast<uint32_t>(Reflection.get_declared_struct_member_size(BlockType, Index));
+                RHIPipeline::MaterialParameterInfo Info;
+                Info.Name = Reflection.get_member_name(Resource.base_type_id, Index);
+                Info.NameHash = Elaine::FNV_1A_HASH_64(Info.Name);
+                Info.Type = GetParameterType(Reflection.get_type(BlockType.member_types[Index]));
+                Info.Offset = Reflection.type_struct_member_offset(BlockType, Index);
+                Info.Size = static_cast<uint32_t>(Reflection.get_declared_struct_member_size(BlockType, Index));
                 const auto& MemberType = Reflection.get_type(BlockType.member_types[Index]);
-                Info.arrayCount = MemberType.array.empty() ? 1u : static_cast<uint32_t>(MemberType.array[0]);
-                Info.set = Set;
-                Info.binding = Binding;
+                Info.ArrayCount = MemberType.array.empty() ? 1u : static_cast<uint32_t>(MemberType.array[0]);
+                Info.Set = Set;
+                Info.Binding = Binding;
                 OutParameters.push_back(std::move(Info));
             }
         }

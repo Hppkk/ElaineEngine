@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineEditorBase.h"
 
 namespace Elaine { class World; class Actor; }

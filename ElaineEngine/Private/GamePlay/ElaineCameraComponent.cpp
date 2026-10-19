@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineCamera.h"
 #include "ElaineSceneManager.h"

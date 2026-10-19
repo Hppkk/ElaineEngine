@@ -1,4 +1,4 @@
-#include "ElaineEditor.h"
+﻿#include "ElaineEditor.h"
 #include "ElaineEngine.h"
 #include "ElainePlatformWindow.h"
 
@@ -74,7 +74,7 @@ extern "C" {
 		INIT_DESC.Width = G_WIN_WIDTH;
 		INIT_DESC.RHIType = Elaine::Vulkan;
 		INIT_DESC.UseRHIThread = true;
-		INIT_DESC.WindowHandle = NewWindow->getNativeHandle();
+		INIT_DESC.NativeHandle = NewWindow->getNativeHandle();
 		NewEngine->Initialize(INIT_DESC);
 		NewEngine->PostInitialize();
 

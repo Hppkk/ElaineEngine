@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineSingleton.h"
 #include "ElaineEditorGridManager.h"
 #include "ElaineGizmoManager.h"

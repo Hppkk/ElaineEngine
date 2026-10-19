@@ -13,17 +13,15 @@ namespace Elaine
 		mNamedStrs.emplace(NamedThread::GeneralThread1, STR_NAME(GeneralThread1));
 		mNamedStrs.emplace(NamedThread::GeneralThread2, STR_NAME(GeneralThread2));
 		mNamedStrs.emplace(NamedThread::RenderThread, STR_NAME(RenderThread));
-		mNamedStrs.emplace(NamedThread::StreamingThread0, STR_NAME(StreamingThread0));
-		mNamedStrs.emplace(NamedThread::StreamingThread1, STR_NAME(StreamingThread1));
-		mNamedStrs.emplace(NamedThread::StreamingThread2, STR_NAME(StreamingThread2));
-		mNamedStrs.emplace(NamedThread::StreamingThread3, STR_NAME(StreamingThread3));
-		mNamedStrs.emplace(NamedThread::StreamingThread4, STR_NAME(StreamingThread4));
-		mNamedStrs.emplace(NamedThread::StreamingThread5, STR_NAME(StreamingThread5));
-		mNamedStrs.emplace(NamedThread::StreamingThread6, STR_NAME(StreamingThread6));
-		mNamedStrs.emplace(NamedThread::StreamingThread7, STR_NAME(StreamingThread7));
-		mNamedStrs.emplace(NamedThread::RHIGraphicThread, STR_NAME(RHIGraphicThread));
-		mNamedStrs.emplace(NamedThread::RHIComputeThread, STR_NAME(RHIComputeThread));
-		mNamedStrs.emplace(NamedThread::RHITransferThread, STR_NAME(RHITransferThread));
+		mNamedStrs.emplace(NamedThread::TaskThread0, STR_NAME(TaskThread0));
+		mNamedStrs.emplace(NamedThread::TaskThread1, STR_NAME(TaskThread1));
+		mNamedStrs.emplace(NamedThread::TaskThread2, STR_NAME(TaskThread2));
+		mNamedStrs.emplace(NamedThread::TaskThread3, STR_NAME(TaskThread3));
+		mNamedStrs.emplace(NamedThread::TaskThread4, STR_NAME(TaskThread4));
+		mNamedStrs.emplace(NamedThread::TaskThread5, STR_NAME(TaskThread5));
+		mNamedStrs.emplace(NamedThread::TaskThread6, STR_NAME(TaskThread6));
+		mNamedStrs.emplace(NamedThread::TaskThread7, STR_NAME(TaskThread7));
+		mNamedStrs.emplace(NamedThread::RHIThread, STR_NAME(RHIThread));
 		mNamedStrs.emplace(NamedThread::ScheduleThread, STR_NAME(ScheduleThread));
 
 
@@ -32,17 +30,15 @@ namespace Elaine
 		mNamedWStrs.emplace(NamedThread::GeneralThread1, WSTR_NAME(GeneralThread1));
 		mNamedWStrs.emplace(NamedThread::GeneralThread2, WSTR_NAME(GeneralThread2));
 		mNamedWStrs.emplace(NamedThread::RenderThread, WSTR_NAME(RenderThread));
-		mNamedWStrs.emplace(NamedThread::StreamingThread0, WSTR_NAME(StreamingThread0));
-		mNamedWStrs.emplace(NamedThread::StreamingThread1, WSTR_NAME(StreamingThread1));
-		mNamedWStrs.emplace(NamedThread::StreamingThread2, WSTR_NAME(StreamingThread2));
-		mNamedWStrs.emplace(NamedThread::StreamingThread3, WSTR_NAME(StreamingThread3));
-		mNamedWStrs.emplace(NamedThread::StreamingThread4, WSTR_NAME(StreamingThread4));
-		mNamedWStrs.emplace(NamedThread::StreamingThread5, WSTR_NAME(StreamingThread5));
-		mNamedWStrs.emplace(NamedThread::StreamingThread6, WSTR_NAME(StreamingThread6));
-		mNamedWStrs.emplace(NamedThread::StreamingThread7, WSTR_NAME(StreamingThread7));
-		mNamedWStrs.emplace(NamedThread::RHIGraphicThread, WSTR_NAME(RHIGraphicThread));
-		mNamedWStrs.emplace(NamedThread::RHIComputeThread, WSTR_NAME(RHIComputeThread));
-		mNamedWStrs.emplace(NamedThread::RHITransferThread, WSTR_NAME(RHITransferThread));
+		mNamedWStrs.emplace(NamedThread::TaskThread0, WSTR_NAME(TaskThread0));
+		mNamedWStrs.emplace(NamedThread::TaskThread1, WSTR_NAME(TaskThread1));
+		mNamedWStrs.emplace(NamedThread::TaskThread2, WSTR_NAME(TaskThread2));
+		mNamedWStrs.emplace(NamedThread::TaskThread3, WSTR_NAME(TaskThread3));
+		mNamedWStrs.emplace(NamedThread::TaskThread4, WSTR_NAME(TaskThread4));
+		mNamedWStrs.emplace(NamedThread::TaskThread5, WSTR_NAME(TaskThread5));
+		mNamedWStrs.emplace(NamedThread::TaskThread6, WSTR_NAME(TaskThread6));
+		mNamedWStrs.emplace(NamedThread::TaskThread7, WSTR_NAME(TaskThread7));
+		mNamedWStrs.emplace(NamedThread::RHIThread, WSTR_NAME(RHIThread));
 		mNamedWStrs.emplace(NamedThread::ScheduleThread, WSTR_NAME(ScheduleThread));
 	}
 

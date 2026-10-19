@@ -10,6 +10,93 @@ You can build the Elaine Editor for Windows(Other platforms will be gradually op
 
 ![image-20260329230101040](Docs/Images/main_scene_00.png)
 
+# Architecture
+
+The engine consists of the following main modules:
+
+```mermaid
+graph TB
+    subgraph "Application Layer"
+        Editor["ElaineEditor<br/>(.exe)"]
+        Sample["Samples<br/>(Sample application)"]
+    end
+
+    subgraph "Engine Layer"
+        Engine["ElaineEngine<br/>(.dll)"]
+    end
+
+    subgraph "Core Layer"
+        Core["ElaineCore<br/>(.dll)"]
+    end
+
+    subgraph "Infrastructure Layer"
+        Reflection["ElaineReflection<br/>(.dll)"]
+    end
+
+    subgraph "Toolchain"
+        BuildTool["ElaineBuildTool<br/>(.exe)"]
+    end
+
+    Editor --> Engine
+    Editor --> Core
+    Editor --> Reflection
+    Sample --> Engine
+    Engine --> Core
+    Engine --> Reflection
+    BuildTool -.->|"Generate reflection code"| Engine
+    BuildTool -.->|"Generate editor code"| Editor
+```
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                     应用层 (Application)                  │
+│  ┌───────────────────┐   ┌────────────────────────────┐  │
+│  │   ElaineEditor    │   │       Samples / Game       │  │
+│  │  (ImGui + DX11)   │   │                            │  │
+│  └────────┬──────────┘   └─────────────┬──────────────┘  │
+├───────────┼────────────────────────────┼─────────────────┤
+│                     引擎层 (Engine)                       │
+│  ┌────────┴────────────────────────────┴──────────────┐  │
+│  │              ElaineEngine                          │  │
+│  │  World ─ Level ─ GameObject ─ Component            │  │
+│  │  Viewport ─ CameraControl ─ TickManager            │  │
+│  └────────────────────────┬──────────────────────────┘  │
+├───────────────────────────┼──────────────────────────────┤
+│                     核心层 (Core)                         │
+│  ┌────────────────────────┴──────────────────────────┐  │
+│  │                  ElaineCore                        │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │  │
+│  │  │ 渲染系统  │ │ 资源管理  │ │   场景管理         │  │  │
+│  │  │ RHI      │ │ Resource │ │   SceneManager    │  │  │
+│  │  │ Vulkan   │ │ Mesh     │ │   QuadTree        │  │  │
+│  │  │ DX12     │ │ Material │ │   RenderProxy     │  │  │
+│  │  └──────────┘ │ Texture  │ └───────────────────┘  │  │
+│  │  ┌──────────┐ │ Shader   │ ┌───────────────────┐  │  │
+│  │  │ 多线程    │ └──────────┘ │   渲染管线         │  │  │
+│  │  │TaskGraph │               │   RenderGraph     │  │  │
+│  │  │ThreadMgr │               │   Deferred/Fwd    │  │  │
+│  │  └──────────┘               └───────────────────┘  │  │
+│  │  ┌──────────┐ ┌──────────┐ ┌───────────────────┐  │  │
+│  │  │ 数学库    │ │ 平台抽象  │ │   文件系统         │  │  │
+│  │  │Vector/Mat│ │ Window   │ │   DataStream      │  │  │
+│  │  │Quaternion│ │ Input    │ │   FileManager     │  │  │
+│  │  └──────────┘ └──────────┘ └───────────────────┘  │  │
+│  └───────────────────────────────────────────────────┘  │
+├──────────────────────────────────────────────────────────┤
+│                   基础设施层 (Infrastructure)              │
+│  ┌───────────────────┐  ┌────────────────────────────┐  │
+│  │  ElaineReflection │  │     ElaineBuildTool        │  │
+│  │  TypeDescriptor   │  │     HeaderParser           │  │
+│  │  TypeRegistry     │  │     CodeGenerator          │  │
+│  │  Serializer       │  │                            │  │
+│  └───────────────────┘  └────────────────────────────┘  │
+├──────────────────────────────────────────────────────────┤
+│                   第三方库 (ThirdParty)                   │
+│  Vulkan SDK │ VMA │ GLFW │ spdlog │ assimp │ stb         │
+│  ImGui │ ImGuizmo │ cJSON │ nlohmann/json │ cppast       │
+└──────────────────────────────────────────────────────────┘
+```
+
 # Branch
 
 -----------------------

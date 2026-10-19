@@ -3,23 +3,21 @@
 
 namespace Elaine
 {
-    enum RHITYPE
+    enum ERHI_TYPE
     {
         Vulkan,
-        Dx11,
-        Dx12,
+        DirectX11,
+        DirectX12,
         Metal,
         OpenGl,
     };
 
     struct RHI_PARAM_DESC
     {
-#ifdef WIN32
-        void* WindowHandle = 0;
-#endif
+        void* NativeHandle = 0;
         uint32 Width = 1920;
         uint32 Height = 1080;
-        RHITYPE RHIType = Vulkan;
+        ERHI_TYPE RHIType = Vulkan;
         bool UseRHIThread = true;
     };
 

@@ -60,7 +60,7 @@ namespace Elaine
 
 	ActorComponent* ComponentFactory::CreateComponent(Actor* InObject)
 	{
-		MemoryScope Scope({Memory::TypeId(mType.c_str()), 0, 0});
+		MemoryScope Scope({Memory::TypeId(mType.C_Str()), 0, 0});
 		ActorComponent* NewComponent = CreateComponentImpl(InObject);
 		NewComponent->OnCreate();
 		mComponents.insert(NewComponent);
@@ -69,7 +69,7 @@ namespace Elaine
 
 	ActorComponentInfo* ComponentFactory::CreateActorComponentInfo()
 	{
-		MemoryScope Scope({Memory::TypeId(mType.c_str()), 0, 0});
+		MemoryScope Scope({Memory::TypeId(mType.C_Str()), 0, 0});
 		ActorComponentInfo* NewComInfo = CreateActorComponentInfoImpl();
 		mActorComponentInfos.insert(NewComInfo);
 		return NewComInfo;

@@ -29,4 +29,12 @@ namespace Elaine
 		mWorlds.erase(InWorld);
 		SAFE_DELETE(InWorld);
 	}
+
+	void WorldManager::RenderOneFrame(float InDeltaTime)
+	{
+		for (World* CurrentWorld : mWorlds)
+		{
+			CurrentWorld->Tick(InDeltaTime);
+		}
+	}
 }

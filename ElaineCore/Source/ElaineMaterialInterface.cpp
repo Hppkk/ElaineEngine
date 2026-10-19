@@ -1,4 +1,4 @@
-
+﻿
 #include "ElainePrecompiledHeader.h"
 #include "ElaineMaterialInterface.h"
 #include "ElaineMaterialParamSnapshot.h"

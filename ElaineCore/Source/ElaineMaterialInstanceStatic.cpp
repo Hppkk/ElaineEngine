@@ -72,7 +72,7 @@ namespace Elaine
         {
             for (auto& it : params.items())
             {
-                const uint64_t Hash = Name(it.key().c_str()).GetHash();
+                const uint64_t Hash = Name(it.key().c_str()).GetHashValue();
                 const auto& Value = it.value();
 				const std::string Type = Value.is_object() ? Value.value("type", "") : (Value.is_number() ? "scalar" : "vector");
 				const auto& RawValue = Value.is_object() && Value.contains("value") ? Value["value"] : Value;

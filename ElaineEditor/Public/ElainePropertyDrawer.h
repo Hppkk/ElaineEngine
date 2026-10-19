@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineTypeDescriptor.h"
 #include "imgui.h"
 #include <string>

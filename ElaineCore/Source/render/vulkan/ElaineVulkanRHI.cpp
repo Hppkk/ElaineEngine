@@ -58,7 +58,7 @@ namespace VulkanRHI
 		}
 #endif
 
-		mWindowHandle = InDesc.WindowHandle;
+		mWindowHandle = InDesc.NativeHandle;
 
 		mInstance = new VulkanInstance();
 		mInstance->Initialize();

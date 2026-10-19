@@ -94,7 +94,7 @@ namespace Elaine
 		{
 			for (auto& It : Parameters.items())
 			{
-				const uint64_t Hash = Name(It.key().c_str()).GetHash();
+				const uint64_t Hash = Name(It.key().c_str()).GetHashValue();
 				const auto& Value = It.value();
 				const std::string Type = Value.value("type", "");
 				const auto& Default = Value.contains("default") ? Value["default"] : JsonCpp();
@@ -159,7 +159,7 @@ namespace Elaine
 						if (ParameterName.rfind("U_", 0) == 0)
 						{
 							ParameterName = ParameterName.substr(2);
-							ReflectedHash = Name(ParameterName.c_str()).GetHash();
+							ReflectedHash = Name(ParameterName.c_str()).GetHashValue();
 						}
 						auto It = std::find_if(mParameterLayout.begin(), mParameterLayout.end(), [ReflectedHash](const MaterialParameterDesc& Item) { return Item.Hash == ReflectedHash; });
 						if (It == mParameterLayout.end())

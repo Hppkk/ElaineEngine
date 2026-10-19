@@ -1,8 +1,4 @@
-#ifndef ELAINE_INPUT_STANDALONE
 #include "ElainePrecompiledHeader.h"
-#else
-#include <Windows.h>
-#endif
 #include "ElaineInputSystem.h"
 
 namespace Elaine

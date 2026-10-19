@@ -1,3 +1,3 @@
 @echo off
-cmake . -B Build
+cmake --preset x64-msvc-v144
 pause

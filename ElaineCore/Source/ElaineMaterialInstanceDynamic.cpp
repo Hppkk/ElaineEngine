@@ -73,48 +73,48 @@ namespace Elaine
 
 	void MaterialInstanceDynamic::SetScalar(const Name& InParamName, float InValue)
 	{
-		mOverridedScalars[InParamName.GetHash()] = InValue;
+		mOverridedScalars[InParamName.GetHashValue()] = InValue;
 		++mRevision;
 	}
 
 	float MaterialInstanceDynamic::GetScalar(const Name& InParamName, float InDefault) const
 	{
-		auto it = mOverridedScalars.find(InParamName.GetHash());
+		auto it = mOverridedScalars.find(InParamName.GetHashValue());
 		if (it != mOverridedScalars.end()) return it->second;
-		if (!mSource.isNull() && mSource->HasScalar(InParamName.GetHash())) return mSource->GetScalar(InParamName.GetHash());
+		if (!mSource.isNull() && mSource->HasScalar(InParamName.GetHashValue())) return mSource->GetScalar(InParamName.GetHashValue());
 		return InDefault;
 	}
 
 	bool MaterialInstanceDynamic::HasScalarOverride(const Name& InParamName) const
 	{
-		return mOverridedScalars.find(InParamName.GetHash()) != mOverridedScalars.end();
+		return mOverridedScalars.find(InParamName.GetHashValue()) != mOverridedScalars.end();
 	}
 
 	void MaterialInstanceDynamic::SetVector(const Name& InParamName, const Vector4& InValue)
 	{
-		mOverridedVectors[InParamName.GetHash()] = InValue;
+		mOverridedVectors[InParamName.GetHashValue()] = InValue;
 		++mRevision;
 	}
 
 	Vector4 MaterialInstanceDynamic::GetVector(const Name& InParamName, const Vector4& InDefault) const
 	{
-		auto it = mOverridedVectors.find(InParamName.GetHash());
+		auto it = mOverridedVectors.find(InParamName.GetHashValue());
 		if (it != mOverridedVectors.end()) return it->second;
-		if (!mSource.isNull() && mSource->HasVector(InParamName.GetHash())) return mSource->GetVector(InParamName.GetHash());
+		if (!mSource.isNull() && mSource->HasVector(InParamName.GetHashValue())) return mSource->GetVector(InParamName.GetHashValue());
 		return InDefault;
 	}
 
 	bool MaterialInstanceDynamic::HasVectorOverride(const Name& InParamName) const
 	{
-		return mOverridedVectors.find(InParamName.GetHash()) != mOverridedVectors.end();
+		return mOverridedVectors.find(InParamName.GetHashValue()) != mOverridedVectors.end();
 	}
 
-	void MaterialInstanceDynamic::SetInt(const Name& InParamName, int32_t InValue) { mOverridedInts[InParamName.GetHash()] = InValue; ++mRevision; }
-	int32_t MaterialInstanceDynamic::GetInt(const Name& InParamName, int32_t InDefault) const { auto It = mOverridedInts.find(InParamName.GetHash()); return It != mOverridedInts.end() ? It->second : (!mSource.isNull() ? mSource->GetInt(InParamName.GetHash(), InDefault) : InDefault); }
-	bool MaterialInstanceDynamic::HasIntOverride(const Name& InParamName) const { return mOverridedInts.find(InParamName.GetHash()) != mOverridedInts.end(); }
-	void MaterialInstanceDynamic::SetBool(const Name& InParamName, bool InValue) { mOverridedBools[InParamName.GetHash()] = InValue; ++mRevision; }
-	bool MaterialInstanceDynamic::GetBool(const Name& InParamName, bool InDefault) const { auto It = mOverridedBools.find(InParamName.GetHash()); return It != mOverridedBools.end() ? It->second : (!mSource.isNull() ? mSource->GetBool(InParamName.GetHash(), InDefault) : InDefault); }
-	bool MaterialInstanceDynamic::HasBoolOverride(const Name& InParamName) const { return mOverridedBools.find(InParamName.GetHash()) != mOverridedBools.end(); }
+	void MaterialInstanceDynamic::SetInt(const Name& InParamName, int32_t InValue) { mOverridedInts[InParamName.GetHashValue()] = InValue; ++mRevision; }
+	int32_t MaterialInstanceDynamic::GetInt(const Name& InParamName, int32_t InDefault) const { auto It = mOverridedInts.find(InParamName.GetHashValue()); return It != mOverridedInts.end() ? It->second : (!mSource.isNull() ? mSource->GetInt(InParamName.GetHashValue(), InDefault) : InDefault); }
+	bool MaterialInstanceDynamic::HasIntOverride(const Name& InParamName) const { return mOverridedInts.find(InParamName.GetHashValue()) != mOverridedInts.end(); }
+	void MaterialInstanceDynamic::SetBool(const Name& InParamName, bool InValue) { mOverridedBools[InParamName.GetHashValue()] = InValue; ++mRevision; }
+	bool MaterialInstanceDynamic::GetBool(const Name& InParamName, bool InDefault) const { auto It = mOverridedBools.find(InParamName.GetHashValue()); return It != mOverridedBools.end() ? It->second : (!mSource.isNull() ? mSource->GetBool(InParamName.GetHashValue(), InDefault) : InDefault); }
+	bool MaterialInstanceDynamic::HasBoolOverride(const Name& InParamName) const { return mOverridedBools.find(InParamName.GetHashValue()) != mOverridedBools.end(); }
 
 	MaterialParamSnapshot MaterialInstanceDynamic::CreateSnapshot() const
 	{

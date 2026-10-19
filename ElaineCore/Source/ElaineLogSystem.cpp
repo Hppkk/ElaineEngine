@@ -13,7 +13,7 @@ namespace Elaine
         m_logger = spdlog::stdout_color_mt("Elaine");
         m_logger->flush_on(spdlog::level::err);
 
-        m_logFile.open(Root::instance()->GetAppPath() + "/ElaineLog.txt");
+        m_logFile.open("/ElaineLog.txt");
 	}
 
 	LogSystem::~LogSystem()

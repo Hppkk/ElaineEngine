@@ -39,15 +39,14 @@ namespace Elaine
 	{
 		Root::instance()->DispatchFileChanges();
 		TickTime();
-		for (World* CurrentWorld : mWorlds)
-		{
-			CurrentWorld->Tick(Root::instance()->GetDeltaTime());
-		}
+		mWorldManager->RenderOneFrame(mDeltaTime);
 	}
 
 	void ElaineEngine::RenderOneFrame(float InDeltaTime)
 	{
-
+		Root::instance()->DispatchFileChanges();
+		TickTime();
+		mWorldManager->RenderOneFrame(InDeltaTime);
 	}
 
 	void ElaineEngine::DestroyEngine()
@@ -61,20 +60,11 @@ namespace Elaine
 	World* ElaineEngine::CreateWorld()
 	{
 		World* NewWorld = mWorldManager->CreateWorld();
-		mWorlds.push_back(NewWorld);
 		return NewWorld;
 	}
 
 	void ElaineEngine::DestroyWorld(World* InWorld)
 	{
-		for (auto Iter = mWorlds.begin(); Iter != mWorlds.end(); ++Iter)
-		{
-			if (*Iter == InWorld)
-			{
-				mWorlds.erase(Iter);
-				break;
-			}
-		}
 		mWorldManager->DestroyWorld(InWorld);
 	}
 

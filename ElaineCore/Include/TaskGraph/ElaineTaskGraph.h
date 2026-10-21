@@ -59,7 +59,8 @@ namespace TaskGraph
 	private:
 		GraphTaskPtr CreateTaskRecursively(const GraphTaskDesc& InDesc);
 	private:
-		TaskScheduler* mTaskScheduler = nullptr;
+		std::mutex mDispatchMutex;
+        TaskScheduler* mTaskScheduler = nullptr;
 		//std::set<GraphTaskPtr> mTasks;
 		Worker* mWorkers[(size_t)Elaine::NamedThread::ThreadCount] = { };
 	};

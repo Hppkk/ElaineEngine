@@ -10,10 +10,7 @@ namespace TaskGraph
        
     }
 
-    Worker::~Worker()
-    {
-
-    }
+    Worker::~Worker() { Destroy(); }
 
     void Worker::Initialize()
     {
@@ -28,15 +25,18 @@ namespace TaskGraph
 
         {
             std::lock_guard<std::mutex> LockGuard(mMtx);
+            if (mStopping) { InTask->Cancel(); return; }
             mTaskQueue.push(InTask);
+            ++mTaskCount;
             mConditionVariable.notify_one();
         }
 
-        ++mTaskCount;
     }
 
     void Worker::Destroy()
     {
+        { std::lock_guard<std::mutex> Lock(mMtx); mStopping = true; }
+        mConditionVariable.notify_all();
         Elaine::ThreadManager::instance()->DestroyThread(mThreadHandle);
         mThreadHandle = nullptr;
         mbInitialized = false;
@@ -54,6 +54,7 @@ namespace TaskGraph
         {
             GraphTaskPtr CurrentTask = This->RequestTask();
 
+            if (!CurrentTask) break;
             if (CurrentTask->Cancelled())
                 continue;
 
@@ -65,12 +66,15 @@ namespace TaskGraph
 
     void Worker::ExecuteAllTask()
     {
-        std::lock_guard<std::mutex> LockGuard(mMtx);
-        while (!mTaskQueue.empty())
+        TaskPriorityQueue Batch;
+        { std::lock_guard<std::mutex> LockGuard(mMtx); Batch.swap(mTaskQueue); }
+        while (!Batch.empty())
         {
-            GraphTaskPtr CurrentTask = mTaskQueue.front();
-            mTaskQueue.pop();
+            GraphTaskPtr CurrentTask = Batch.front();
+            Batch.pop();
+            --mTaskCount;
 
+            if (!CurrentTask) break;
             if (CurrentTask->Cancelled())
                 continue;
 
@@ -82,7 +86,8 @@ namespace TaskGraph
     GraphTaskPtr Worker::RequestTask()
     {
         std::unique_lock<std::mutex> UniqueLock(mMtx);
-        mConditionVariable.wait(UniqueLock, [&]() { return !mTaskQueue.empty(); });
+        mConditionVariable.wait(UniqueLock, [&]() { return mStopping || !mTaskQueue.empty(); });
+        if (mTaskQueue.empty()) return {};
         GraphTaskPtr PopTask = mTaskQueue.front();
         mTaskQueue.pop();
         UniqueLock.unlock();

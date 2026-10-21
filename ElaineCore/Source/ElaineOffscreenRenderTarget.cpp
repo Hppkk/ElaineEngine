@@ -49,7 +49,7 @@ namespace Elaine
 	{
 		if (Index < MAX_RENDER_TARGETS)
 		{
-			return mColorTargets[Index];
+			return mColorTargets[Index].get();
 		}
 		return nullptr;
 	}

@@ -44,20 +44,25 @@ namespace Elaine
 		bool HasVector(uint64_t InParamHash) const;
 		const std::vector<MaterialParameterDesc>& GetParameterLayout() const { return mParameterLayout; }
 		std::vector<MaterialParameterDesc> GetParameterLayoutSnapshot() const;
-		uint64_t GetLayoutRevision() const { return mLayoutRevision.load(std::memory_order_acquire); }
+		uint64_t GetLayoutRevision() const { return mLayoutRevision.load(); }
 	protected:
-		virtual bool LoadImpl() override;
+		std::unique_ptr<ResourceLoadData> LoadImpl() override;
+        bool InitializeGPU(ResourceLoadData& Data) override;
+        void PrepareDependencies(ResourceLoadData& Data) override;
 		virtual	void UnloadImpl() override;
 		virtual void SaveResourceImpl() override;
-		virtual void ResourceArrivedImpl() override;
 	public:
 		ShaderPass* GetPass(const Name& InPassType);
+        ShaderPass* GetShaderPass() override;
 		bool IsRegisterPass(const Name& InPassType);
 
 		// ResourceBase override: 获取所有直接依赖（纹理 + ShaderPass中的Shader）
 		void GetDirectDependencies(std::vector<ResourceBasePtr>& OutDependencies) const override;
 
 	private:
+        friend struct MaterialParamSnapshot;
+        struct LoadData;
+        void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
 		Version mVersion;
 		TexturePtr mTextures[Tex_Count];
 		ShaderPtr mVertexShader;

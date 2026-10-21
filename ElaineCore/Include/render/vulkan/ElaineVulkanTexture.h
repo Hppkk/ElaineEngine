@@ -34,6 +34,12 @@ namespace VulkanRHI
 		static void GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat,
 			VkFormat* OutViewFormat, bool bForceLinearTexture = false);
 		VkImage getHandle() const { return mHandle; }
+        uint32 GetNumberOfArrayLevels() const
+        {
+            const auto& Desc = GetDesc();
+            if (Desc.mDimension == TextureDimension::TextureCube || Desc.mDimension == TextureDimension::TextureCubeArray) return 6 * Desc.mArraySize;
+            return Desc.mDimension == TextureDimension::Texture2DArray ? Desc.mArraySize : 1;
+        }
 		VkImageViewType GetViewType() const
 		{
 			return TextureDimensionToVkImageViewType(GetDesc().mDimension);
@@ -104,11 +110,11 @@ namespace VulkanRHI
 		VkImageAspectFlags			mFullAspectMask;
 		VkImageAspectFlags			mPartialAspectMask;
 		VkImageLayout				mImageLayout;
-		VulkanCpuReadbackBuffer*	mCpuReadbackBuffer;
+		VulkanCpuReadbackBuffer*	mCpuReadbackBuffer = nullptr;
 		// View with all mips/layers
 		VulkanTextureView			mDefaultView;
 		// View with all mips/layers, but if it's a Depth/Stencil, only the Depth view
-		VulkanTextureView*			mPartialView;
+		VulkanTextureView*			mPartialView = nullptr;
 		// 是否拥有 VkImage 所有权（Swapchain 图像为 false）
 		bool						mbOwnsImage = true;
 		bool						mbIsSwapchainImage = false;

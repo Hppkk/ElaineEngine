@@ -11,7 +11,7 @@ namespace Elaine
     public:
         StaticMeshRenderProxy();
         virtual ~StaticMeshRenderProxy();
-        void SetMesh(const MeshPtr& InMesh) { mMesh = InMesh; }
+        void SetMesh(const MeshPtr& InMesh);
         void SetSubMeshCount(uint32 InCount) { mSubMeshCount = InCount; }
         void SetCastShadow(bool b) { mbCastShadow = b; }
         void SetReceiveShadow(bool b) { mbReceiveShadow = b; }
@@ -31,11 +31,17 @@ namespace Elaine
         void UpdateRenderQueue(RenderQueueSet* InRenderQueue) override;
 
     private:
-        uint32 mSubMeshCount;
+        void ApplyResourceUpdate(const RenderResourceUpdate& Update) override;
+        void InitializeResourceBinding() override;
+        uint32 mSubMeshCount = 0;
         bool mbCastShadow = true;
         bool mbReceiveShadow = true;
         uint8 mRenderLayer = 0;
         MeshPtr mMesh;
+        std::string mMeshPath;
+        MeshRenderData mMeshData;
+        RHIUniformBufferHandle mObjectUniformBuffer;
+        Matrix4x4 mUploadedWorldMatrix;
         std::vector<RenderMaterialProxy> mMaterialProxies;  // 渲染线程材质代理数组（值语义）
     };
 }

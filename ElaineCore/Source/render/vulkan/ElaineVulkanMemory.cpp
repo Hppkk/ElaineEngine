@@ -481,6 +481,8 @@ namespace VulkanRHI
 	void VulkanStagingBufferManager::DeInit()
 	{
 		ProcessPendingFree(true, true);
+        for (auto* Buffer : mUsedStagingBuffers) { Buffer->Destroy(); delete Buffer; }
+        mUsedStagingBuffers.clear();
 	}
 
 	VulkanStagingBuffer* VulkanStagingBufferManager::AcquireBuffer(uint32 Size, VkBufferUsageFlags InUsageFlags, VkMemoryPropertyFlagBits InMemoryReadFlags)
@@ -542,7 +544,7 @@ namespace VulkanRHI
 		StagingBuffer->mMemoryReadFlags = InMemoryReadFlags;
 		StagingBuffer->mBufferSize = Size;
 		StagingBuffer->mAllocation.BindBuffer(mDevice, StagingBuffer->mBuffer);
-		StagingBuffer->mBufferOffset = StagingBuffer->mAllocation.mOffset;
+		StagingBuffer->mBufferOffset = 0;
 		//StagingBuffer->ResourceAllocation->BindBuffer(Device, StagingBuffer->Buffer);
 
 		{
@@ -565,9 +567,9 @@ namespace VulkanRHI
 
 		if (CmdBuffer)
 		{
-			//PendingItemsPerCmdBuffer* ItemsForCmdBuffer = FindOrAdd(CmdBuffer);
-			//PendingItemsPerCmdBuffer::PendingItems* ItemsForFence = ItemsForCmdBuffer->FindOrAddItemsForFence(CmdBuffer->GetFenceSignaledCounterA());
-			//ItemsForFence->mResources.push_back(StagingBuffer);
+			auto* ItemsForCmdBuffer = FindOrAdd(CmdBuffer);
+            auto* ItemsForFence = ItemsForCmdBuffer->FindOrAddItemsForFence(CmdBuffer->GetCompletedFenceCounter());
+            ItemsForFence->mResources.push_back(StagingBuffer);
 		}
 		else
 		{
@@ -586,7 +588,7 @@ namespace VulkanRHI
 			}
 		}
 		mPendingItems.push_back({});
-		PendingItems* New = new(&mPendingItems.back()) PendingItems;
+		PendingItems* New = &mPendingItems.back();
 		New->mFenceCounter = Fence;
 		return New;
 	}
@@ -598,14 +600,34 @@ namespace VulkanRHI
 	}
 
 	VulkanStagingBufferManager::PendingItemsPerCmdBuffer* VulkanStagingBufferManager::FindOrAdd(VulkanCommandBuffer* CmdBuffer)
-	{
-		return nullptr;
-	}
+    {
+        for (auto& Items : mPendingFreeStagingBuffers) if (Items.mCmdBuffer == CmdBuffer) return &Items;
+        mPendingFreeStagingBuffers.push_back({CmdBuffer, {}});
+        return &mPendingFreeStagingBuffers.back();
+    }
 
 	void VulkanStagingBufferManager::ProcessPendingFreeNoLock(bool bImmediately, bool bFreeToOS)
-	{
-
-	}
+    {
+        for (auto It = mPendingFreeStagingBuffers.begin(); It != mPendingFreeStagingBuffers.end(); )
+        {
+            if (!bImmediately) It->mCmdBuffer->RefreshFenceStatus();
+            auto& Items = It->mPendingItems;
+            for (auto Item = Items.begin(); Item != Items.end(); )
+            {
+                if (!bImmediately && It->mCmdBuffer->GetCompletedFenceCounter() <= Item->mFenceCounter) { ++Item; continue; }
+                for (auto* Buffer : Item->mResources) mFreeStagingBuffers.push_back({Buffer, 0});
+                Item = Items.erase(Item);
+            }
+            if (Items.empty()) It = mPendingFreeStagingBuffers.erase(It); else ++It;
+        }
+        // Do not keep an unbounded pool after bursts of background uploads.
+        if (bFreeToOS || mFreeStagingBuffers.size() > 16)
+        {
+            for (auto& Entry : mFreeStagingBuffers)
+            { mUsedMemory -= Entry.mStagingBuffer->GetSize(); Entry.mStagingBuffer->Destroy(); delete Entry.mStagingBuffer; }
+            mFreeStagingBuffers.clear();
+        }
+    }
 
 	VulkanResourceHeap::VulkanResourceHeap(VulkanMemoryManager* InOwner, uint32 InMemoryTypeIndex, uint32 InOverridePageSize)
 		: mOwner(InOwner)
@@ -626,7 +648,7 @@ namespace VulkanRHI
 		auto DeletePages = [&](std::vector<VulkanSubResourceAllocator*>& UsedPages, const TCHAR* Name)
 		{
 			bool bLeak = false;
-			for (uint32 Index = UsedPages.size() - 1; Index >= 0; --Index)
+			for (int64 Index = static_cast<int64>(UsedPages.size()) - 1; Index >= 0; --Index)
 			{
 				VulkanSubResourceAllocator* Page = UsedPages[Index];
 				bLeak |= !Page->JoinFreeBlocks();
@@ -2235,6 +2257,7 @@ namespace VulkanRHI
 
 	void VulkanMemoryManager::FreeVulkanAllocation(VulkanAllocation& Allocation, VulkanFreeFlags FreeFlags)
 	{
+        if (!Allocation.HasAllocation()) return;
 		if (FreeFlags & VulkanFreeFlag_DontDefer)
 		{
 			switch (Allocation.mType)
@@ -2263,6 +2286,7 @@ namespace VulkanRHI
 		{
 			GetSubresourceAllocator(Allocation.mAllocatorIndex)->SetFreePending(Allocation);
 			mDeivce->GetDeferredDeletionQueue().EnqueueResourceAllocation(Allocation);
+            Allocation.Disown();
 		}
 	}
 
@@ -2343,7 +2367,7 @@ namespace VulkanRHI
 			{
 				if (SubresourceAllocator->TryAllocate2(OutAllocation, AllocationOwner, Size, Alignment, MetaType, File, Line))
 				{
-					mFreeBufferAllocations[PoolSize].erase(mFreeBufferAllocations->begin() + Index);
+					mFreeBufferAllocations[PoolSize].erase(mFreeBufferAllocations[PoolSize].begin() + Index);
 					mUsedBufferAllocations[PoolSize].push_back(SubresourceAllocator);
 					return true;
 				}
@@ -2618,19 +2642,12 @@ namespace VulkanRHI
 		return true;
 	}
 
-	void VulkanMemoryManager::FreeUniformBuffer(VulkanAllocation& InAllocation)
-	{
-		if (InAllocation.HasAllocation())
-		{
-			std::lock_guard<std::recursive_mutex> Lock(mUBAllocations.mMtx);
-			ProcessPendingUBFreesNoLock(false);
-			FUBPendingFree& Pending = mUBAllocations.mPendingFree.emplace_back(FUBPendingFree());
-
-			Pending.mFrame = 1;
-			Pending.mAllocation.Swap(InAllocation);
-			mUBAllocations.mPeak = Math::max(mUBAllocations.mPeak, (uint32)mUBAllocations.mPendingFree.size());
-		}
-	}
+    void VulkanMemoryManager::FreeUniformBuffer(VulkanAllocation& InAllocation)
+    {
+        // The owning RHI object already retired against its last-use submission.
+        // Reuse the same fence-aware allocation path; no frame-count heuristic.
+        FreeVulkanAllocation(InAllocation);
+    }
 
 	int32 GVulkanEvictOnePage = 0;
 
@@ -2717,10 +2734,11 @@ namespace VulkanRHI
 				for (int32 Index = 0; Index < FreeAllocations.size(); ++Index)
 				{
 					VulkanSubResourceAllocator* BufferAllocation = FreeAllocations[Index];
-					if (bImmediately || BufferAllocation->mFrameFreed + 3 < 1)
+					if (bImmediately || BufferAllocation->JoinFreeBlocks())
 					{
 						BufferAllocationsToRelease.push_back(BufferAllocation);
-						Index = FreeAllocations.begin() - FreeAllocations.erase(FreeAllocations.begin() + Index) - 1;
+						FreeAllocations.erase(FreeAllocations.begin() + Index);
+                        --Index;
 						if (FreeAllocations.size() == 0)
 							break;
 					}
@@ -2734,8 +2752,9 @@ namespace VulkanRHI
 
 			BufferAllocation->Destroy(mDeivce);
 
-			VulkanResourceHeap* Heap = mResourceTypeHeaps[BufferAllocation->mMemoryTypeIndex];
-			Heap->ReleasePage(BufferAllocation);
+			UnregisterSubresourceAllocator(BufferAllocation);
+            mDeviceMemoryManager->Free(BufferAllocation->mMemoryAllocation);
+            delete BufferAllocation;
 		}
 
 	}

@@ -3,6 +3,7 @@
 #include "ElaineMaterialInterface.h"
 #include "ElaineUniformGPUManager.h"
 #include "ElaineResourceBase.h"
+#include "render/common/ElaineRHI.h"
 
 namespace Elaine
 {
@@ -67,6 +68,20 @@ namespace Elaine
 
 	};
 
+    struct SubMeshDrawData
+    {
+        uint32 StartIndex = 0, IndexCount = 0, MaterialSlot = 0;
+        int32 BaseVertex = 0;
+    };
+    struct MeshRenderData
+    {
+        VertexLayoutDesc Layout;
+        std::vector<RHIBufferHandle> VertexBuffers;
+        RHIBufferHandle IndexBuffer;
+        uint32 IndexStride = 4;
+        std::vector<SubMeshDrawData> SubMeshes;
+    };
+
 	class ElaineCoreExport Mesh : public ResourceBase
 	{
 	public:
@@ -74,19 +89,30 @@ namespace Elaine
 		Mesh(ResourceManager* pManager, const std::string& res_name);
 		virtual ~Mesh() override;
 		uint32 GetSubMeshCount() const;
+        MeshRenderData CreateRenderData() const;
+        const std::vector<RHIBufferHandle>& GetVertexBuffers() const { return mGPUVertexBuffers; }
+        const RHIBufferHandle& GetIndexBuffer() const { return mIndexBuffer; }
+        uint32 GetIndexStride() const { return mIndexStride; }
+        const VertexLayoutDesc& GetVertexLayout() const { return mVertexLayout; }
+        const std::vector<SubMesh*>& GetSubMeshes() const { return mSubMeshes; }
 	protected:
-		virtual bool LoadImpl() override;
+		void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
+        std::unique_ptr<ResourceLoadData> LoadImpl() override;
+        bool InitializeGPU(ResourceLoadData& Data) override;
 		virtual	void UnloadImpl() override;
 		virtual void SaveResourceImpl() override;
-		virtual void ResourceArrivedImpl() override;
 	private:
+        struct LoadData;
+
 		VertexLayoutDesc mVertexLayout;
 		std::vector<SubMesh*> mSubMeshes;
 		std::vector<std::vector<uint8_t>> mCPUVertexBuffers;
 		std::vector<uint32_t> mCPUIndexBuffer;
-		std::vector<RHIBuffer*> mGPUVertexBuffers;
+		std::vector<RHIBufferHandle> mGPUVertexBuffers;
+        std::vector<uint8_t> mIndexBytes;
+        uint32 mIndexStride = 4;
 		std::vector<MaterialSlot> mMaterialSlots;
-		RHIBuffer* mIndexBuffer = nullptr;
+		RHIBufferHandle mIndexBuffer;
 #ifdef _HAS_EDITOR_
 		friend class MeshConverter;
 #endif

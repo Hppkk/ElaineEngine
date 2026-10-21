@@ -24,9 +24,9 @@ namespace Elaine
 		PostProcessChain* mPostProcessChain = nullptr;
 
 		// 持久渲染目标（由资源池管理，首次使用时创建）
-		RHITexture* mShadowMapTexture = nullptr;
-		RHITexture* mSceneColorTexture = nullptr;
-		RHITexture* mSceneDepthTexture = nullptr;
+		RHITextureHandle mShadowMapTexture = nullptr;
+		RHITextureHandle mSceneColorTexture = nullptr;
+		RHITextureHandle mSceneDepthTexture = nullptr;
 
 		// 上次创建时的尺寸，用于检测是否需要重建
 		uint32 mLastViewportWidth = 0;

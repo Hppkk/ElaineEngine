@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "TaskGraph/ElaineTask.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 #include "TaskGraph/ElaineTaskDependency.h"
 
 namespace TaskGraph
@@ -31,7 +32,7 @@ namespace TaskGraph
 
 	static TaskUUID GenerateTaskUUID()
 	{
-		static TaskUUID TaskID = 0u;
+		static std::atomic<TaskUUID> TaskID{0};
 		return TaskID++;
 	}
 
@@ -49,120 +50,46 @@ namespace TaskGraph
 		SAFE_DELETE(mDependency);
 	}
 
-	void GraphTask::Dependency(GraphTaskPtr InTask)
-	{
-		if (InTask == nullptr)
-			return;
-
-		std::lock_guard<std::mutex> Lock_Guard(mMtx);
-
-		if (mDependency == nullptr)
-		{
-			mDependency = new TaskDependency(this);
-		}
-
-		mDependency->AddResourceEvent(InTask);
-	}
-
-	void GraphTask::Subsequent(GraphTaskPtr InTask)
-	{
-		if (InTask == nullptr)
-			return;
-
-		std::lock_guard<std::mutex> Lock_Guard(mMtx);
-
-		if (InTask->mDependency == nullptr)
-		{
-			InTask->mDependency = new TaskDependency(this);
-		}
-
-		InTask->mDependency->AddResourceEvent(this->shared_from_this());
-	}
-
-	void GraphTask::Cancel()
-	{
-		mTaskState = TaskState::Cancelled;
-	}
-
-	void GraphTask::Execute()
-	{
-		if (mTaskState != TaskState::Ready)
-		{
-			LOG_ERROR("TaskGraph: GraphTask is not ready.");
-			return;
-		}
-
-		mTaskState = TaskState::Executing;
-
-		mTaskFunction();
-
-		mTaskState = TaskState::Succeeded;
-	}
-
-	bool GraphTask::CanExecute()
-	{
-		if (mDependency == nullptr)
-			return true;
-
-		std::lock_guard<std::mutex> Lock_Guard(mMtx);
-
-		return mDependency->IsEmpty() || mDependency->DependencyReady();
-	}
-
-	bool GraphTask::Cancelled()
-	{
-		return mTaskState == TaskState::Cancelled;
-	}
-
-	void GraphTask::DispatchSubsequents()
-	{
-		if (mDependency == nullptr)
-			return;
-
-		mDependency->DispatchSubsequents();
-	}
-
-	void GraphTask::WhenAll(const std::vector<GraphTaskPtr>& InTasks)
-	{
-		auto JoinCounter = std::make_shared<TaskJoinCounter>((int)InTasks.size(), shared_from_this());
-
-		for (auto& Tsk : InTasks)
-		{
-			Tsk->ContinueWith([JoinCounter]
-			{
-				JoinCounter->SignalOneTaskDone();
-			});
-		}
-	}
-
-	void GraphTask::ContinueWith(GraphTaskPtr InTask)
-	{
-		if (InTask == nullptr)
-			return;
-
-		bool CanDispatch = false;
-
-		{
-			std::lock_guard<std::mutex> Lock_Guard(mMtx);
-			if (mTaskState == TaskState::Succeeded)
-			{
-				CanDispatch = true;
-			}
-			else
-			{
-				InTask->Dependency(shared_from_this());
-			}
-		}
-
-		if (CanDispatch)
-		{
-			TaskGraph::instance()->Dispatch(InTask);
-		}
-	}
-
-	void GraphTask::ContinueWith(const TaskFunction& InFunction, NamedThread InExecutedThread)
-	{
-		auto NewTask = TaskGraph::instance()->CreateTask(InFunction, InExecutedThread);
-		ContinueWith(NewTask);
-	}
+    void GraphTask::Dependency(GraphTaskPtr Task)
+    {
+        if (!Task || Task.get() == this) throw std::logic_error("Invalid task dependency");
+        std::lock_guard<std::mutex> Lock(mMtx);
+        if (mTaskState != TaskState::None) throw std::logic_error("Dependencies must precede dispatch");
+        mDependency->AddResourceEvent(Task);
+    }
+    void GraphTask::Subsequent(GraphTaskPtr Task)
+    {
+        if (!Task) return;
+        Task->Dependency(shared_from_this());
+        TaskGraph::instance()->Dispatch(Task);
+    }
+    void GraphTask::Cancel()
+    {
+        auto State = mTaskState.load();
+        while (State == TaskState::None || State == TaskState::Pending || State == TaskState::Ready)
+            if (mTaskState.compare_exchange_weak(State, TaskState::Cancelled)) return;
+    }
+    void GraphTask::Execute()
+    {
+        auto Expected = TaskState::Ready;
+        if (!mTaskState.compare_exchange_strong(Expected, TaskState::Executing)) return;
+        try { mTaskFunction(); mTaskState = TaskState::Succeeded; }
+        catch (...) { mTaskState = TaskState::Failed; }
+        mTaskFunction = {};
+    }
+    bool GraphTask::CanExecute()
+    {
+        std::lock_guard<std::mutex> Lock(mMtx);
+        return mDependency->DependencyReady();
+    }
+    bool GraphTask::Cancelled() { return mTaskState == TaskState::Cancelled; }
+    void GraphTask::DispatchSubsequents() {}
+    void GraphTask::WhenAll(const std::vector<GraphTaskPtr>& Tasks)
+    {
+        for (auto& Task : Tasks) Dependency(Task);
+        TaskGraph::instance()->Dispatch(shared_from_this());
+    }
+    void GraphTask::ContinueWith(GraphTaskPtr Task) { Subsequent(Task); }
+    void GraphTask::ContinueWith(const TaskFunction& Function, NamedThread Thread)
+    { ContinueWith(TaskGraph::instance()->CreateTask(Function, Thread)); }
 }

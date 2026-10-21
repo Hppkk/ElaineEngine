@@ -1,7 +1,7 @@
 #pragma once
 #include "Elaine.h"
 #include "ElaineMemory.h"
-#include "render/common/ElaineRHISmartPtr.h"
+#include "render/common/ElaineRHIResourceHandle.h"
 
 namespace Elaine
 {

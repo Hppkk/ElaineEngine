@@ -1,4 +1,5 @@
 #pragma once
+#include "render/vulkan/ElaineVulkanTypes.h"
 
 namespace VulkanRHI
 {
@@ -7,6 +8,7 @@ namespace VulkanRHI
 	public:
 		VulkanInstance();
 		void Initialize();
+        static uint32 GetValidationErrorCount();
 		void Destroy();
 		const VkInstance GetInstance() const
 		{

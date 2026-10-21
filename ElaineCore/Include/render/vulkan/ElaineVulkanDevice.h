@@ -1,6 +1,7 @@
 #pragma once
 #include "ElaineCorePrerequirements.h"
-#include "vulkan_core.h"
+#include "render/vulkan/ElaineVulkanTypes.h"
+#include <set>
 #include "render/vulkan/ElaineVulkanMemory.h"
 #include "vulkan/ElaineVulkanCommandBuffer.h"
 #include "render/common/ElaineRHIProtocol.h"
@@ -9,6 +10,7 @@ namespace VulkanRHI
 {
 
 	class VulkanQueue;
+    class VulkanFramebufferCache;
 	class VulkanPhysicalDevice;
 	class VulkanInstance;
 	class VulkanShaderManager;
@@ -135,7 +137,7 @@ namespace VulkanRHI
 	private:
 		VulkanDevice*			mDevice;
 		std::recursive_mutex	mMtx;
-		std::set<FEntry>		mEntries;
+		std::vector<FEntry>		mEntries;
 
 	};
 
@@ -167,7 +169,10 @@ namespace VulkanRHI
 			return mPresentQueue;
 		}
 
-		VulkanQueue* GetGraphicQueue() const
+		void RegisterFramebufferCache(VulkanFramebufferCache* Cache) { mFramebufferCaches.insert(Cache); }
+        void UnregisterFramebufferCache(VulkanFramebufferCache* Cache) { mFramebufferCaches.erase(Cache); }
+        void InvalidateImageView(VkImageView View);
+        VulkanQueue* GetGraphicQueue() const
 		{
 			return mGraphicQueue;
 		}
@@ -228,7 +233,8 @@ namespace VulkanRHI
 		VkDevice						mHandle;
 		VulkanQueue*					mComputeQueue;
 		VulkanQueue*					mTransferQueue;
-		VulkanQueue*					mPresentQueue;
+		std::set<VulkanFramebufferCache*> mFramebufferCaches;
+        VulkanQueue*					mPresentQueue;
 		VulkanQueue*					mGraphicQueue;
 		VulkanPhysicalDevice*			mVulkanPhyDevice;
 		VulkanFenceManager*				mFenceMgr;

@@ -55,7 +55,7 @@ namespace Elaine
 		if (InThread == nullptr)
 			return;
 
-		mThreads.erase(InThread->m_eNamedThread);
+		{ std::lock_guard<std::mutex> Lock(mThreadMutex); mThreads.erase(InThread->m_eNamedThread); }
 		SAFE_DELETE(InThread);
 	}
 

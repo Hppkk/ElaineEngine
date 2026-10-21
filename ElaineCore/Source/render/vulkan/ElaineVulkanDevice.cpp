@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "render/vulkan/ElaineVulkanPhysicalDevice.h"
 #include "render/vulkan/ElaineVulkanRHI.h"
@@ -7,6 +7,8 @@
 #include "render/vulkan/ElaineVulkanQueue.h"
 #include "render/vulkan/ElaineVulkanShader.h"
 #include "render/vulkan/ElaineVulkanPipeline.h"
+#include "render/vulkan/ElaineVulkanCommandBuffer.h"
+#include "render/vulkan/ElaineVulkanRenderPassCache.h"
 
 namespace VulkanRHI
 {
@@ -26,25 +28,34 @@ namespace VulkanRHI
 	}
 
 	void DeferredDeletionQueue::EnqueueResourceAllocation(VulkanAllocation& Allocation)
-	{
-
-	}
+    {
+        std::lock_guard<std::recursive_mutex> Lock(mMtx);
+        FEntry Entry{}; Entry.StructureType = EType::ResourceAllocation; Entry.Allocation = Allocation;
+        mDevice->GetGraphicQueue()->GetLastSubmittedInfo(Entry.CmdBuffer, Entry.FenceCounter);
+        mEntries.push_back(Entry);
+    }
 
 	void DeferredDeletionQueue::EnqueueDeviceAllocation(VulkanDeviceMemoryAllocation* DeviceMemoryAllocation)
-	{
-
-	}
+    {
+        std::lock_guard<std::recursive_mutex> Lock(mMtx);
+        FEntry Entry{}; Entry.StructureType = EType::DeviceMemoryAllocation; Entry.DeviceMemoryAllocation = DeviceMemoryAllocation;
+        mDevice->GetGraphicQueue()->GetLastSubmittedInfo(Entry.CmdBuffer, Entry.FenceCounter);
+        mEntries.push_back(Entry);
+    }
 
 	void DeferredDeletionQueue::ReleaseResources(bool bDeleteImmediately)
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMtx);
 		VkDevice DeviceHandle = mDevice->GetDevice();
 
-		for (const FEntry& enter : mEntries)
+        do {
+		std::vector<FEntry> Batch;
+        Batch.swap(mEntries);
+        for (const auto& enter : Batch)
 		{
+            if (!bDeleteImmediately && enter.CmdBuffer) enter.CmdBuffer->RefreshFenceStatus();
 			if (bDeleteImmediately ||
-				(GVulkanRHIDeletionFrameNumber > enter.FrameNumber + NUM_FRAMES_TO_WAIT_FOR_RESOURCE_DELETE &&
-					(enter.CmdBuffer == nullptr))
+				(!enter.CmdBuffer || enter.CmdBuffer->GetCompletedFenceCounter() > enter.FenceCounter)
 				)
 			{
 				switch (enter.StructureType)
@@ -85,16 +96,20 @@ namespace VulkanRHI
 				default:
 					break;
 				}
+
 			}
+            else mEntries.push_back(enter);
 		}
-		mEntries.clear();
+        } while (bDeleteImmediately && !mEntries.empty());
 	}
 	
 
 	void DeferredDeletionQueue::OnCmdBufferDeleted(VulkanCommandBuffer* CmdBuffer)
-	{
-
-	}
+    {
+        // Command pools are destroyed only after waiting for the device.
+        std::lock_guard<std::recursive_mutex> Lock(mMtx);
+        for (auto& Entry : mEntries) if (Entry.CmdBuffer == CmdBuffer) Entry.CmdBuffer = nullptr;
+    }
 
 	void DeferredDeletionQueue::EnqueueGenericResource(EType Type, uint64 Handle)
 	{
@@ -108,7 +123,7 @@ namespace VulkanRHI
 
 		{
 			std::lock_guard<std::recursive_mutex> lock(mMtx);
-			mEntries.emplace(Entry);
+			mEntries.push_back(Entry);
 		}
 	}
 
@@ -129,18 +144,24 @@ namespace VulkanRHI
 		
 	}
 
-	VulkanDevice::~VulkanDevice()
-	{
-		mFenceMgr->DeInit();
-		SAFE_DELETE(mFenceMgr);
-		mStagingMgr->DeInit();
-		SAFE_DELETE(mStagingMgr);
-		mMemoryManager->Deinit();
-		SAFE_DELETE(mMemoryManager);
-		mDeviceMemoryMgr->Deinit();
-		SAFE_DELETE(mDeviceMemoryMgr);
-		SAFE_DELETE(mShaderManager);
-	}
+    void VulkanDevice::InvalidateImageView(VkImageView View)
+    { for (auto* Cache : mFramebufferCaches) Cache->InvalidateView(View); }
+    VulkanDevice::~VulkanDevice()
+    {
+        vkDeviceWaitIdle(mHandle);
+        SAFE_DELETE(mPipelineManager);
+        SAFE_DELETE(mShaderManager);
+        mStagingMgr->DeInit(); SAFE_DELETE(mStagingMgr);
+        mDefDelQueue.ReleaseResources(true);
+        mMemoryManager->Deinit();
+        mDefDelQueue.ReleaseResources(true);
+        SAFE_DELETE(mMemoryManager);
+        mDeviceMemoryMgr->Deinit(); SAFE_DELETE(mDeviceMemoryMgr);
+        mFenceMgr->DeInit(); SAFE_DELETE(mFenceMgr);
+        std::set<VulkanQueue*> Queues{mGraphicQueue, mComputeQueue, mTransferQueue, mPresentQueue};
+        for (auto* Queue : Queues) delete Queue;
+        vkDestroyDevice(mHandle, VULKAN_CPU_ALLOCATOR); mHandle = VK_NULL_HANDLE;
+    }
 
 	void VulkanDevice::Initialize()
 	{

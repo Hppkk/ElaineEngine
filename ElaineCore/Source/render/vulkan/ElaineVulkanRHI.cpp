@@ -43,6 +43,25 @@ namespace VulkanRHI
 		GVulkanDynamicRHI = nullptr;
 	}
 
+    std::shared_ptr<const Elaine::RHIShaderCompileResult> VulkanDynamicRHI::PrepareShader(const std::string& Code, const std::string& Path, EShaderStage Stage)
+    {
+        return VulkanShaderCompileManager::PrepareCPU(Code, Path, Stage);
+    }
+
+    void VulkanDynamicRHI::ProcessGPUCompletions()
+    {
+        auto* Context = static_cast<VulkanCommandContext*>(mDefaultCommandContext);
+        Context->GetCommandBufferManager()->RefreshCommandBufferState();
+        Elaine::FlushRHIResourceReleases();
+        mDevice->GetStagingManager()->ProcessPendingFree(false, false);
+        mDevice->GetDeferredDeletionQueue().ReleaseResources(false);
+    }
+
+    uint64_t VulkanDynamicRHI::GetValidationErrorCount() const
+    {
+        return VulkanInstance::GetValidationErrorCount();
+    }
+
 	void VulkanDynamicRHI::Initialize(const Elaine::RHI_PARAM_DESC& InDesc)
 	{
 #ifndef USE_VOLK
@@ -185,6 +204,9 @@ namespace VulkanRHI
 
 	void VulkanDynamicRHI::Destroy()
 	{
+        vkDeviceWaitIdle(mDevice->GetDevice());
+        SAFE_DELETE(mDefaultRenderPass);
+        delete VulkanShaderCompileManager::instance();
 		if (mbCreateComputeCtx)
 		{
 			SAFE_DELETE(mDefaultComputeContext);
@@ -200,13 +222,14 @@ namespace VulkanRHI
 			SAFE_DELETE(CurrentCtx);
 		}
 		mCommandContexts.clear();
+        mDevice->GetDeferredDeletionQueue().ReleaseResources(true);
+        if (mSurface) { vkDestroySurfaceKHR(mInstance->GetInstance(), mSurface, VULKAN_CPU_ALLOCATOR); mSurface = VK_NULL_HANDLE; }
 		SAFE_DELETE(mDevice);
 		mPhyDevice->Destroy();
 		SAFE_DELETE(mPhyDevice);
 		mInstance->Destroy();
 		SAFE_DELETE(mInstance);
 
-		delete VulkanShaderCompileManager::instance();
 	}
 
 	Elaine::RHICommandContext* VulkanDynamicRHI::CreateCommandContex()

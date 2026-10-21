@@ -13,7 +13,7 @@ namespace Elaine
 		RenderSystem();
 		~RenderSystem();
 		void Initialize(const RHI_PARAM_DESC& InDesc);
-		RHIBuffer* CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize);
+		RHIBufferHandle CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize);
 		RenderCommandQueue* GetRenderCommandQueue() const { return mRenderCommandQueue; }
 		RenderContext& GetRenderContext() { return mRenderContext; }
 		RHICommandContext* GetRHICommandContext() const { return mImmedCommandCtx; }

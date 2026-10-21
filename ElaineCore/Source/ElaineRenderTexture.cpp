@@ -15,6 +15,6 @@ namespace Elaine
 
 	RHITexture* RenderTexture::GetTargetImpl()
 	{
-		return mTextureRHI;
+		return mTextureRHI.get();
 	}
 }

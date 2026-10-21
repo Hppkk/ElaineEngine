@@ -34,5 +34,6 @@ namespace TaskGraph
 		std::atomic_uint mTaskCount = 0;
 		Elaine::NamedThread mThreadDesc;
 		bool mbInitialized = false;
+        bool mStopping = false;
 	};
 }

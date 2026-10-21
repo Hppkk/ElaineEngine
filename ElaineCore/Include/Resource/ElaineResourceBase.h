@@ -1,7 +1,9 @@
 ﻿#pragma once
+#include <set>
+#include <mutex>
 #include "ElaineCorePrerequirements.h"
 #include "ElaineResourcePtr.h"
-#include "TaskGraph/ElaineTaskGraph.h"
+#include "Resource/ElaineResourceRequest.h"
 
 namespace TaskGraph { class GraphTask; }
 
@@ -16,28 +18,17 @@ namespace Elaine
 		ResLoadPriority_High,
 	};
 
-	//using ResourceDependency = std::pair<std::string, ResourceType>;
-
-	//struct ResourceEvent
-	//{
-	//	ResourceEvent(Name InName, ResourceType InType, TaskGraph::GraphTaskPtr InLoadTask)
-	//		: mResourceName(InName)
-	//		, mType(InType)
-	//		, mLoadTask(InLoadTask)
-	//		//, mResource(InPtr)
-	//	{
-
-	//	}
-
-	//	Name mResourceName;
-	//	ResourceType mType;
-	//	TaskGraph::GraphTaskPtr mLoadTask;
-	//	//ResourceBasePtr mResource;
-	//};
-
 	class ResourceBase;
 	using ResourceBasePtr = ResourcePtr<ResourceBase>;
-	class ElaineCoreExport ResourceListener
+	// Private working storage for one load. It is never a cached resource.
+    struct ResourceLoadData
+    {
+        virtual ~ResourceLoadData() = default;
+        std::vector<ResourceBasePtr> Dependencies;
+        size_t MemoryUsage = 0;
+    };
+
+    class ElaineCoreExport ResourceListener
 	{
 	public:
 		ResourceListener();
@@ -53,39 +44,39 @@ namespace Elaine
 	class ElaineCoreExport ResourceBase 
 	{
 		friend class ResourceManager;
+        friend class ResourcePipeline;
 	public:
 		enum LoadState : uint8_t
 		{
 			Unloaded, //未加载
 			Pending,  //等待加载
 			Loading,  //正在加载
+            Finalizing,
 			Loaded,   //加载完成
 			Unloading, //卸载中
 			Failed,  //失败
 			Missing, //资源不存在
 		};
 
-		using LoadCompleteCallback = std::function<void(ResourceBase*)>;
+		using LoadCompleteCallback = ResourceCompletion;
 
 	public:
 		ResourceBase() = default;
 		ResourceBase(ResourceManager* InManager, const std::string& InResourceName);
 		virtual ~ResourceBase();
-		void					LoadResource(bool async = true);
 		void					UnloadResource();
 		virtual void				ReloadResource();
 		void					SaveResource();
-		void					ResourceArrived();
 		LoadState				GetLoadState() const;
-		bool					IsLoaded() const;
+		bool                    IsLoaded() const;
+        bool IsReady() const { return IsLoaded(); }
+        std::atomic<ResourceRequestState> mLastAttemptState{ResourceRequestState::Pending};
 		size_t				GetMemoryUsage() const;
 		void					SetMemoryUsage(size_t Bytes);
 		void					AddMemoryUsage(size_t Bytes);
 		void					ReleaseMemoryUsage(size_t Bytes);
 		const std::string&		GetPath() const { return mResourceName; }
 
-		TaskGraph::GraphTaskPtr GetLoadTask() const { return mLoadTask; }
-		void SetLoadTask(TaskGraph::GraphTaskPtr InTask) { mLoadTask = InTask; }
 
 		//const std::vector<ResourceEvent>& GetResourceEvents() const { return mResourceEvents; }
 		//void GetResourceEvents(std::vector<ResourceEvent>& OutEvents);
@@ -93,30 +84,38 @@ namespace Elaine
 		//void AddResourceEvent(const std::vector<ResourceEvent>& InEvents);
 		//void ClearDependencies() { mResourceEvents.clear(); }
 
-		void RegisterLoadCompleteCallback(LoadCompleteCallback InCallback);
+		ResourceSubscription RegisterLoadCompleteCallback(LoadCompleteCallback InCallback);
+        ResourceSubscription ObserveChanges(LoadCompleteCallback Callback);
 
 		virtual void GetDirectDependencies(std::vector<ResourceBasePtr>& OutDependencies) const {}
+        virtual std::vector<std::string> GetSourceFiles() const { return {mResourceName}; }
 
 	protected:
-		virtual bool			LoadImpl() = 0;
+        void NotifyChanged(const ResourceLoadResult& Result, uint64_t LoadSerial);
+        // Worker -> GameThread -> RenderThread -> GameThread.
+        // All fallible preparation is completed before the final noexcept swap.
+        virtual std::unique_ptr<ResourceLoadData> LoadImpl() = 0;
+        virtual void PrepareDependencies(ResourceLoadData& Data) {}
+        virtual bool InitializeGPU(ResourceLoadData& Data) { return true; }
+        virtual void ApplyLoadedData(ResourceLoadData& Data) noexcept = 0;
 		virtual	void			UnloadImpl() = 0;
 		virtual void			SaveResourceImpl() = 0;
-		virtual void			ResourceArrivedImpl() = 0;
 
-		void NotifyLoadComplete();
 
 	protected:
 		std::string				mResourceName;
 		ResourceManager* mOwner = nullptr;
 		std::atomic<size_t>		mMemoryUsage{0};
 		std::atomic<LoadState> mLoadState = Unloaded;
-		TaskGraph::GraphTaskPtr mLoadTask;
+        std::atomic<uint64_t> mLoadSerial{0};
+        struct ChangeListener
+        {
+            ResourceRequestData::Listener Listener;
+            uint64_t LastStamp = 0;
+        };
+        mutable std::mutex mChangeMutex;
+        std::vector<ChangeListener> mChangeListeners;
 		//std::vector<ResourceEvent> mResourceEvents;
 
-		// 加载完成回调列表
-		std::vector<LoadCompleteCallback> mLoadCompleteCallbacks;
-		std::mutex mCallbackMutex;
-		mutable std::recursive_mutex mLifecycleMutex;
-		std::atomic<bool> mResourceArrived{false};  // 标记 ResourceArrived 是否已调用
 	};
 }

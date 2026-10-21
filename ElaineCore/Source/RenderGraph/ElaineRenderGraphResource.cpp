@@ -33,7 +33,7 @@ namespace RenderGraph
 
 	RHITexture* GraphTexture::GetRHITexture() const
 	{
-		return static_cast<RHITexture*>(mResourceRHI);
+		return static_cast<RHITexture*>(mResourceRHI.get());
 	}
 
 	void GraphTexture::SetRHITexture(RHITexture* InTexture)
@@ -56,7 +56,7 @@ namespace RenderGraph
 
 	RHIBuffer* GraphBuffer::GetRHIBuffer() const
 	{
-		return static_cast<RHIBuffer*>(mResourceRHI);
+		return static_cast<RHIBuffer*>(mResourceRHI.get());
 	}
 
 	void GraphBuffer::SetRHIBuffer(RHIBuffer* InBuffer)

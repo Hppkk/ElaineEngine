@@ -5,6 +5,7 @@
 #include "ElaineCameraComponent.h"
 #include "ElaineSkyComponent.h"
 #include "ElainePlatformWindow.h"
+#include "ElaineBarrier.h"
 #include "ElaineInputSystem.h"
 
 
@@ -70,6 +71,12 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
+        bool Smoke = false, DedicatedRHI = true;
+        for (int i = 1; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "--resource-smoke") Smoke = true;
+            if (std::string(argv[i]) == "--rhi-inline") DedicatedRHI = false;
+        }
 		// --- Create window using PlatformWindow ---
 		Elaine::WindowDesc CreateDesc{};
 		CreateDesc.title = "ElaineEditor";
@@ -84,7 +91,7 @@ extern "C" {
 		INIT_DESC.Height = G_WIN_HEIGHT;
 		INIT_DESC.Width = G_WIN_WIDTH;
 		INIT_DESC.RHIType = Elaine::Vulkan;
-		INIT_DESC.UseRHIThread = true;
+		INIT_DESC.UseRHIThread = DedicatedRHI;
 		INIT_DESC.NativeHandle = NewWindow->getNativeHandle();
 		NewEngine->Initialize(INIT_DESC);
 		NewWindow->createSwapchain();
@@ -106,19 +113,22 @@ extern "C" {
 		MainView->SetCamera(NewCamera);
 		NewEngine->RegisterViewport(MainView);
 
-		while (!NewWindow->shouldClose())
+		for (int Frame = 0; !NewWindow->shouldClose() && (!Smoke || Frame < 180); ++Frame)
 		{
 			NewWindow->pollEvents();
+            Elaine::RenderToLogic_Barrier->Wait();
             auto* input = Elaine::InputSystem::instance();
             input->BeginFrame();
             input->DispatchEvents();
-			//Tick();
+            NewEngine->RenderOneFrame();
+            Elaine::LogicToRender_Barrier->Signal();
 		}
 
 		//NewEngine->UnregisterViewport(MainView);
 		//NewEngine->DestroyViewport(MainView);
 		delete NewEngine;
-		return 0;
+        delete NewWindow;
+        return Smoke && Elaine::GetRHIValidationErrorCount() != 0 ? 1 : 0;
 	}
 
 #ifdef __cplusplus

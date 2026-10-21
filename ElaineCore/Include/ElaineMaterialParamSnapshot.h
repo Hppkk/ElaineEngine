@@ -1,56 +1,37 @@
-﻿
 #pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineUniformGPUManager.h"
 #include "ElaineMaterialInstanceStatic.h"
+#include <array>
 
 namespace Elaine
 {
-    /**
-     * MaterialParamSnapshot — 材质参数快照
-     * 
-     * 由逻辑线程（从 MaterialInstanceDynamic）创建，通过 ENQUEUE_RENDER_COMMAND
-     * 传递到渲染线程的 RenderMaterialProxy。
-     * 
-     * 设计原则：
-     * - 仅包含 ResourcePtr（引用计数安全）和 POD 参数值
-     * - 不包含任何 RHI 资源指针（RHITexture*, RHIPipeline* 等）
-     * - 可安全拷贝/移动跨线程传递
-     */
-    struct MaterialParamSnapshot
+    // Captured on GameThread. RenderThread reads only the owned values and RHI handles.
+    struct ElaineCoreExport MaterialParamSnapshot
     {
-        /// 底层材质实例资源（引用计数安全，指向 MaterialInstanceStatic）
-        MaterialInstanceStaticPtr Source;
-
-        /// 覆盖的纹理参数（TexturePtr 是 ResourcePtr<Texture>，引用计数安全）
+        MaterialInstanceStaticPtr Source; // Identity and change subscriptions only.
         std::unordered_map<TextureSemantics, TexturePtr> OverridedTextures;
-
-        /// 覆盖的标量参数（Key 为参数名 hash）
         std::unordered_map<uint64_t, float> OverridedScalars;
-
-        /// 覆盖的向量参数（Key 为参数名 hash）
         std::unordered_map<uint64_t, Vector4> OverridedVectors;
         std::unordered_map<uint64_t, int32_t> OverridedInts;
         std::unordered_map<uint64_t, bool> OverridedBools;
         uint64_t Revision = 0;
 
-        /// 快照是否有效（Source 非空且已加载）
-        bool IsValid() const
-        {
-            return !Source.isNull();
-        }
+        std::unordered_map<uint64_t, float> Scalars;
+        std::unordered_map<uint64_t, Vector4> Vectors;
+        std::unordered_map<uint64_t, int32_t> Ints;
+        std::unordered_map<uint64_t, bool> Bools;
+        std::vector<MaterialParameterDesc> ParameterLayout;
+        std::vector<ShaderPass> Passes;
+        std::array<TexturePtr, Tex_Count> TextureSources;
+        std::array<RHITextureHandle, Tex_Count> ResolvedTextures;
+        std::array<RHITextureHandle, Tex_Count> OverrideTextureHandles;
+        bool MaterialReady = false;
+        bool Ready = false;
 
-        /// 检查底层资源链是否全部加载完成
-        bool IsFullyLoaded() const
-        {
-            if (Source.isNull())
-                return false;
-            if (!Source->IsLoaded())
-                return false;
-            const MaterialPtr& OriginMat = Source->GetOriginMaterial();
-            if (OriginMat.isNull())
-                return false;
-            return OriginMat->IsLoaded();
-        }
+        void CaptureResources(); // GameThread only.
+        void ApplyOverrides(); // Operates on captured values only.
+        bool IsValid() const { return bool(Source); }
+        bool IsFullyLoaded() const { return Ready; }
     };
 }

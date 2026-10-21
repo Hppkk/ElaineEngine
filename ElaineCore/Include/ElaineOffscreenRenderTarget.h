@@ -30,7 +30,7 @@ namespace Elaine
 		virtual RHITexture* GetTargetImpl() override { return GetColorTarget(0); }
 		virtual void GetSize(uint32& OutWidth, uint32& OutHeight) override;
 		virtual RHITexture* GetColorTarget(uint32 Index = 0) override;
-		virtual RHITexture* GetDepthStencilTarget() override { return mDepthStencilTarget; }
+		virtual RHITexture* GetDepthStencilTarget() override { return mDepthStencilTarget.get(); }
 		virtual uint32 GetNumColorTargets() const override { return mNumColorTargets; }
 
 		//=========================================================================
@@ -39,8 +39,8 @@ namespace Elaine
 		virtual bool IsSwapchainTarget() const override { return false; }
 
 	private:
-		RHITexture* mColorTargets[MAX_RENDER_TARGETS] = {};
-		RHITexture* mDepthStencilTarget = nullptr;
+		RHITextureHandle mColorTargets[MAX_RENDER_TARGETS] = {};
+		RHITextureHandle mDepthStencilTarget = nullptr;
 		uint32 mWidth = 0;
 		uint32 mHeight = 0;
 		uint32 mNumColorTargets = 0;

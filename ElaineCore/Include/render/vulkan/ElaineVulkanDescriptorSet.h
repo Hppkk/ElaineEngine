@@ -1,6 +1,8 @@
 ﻿#pragma once
+#include "render/vulkan/ElaineVulkanTypes.h"
 namespace VulkanRHI
 {
+    class VulkanTexture;
 
 	class VulkanUniformBuffer;
 
@@ -54,6 +56,7 @@ namespace VulkanRHI
 	{
 	public:
 		VulkanDescriptorPool(VulkanDevice* InDevice, uint32 InMaxSetsAllocations);
+        ~VulkanDescriptorPool();
 		VkDescriptorPool GetHandle() const { return mHandle; }
 		bool CanAllocate() const { return mNumAllocatedSets < mMaxSetsAllocations; }
 		bool AllocateDescriptorSets(const VkDescriptorSetAllocateInfo& InDescriptorSetAllocateInfo, VkDescriptorSet* OutSets);

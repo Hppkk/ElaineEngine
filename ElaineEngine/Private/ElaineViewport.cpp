@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineViewport.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineRenderCommandQueue.h"
@@ -24,6 +24,8 @@ namespace Elaine
 
     }
 
+    Viewport::~Viewport() { delete mRenderView; }
+
     void Viewport::SetTarget(RenderTarget* InTarget)
     {
         if (InTarget == nullptr)
@@ -31,9 +33,9 @@ namespace Elaine
 
         mTarget = InTarget;
 
-        ENQUEUE_RENDER_COMMAND(SetTarget)([=](RenderContext& InContext)
+        ENQUEUE_RENDER_COMMAND(SetTarget)([View = mRenderView, InTarget](RenderContext& InContext)
         {
-            mRenderView->mRenderTarget = InTarget;
+            View->mRenderTarget = InTarget;
         });
     }
 
@@ -44,18 +46,18 @@ namespace Elaine
 
         mCamera = InCamera;
 
-        ENQUEUE_RENDER_COMMAND(UpdateCamera)([=](RenderContext& InContext)
+        ENQUEUE_RENDER_COMMAND(UpdateCamera)([View = mRenderView, Camera = InCamera->GetRenderThreadCamera()](RenderContext& InContext)
         {
-            mRenderView->mCamera = mCamera->GetRenderThreadCamera();
+            View->mCamera = Camera;
         });
     }
 
     void Viewport::SetWorld(World* InWorld)
     {
         mWorld = InWorld;
-        ENQUEUE_RENDER_COMMAND(SetWorld)([=](RenderContext& InContext)
+        ENQUEUE_RENDER_COMMAND(SetWorld)([View = mRenderView, Scene = InWorld ? InWorld->GetSceneManager() : nullptr](RenderContext& InContext)
         {
-            mRenderView->mSceneManager = mWorld->GetSceneManager();
+            View->mSceneManager = Scene;
         });
     }
 

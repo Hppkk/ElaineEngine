@@ -1,9 +1,13 @@
-#include "ElaineEngine.h"
+﻿#include "ElaineEngine.h"
 #include "ElaineLogSystem.h"
 #include "ElaineWorld.h"
 #include "ElaineWorldManager.h"
 #include "ElaineComponentSystem.h"
 #include "ElaineRenderCommandQueue.h"
+#include "Resource/ElaineResourcePipeline.h"
+#include "Resource/ElaineResourceLoader.h"
+#include "ElaineActorInfoMgr.h"
+#include "ElaineFileMonitor.h"
 
 namespace Elaine
 {
@@ -25,7 +29,8 @@ namespace Elaine
 		new Root();
 		LOG_INFO("Elaine Engine Initialize...");
 		Root::instance()->Initialize(InRendererDesc);
-		mWorldManager = new WorldManager();
+		ResourceLoader::instance()->RegisterManager(RT_Actor, new ActorInfoMgr());
+        mWorldManager = new WorldManager();
 		new ComponentSystem();
 		LOG_INFO("Elaine Engine Initialize Complete!");
 	}
@@ -37,23 +42,35 @@ namespace Elaine
 
 	void ElaineEngine::RenderOneFrame()
 	{
-		Root::instance()->DispatchFileChanges();
+		ResourcePipeline::Get().BeginFrame();
+        Root::instance()->DispatchFileChanges();
 		TickTime();
 		mWorldManager->RenderOneFrame(mDeltaTime);
+        ResourcePipeline::Get().EndFrame();
 	}
 
 	void ElaineEngine::RenderOneFrame(float InDeltaTime)
 	{
-		Root::instance()->DispatchFileChanges();
+		ResourcePipeline::Get().BeginFrame();
+        Root::instance()->DispatchFileChanges();
 		TickTime();
 		mWorldManager->RenderOneFrame(InDeltaTime);
+        ResourcePipeline::Get().EndFrame();
 	}
 
 	void ElaineEngine::DestroyEngine()
 	{
-		LOG_INFO("Elaine Engine Destroy...");
+		if (!mWorldManager) return;
+        LOG_INFO("Elaine Engine Destroy...");
+        FileMonitor::instance()->Stop();
+        ResourcePipeline::Get().Shutdown();
 		delete ComponentSystem::instance();
-		delete mWorldManager;
+		for (auto* View : mViewports) { if (mActiveViewports.count(View)) UnregisterViewport(View); }
+        Root::instance()->FlushRenderCommands();
+        for (auto* View : mViewports) delete View;
+        mViewports.clear();
+        delete mWorldManager; mWorldManager = nullptr;
+        delete ActorInfoMgr::instance();
 		delete Root::instance();
 	}
 
@@ -82,7 +99,9 @@ namespace Elaine
 
 	void ElaineEngine::DestroyViewport(Viewport* InView)
 	{
-		mViewports.erase(InView);
+		if (mActiveViewports.count(InView)) UnregisterViewport(InView);
+        Root::instance()->FlushRenderCommands();
+        mViewports.erase(InView);
 		SAFE_DELETE(InView);
 	}
 

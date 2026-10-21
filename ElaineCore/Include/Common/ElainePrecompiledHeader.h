@@ -27,7 +27,6 @@
 #include "ElaineResourceManager.h"
 #include "common/ElaineRHI.h"
 #include "ElaineRenderSystem.h"
-#include "vulkan/ElaineVulkanRHI.h"
 #include "ElaineCamera.h"
 #include "ElaineEntity.h"
 #include "ElaineMemory.h"
@@ -36,7 +35,4 @@
 #include "ElaineStringUtils.h"
 #include "nlohmann/json.hpp"
 
-namespace Elaine
-{
-
-}
+using namespace Elaine;

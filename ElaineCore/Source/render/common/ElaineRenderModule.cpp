@@ -1,6 +1,5 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/common/ElaineRenderModule.h"
-#include "render/vulkan/ElaineVulkanRHI.h"
 #include "ElaineRenderSystem.h"
 #include "ElaineUniformGPUManager.h"
 #include "ElaineShaderPassManager.h"
@@ -35,7 +34,8 @@ namespace Elaine
 	}
 
 	void RenderModule::Terminate()
-	{
-
-	}
+    {
+        delete RenderGraph::RenderDependencyGraph::instance();
+        delete ShaderPassManager::instance();
+    }
 }

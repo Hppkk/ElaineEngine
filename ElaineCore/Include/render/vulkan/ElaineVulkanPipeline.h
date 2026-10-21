@@ -67,6 +67,7 @@ namespace VulkanRHI
 		const std::vector<RHIPipeline::MaterialParameterInfo>& GetMaterialParameters() const override { return mMaterialParametersRHI; }
 		const std::vector<VkDescriptorSetLayout>& GetDescriptorSetLayouts() const { return mDescriptorSetLayouts; }
 		VulkanDescriptorSet* GetDescriptorSet(int32 InSlot);
+        const auto& GetDescriptorBindings() const { return mDescriptorBindings; }
 	protected:
 		VulkanDevice* mDevice = nullptr;
 		VkPipeline mPipeline = nullptr;
@@ -75,8 +76,10 @@ namespace VulkanRHI
 		std::vector<VulkanDescriptorSet*> mDescriptorSets;
 		std::unordered_map<int32, VulkanDescriptorSet*> mDescriptorSetMap;
 		std::vector<VkDescriptorSetLayout> mDescriptorSetLayouts;
+        std::unordered_map<uint32, std::vector<DescriptorBindingInfo>> mDescriptorBindings;
 		std::vector<MaterialParameterInfo> mMaterialParameters;
 		std::vector<RHIPipeline::MaterialParameterInfo> mMaterialParametersRHI;
+        bool mOwnsDescriptors = true;
 		Type mType = Graphic;
 		friend class VulkanShaderManager;
 		friend class VulkanShaderCompileManager;
@@ -93,6 +96,9 @@ namespace VulkanRHI
 		const GRAPHICS_PIPELINE_STATE_DESC& GetPipelineState() const { return mPipelineState; }
 		void SetPipelineState(const GRAPHICS_PIPELINE_STATE_DESC& InState) { mPipelineState = InState; }
 	private:
+        friend class VulkanCommandContext;
+        bool mOwnsShaders = true;
+        std::unordered_map<RenderPassKey, std::unique_ptr<VulkanGfxPipeline>, RenderPassKeyHasher> mVariants;
 		VulkanRenderPass* mRenderPass = nullptr;
 		VulkanShader* mVsShader = nullptr;
 		VulkanShader* mPsShader = nullptr;
@@ -149,7 +155,7 @@ namespace VulkanRHI
 		// 新增：根据 RenderPassKey 获取或创建 Pipeline 变体
 		VulkanGfxPipeline* GetOrCreateGfxPipelineForRenderPass(
 			const GRAPHICS_PIPELINE_STATE_DESC& InState,
-			const RenderPassKey& RPKey);
+			const RenderPassKey& RPKey, VulkanGfxPipeline* Base);
 		
 		VulkanGfxPipeline* CreateGraphicPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InState);
 		

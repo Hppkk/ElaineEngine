@@ -42,6 +42,6 @@ namespace Elaine
 		virtual uint32 GetCurrentImageIndex() const { return 0; }
 
 	protected:
-		RHITexture* mTextureRHI = nullptr;
+		RHITextureHandle mTextureRHI = nullptr;
 	};
 }

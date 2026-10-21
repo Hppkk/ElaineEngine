@@ -64,6 +64,11 @@ namespace Elaine
     void ElaineCoreExport WaitForRenderThread_Gfx();
     void ElaineCoreExport NotifyForRenderThread_Gfx();
 
+    void ElaineCoreExport CheckRHICreationThread();
+    void ElaineCoreExport CheckRHIContextThread();
+    void ElaineCoreExport FlushRHIResourceReleases();
+    uint64_t ElaineCoreExport GetRHIValidationErrorCount();
+
     struct RHIRenderContext
     {
 
@@ -89,6 +94,10 @@ namespace Elaine
         virtual ~DynamicRHI();
         virtual void Initialize(const RHI_PARAM_DESC& InDesc) = 0;
         virtual void Destroy() = 0;
+        // Worker-safe CPU preparation; implementations must not access the GPU context.
+        virtual std::shared_ptr<const RHIShaderCompileResult> PrepareShader(const std::string& Code, const std::string& Path, EShaderStage Stage);
+        virtual void ProcessGPUCompletions();
+        virtual uint64_t GetValidationErrorCount() const { return 0; }
         RHICommandContext* GetDefaultCommandContext() const { return mDefaultCommandContext; }
         RHICommandContext* GetDefaultComputeContext() const { return mDefaultComputeContext; }
         RHICommandContext* GetDefaultTransferContext() const { return mDefaultTransferContext; }
@@ -103,4 +112,6 @@ namespace Elaine
     };
 
     ElaineCoreExport DynamicRHI*  GetDynamicRHI();
+    // Implemented by the backend selection unit, outside the common RHI layer.
+    ElaineCoreExport DynamicRHI* CreateDynamicRHI(ERHI_TYPE Type);
 }

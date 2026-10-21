@@ -77,14 +77,20 @@ namespace Elaine
 
 		void readAll()
 		{
-			if (!mStream.is_open())
+			if (!mStream.is_open() || mStreamSize == 0)
 				return;
 
 			std::filebuf* pbuf = nullptr;
 			pbuf = mStream.rdbuf();
 			mStreamData = (char*)Memory::SystemMalloc(mStreamSize);
 			Memory::MemoryZero(mStreamData, mStreamSize);
-			pbuf->sgetn(mStreamData, mStreamSize);
+			const auto BytesRead = pbuf->sgetn(mStreamData, mStreamSize - 1);
+			if ((mMode & DataStream::Binary) && BytesRead != static_cast<std::streamsize>(mStreamSize - 1))
+			{
+				Memory::SystemFree(mStreamData);
+				mStreamData = nullptr;
+				mStreamSize = 0;
+			}
 		}
 
 		void write(const void* buf, size_t inSize)

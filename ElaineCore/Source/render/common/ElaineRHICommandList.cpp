@@ -1,6 +1,7 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/common/ElaineRHICommandList.h"
 #include "render/common/ElaineRHICommandContext.h"
+#include "render/common/ElaineRHI.h"
 
 namespace Elaine
 {
@@ -9,10 +10,24 @@ namespace Elaine
 		
 	}
 
-	RHICommandList::~RHICommandList()
-	{
+    RHICommandList::~RHICommandList() { DiscardCommands(); }
 
-	}
+    void RHICommandList::DiscardCommands(std::exception_ptr Failure) noexcept
+    {
+        while (mCommandLinkBegin)
+        {
+            auto* Command = mCommandLinkBegin;
+            mCommandLinkBegin = Command->mNext;
+            Command->~RHICommand();
+            free(Command);
+        }
+        mCommandLinkEnd = nullptr; mCommandNum = 0;
+        if (mCompletion)
+        {
+            try { mCompletion->set_exception(Failure ? Failure : std::make_exception_ptr(std::runtime_error("RHI command batch abandoned"))); } catch (...) {}
+            mCompletion.reset();
+        }
+    }
 
 	void* RHICommandList::AllocCommand(size_t InSize, size_t InAlignment)
 	{
@@ -41,20 +56,33 @@ namespace Elaine
 		return nullptr;
 	}
 
-	void RHICommandList::ExecuteCommands()
-	{
-		if (!HasCommand())
-			return;
-		RHICommand* CurrentCommand = mCommandLinkBegin;
-		while (CurrentCommand != nullptr)
-		{
-			CurrentCommand->Execute(this);
-			CurrentCommand = CurrentCommand->mNext;
-		}
-		mCommandLinkBegin = nullptr;
-		mCommandLinkEnd = nullptr;
-		mCommandNum = 0;
-	}
+    void RHICommandList::ExecuteCommands()
+    {
+        try
+        {
+            while (mCommandLinkBegin)
+            {
+                auto* Command = mCommandLinkBegin;
+                // Keep the CPU payload until execution ends; the backend pins GPU references.
+                if (mGraphicsContext && !Command->mReferences.empty()) mGraphicsContext->RHIKeepResources(Command->mReferences);
+                Command->Execute(this);
+                mCommandLinkBegin = Command->mNext;
+                --mCommandNum;
+                Command->~RHICommand();
+                free(Command);
+            }
+            mCommandLinkEnd = nullptr;
+            if (mCompletion) { mCompletion->set_value(); mCompletion.reset(); }
+        }
+        catch (...)
+        {
+            auto Failure = std::current_exception();
+            // Submit any partially recorded work so its fence can retire references.
+            try { if (mGraphicsContext) mGraphicsContext->RHIEndFrame(); } catch (...) {}
+            DiscardCommands(Failure);
+            throw;
+        }
+    }
 
 	void RHICommandList::BeginRenderPass(const GRAPHICS_PIPELINE_STATE_DESC& InGfxState)
 	{
@@ -63,12 +91,14 @@ namespace Elaine
 
 	void RHICommandList::BeginRenderPassInfo(const RHIRenderPassInfo& InInfo, const char* InName)
 	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(BeginRenderPassInfo))(InInfo, InName);
+        mRecordingPass = InInfo; mHasRecordingPass = true;
+        ALLOC_COMMAND(RHI_COMMAND_TYPE(BeginRenderPassInfo))(InInfo, InName);
 	}
 
 	void RHICommandList::EndRenderPass()
 	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(EndRenderPass))();
+        mHasRecordingPass = false;
+        ALLOC_COMMAND(RHI_COMMAND_TYPE(EndRenderPass))();
 		//{
 		//	auto Iter = std::upper_bound(mOwner->mLogicCmdList.rbegin(), mOwner->mLogicCmdList.rend(), this);
 		//	if (Iter == mOwner->mLogicCmdList.rend())
@@ -88,7 +118,8 @@ namespace Elaine
 
 	void RHICommandList::BindGfxPipeline(RHIPipeline* InPipeline)
 	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(BindGfxPipeline))(InPipeline);
+        if (mHasRecordingPass && mGraphicsContext) mGraphicsContext->RHIPrepareGfxPipeline(InPipeline, mRecordingPass);
+        ALLOC_COMMAND(RHI_COMMAND_TYPE(BindGfxPipeline))(InPipeline);
 	}
 
 	void RHICommandList::DrawPrimitive(uint32 InBaseVertexIndex, uint32 InNumPrimitives, uint32 InNumInstances)
@@ -215,16 +246,13 @@ namespace Elaine
 		//mDefaultCommandList = CreateCommandList();
 	}
 
-	RHICommandListManager::~RHICommandListManager()
-	{
-		for (auto&& CmdList : mCmdLists)
-		{
-			DestroyCommandList(CmdList);
-		}
-		mCmdLists.clear();
-		mDefaultCommandList = nullptr;
-	}
-
+    RHICommandListManager::~RHICommandListManager() { Clear(); }
+    void RHICommandListManager::Clear()
+    {
+        for (auto* List : mCmdLists) delete List;
+        mCmdLists.clear(); mLogicCmdList.clear(); mUploadCmdLists.clear(); mFreeCmdList.clear();
+        mDefaultCommandList = mCurrentCommandList = nullptr;
+    }
 	RHICommandList* RHICommandListManager::CreateCommandList()
 	{
 		//todo freelist
@@ -239,41 +267,36 @@ namespace Elaine
 		return NewCommandList;
 	}
 
-	void RHICommandListManager::DestroyCommandList(RHICommandList* InCmdList)
-	{
-		//todo
-		if (InCmdList->mCommandNum > 0u)
-		{
-			mWaitDetroyCmdLists.push_back(InCmdList);
-			mCmdLists.erase(mCmdLists.begin() + InCmdList->mListIndex);
-			InCmdList->mListIndex = 0u;
-			return;
-		}
-		SAFE_DELETE(InCmdList);
-		//mRHICmdListAllocation.ReleaseObject(InCmdList);
-	}
+    void RHICommandListManager::DestroyCommandList(RHICommandList* List)
+    {
+        auto Remove = [List](auto& Lists) { Lists.erase(std::remove(Lists.begin(), Lists.end(), List), Lists.end()); };
+        Remove(mCmdLists); Remove(mLogicCmdList); Remove(mUploadCmdLists); Remove(mFreeCmdList); Remove(mWaitDetroyCmdLists);
+        if (mCurrentCommandList == List) mCurrentCommandList = nullptr;
+        if (mDefaultCommandList == List) mDefaultCommandList = nullptr;
+        delete List;
+    }
 
 	void RHICommandListManager::SwapCommands()
 	{
-		std::swap(mLogicCmdList, mUploadCmdLists);
+        auto Completed = std::move(mFreeCmdList);
+        mFreeCmdList.clear();
+        for (auto* List : Completed) DestroyCommandList(List);
+        std::swap(mLogicCmdList, mUploadCmdLists);
 	}
 
-	void RHICommandListManager::ExecuteCommands()
-	{
-		for (auto&& CurrCommandList : mUploadCmdLists)
-		{
-			CurrCommandList->ExecuteCommands();
-			mFreeCmdList.push_back(CurrCommandList);
-		}
-		mUploadCmdLists.clear();
-	}
+    void RHICommandListManager::ExecuteCommands()
+    {
+        std::exception_ptr Failure;
+        for (auto* List : mUploadCmdLists)
+        {
+            try { List->ExecuteCommands(); } catch (...) { if (!Failure) Failure = std::current_exception(); }
+            mFreeCmdList.push_back(List);
+        }
+        mUploadCmdLists.clear();
+        if (Failure) std::rethrow_exception(Failure);
+    }
 
-
-
-
-
-
-	//-----------------------------RHI Command Define-------------------------------------------
+    //-----------------------------RHI Command Define-------------------------------------------
 
 	void RHI_COMMAND_TYPE(DrawPrimitive)::Execute(RHICommandList* InCmdList)
 	{
@@ -297,22 +320,22 @@ namespace Elaine
 
 	void RHI_COMMAND_TYPE(BindGfxPipeline)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIBindGfxPipeline(mGfxPipeline);
+		InCmdList->GetCmdContext()->RHIBindGfxPipeline(mGfxPipeline.get());
 	}
 
 	void RHI_COMMAND_TYPE(BindDrawData)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIBindResourceBinding(*mRenderData);
+		InCmdList->GetCmdContext()->RHIBindResourceBinding(mRenderData);
 	}
 
 	void RHI_COMMAND_TYPE(UpdateUniformBuffer)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIUpdateUniformBuffer(mUniformBufferRHI, mContents, mSize);
+		InCmdList->GetCmdContext()->RHIUpdateUniformBuffer(mUniformBufferRHI.get(), mContents, mSize);
 	}
 
 	void RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIUpdateCommonUniformBuffer(mUniformBufferRHI, mSize, mContents);
+		InCmdList->GetCmdContext()->RHIUpdateCommonUniformBuffer(mUniformBufferRHI.get(), mSize, mContents);
 	}
 
 	void RHI_COMMAND_TYPE(SetViewport)::Execute(RHICommandList* InCmdList)
@@ -322,17 +345,17 @@ namespace Elaine
 
 	void RHI_COMMAND_TYPE(SetSwapchain)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHISetSwapchain(mSwapchain);
+		InCmdList->GetCmdContext()->RHISetSwapchain(mSwapchain.get());
 	}
 
 	void RHI_COMMAND_TYPE(AcquireSwapchainImage)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIAcquireSwapchainImage(mSwapchain);
+		InCmdList->GetCmdContext()->RHIAcquireSwapchainImage(mSwapchain.get());
 	}
 
 	void RHI_COMMAND_TYPE(PresentSwapchain)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIPresentSwapchain(mSwapchain, mbVsync);
+		InCmdList->GetCmdContext()->RHIPresentSwapchain(mSwapchain.get(), mbVsync);
 	}
 
 	//-----------------------------新增命令 Execute-------------------------------------------
@@ -364,26 +387,38 @@ namespace Elaine
 
 	void RHI_COMMAND_TYPE(DrawIndexedPrimitive)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIDrawIndexedPrimitive(mIndexBuffer, mBaseVertexIndex, mFirstInstance, mNumVertices, mStartIndex, mNumPrimitives, mNumInstances);
+		InCmdList->GetCmdContext()->RHIDrawIndexedPrimitive(mIndexBuffer.get(), mBaseVertexIndex, mFirstInstance, mNumVertices, mStartIndex, mNumPrimitives, mNumInstances);
 	}
 
 	void RHI_COMMAND_TYPE(SetStreamSource)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHISetStreamSource(mStreamIndex, mVertexBuffer, mOffset);
+		InCmdList->GetCmdContext()->RHISetStreamSource(mStreamIndex, mVertexBuffer.get(), mOffset);
 	}
 
 	void RHI_COMMAND_TYPE(CopyTexture)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHICopyTexture(mSourceTexture, mDestTexture, mCopyInfo);
+		InCmdList->GetCmdContext()->RHICopyTexture(mSourceTexture.get(), mDestTexture.get(), mCopyInfo);
 	}
 
 	void RHI_COMMAND_TYPE(BindUniformBuffer)::Execute(RHICommandList* InCmdList)
 	{
-		InCmdList->GetCmdContext()->RHIBindUniformBuffer(mSlot, mBuffer);
+		InCmdList->GetCmdContext()->RHIBindUniformBuffer(mSlot, mBuffer.get());
 	}
 
 	void RHI_COMMAND_TYPE(ResourceBarrier)::Execute(RHICommandList* InCmdList)
 	{
 		InCmdList->GetCmdContext()->RHIResourceBarrier(mBarrier);
 	}
+    void RHICommandList::CopyBufferRegion(RHIBuffer* Dest, uint64 DstOffset, RHIBuffer* Source, uint64 SrcOffset, uint64 Size)
+    { ALLOC_COMMAND(RHI_COMMAND_TYPE(CopyBufferRegion))(Dest, DstOffset, Source, SrcOffset, Size); }
+    void RHICommandList::CopyBufferToTexture(RHIBuffer* Source, RHITexture* Target)
+    { ALLOC_COMMAND(RHI_COMMAND_TYPE(CopyBufferToTexture))(Source, Target); }
+    void RHI_COMMAND_TYPE(CopyBufferRegion)::Execute(RHICommandList* List)
+    { List->GetCmdContext()->RHICopyBufferRegion(mDest.get(), mDstOffset, mSource.get(), mSrcOffset, mSize); }
+    void RHI_COMMAND_TYPE(CopyBufferToTexture)::Execute(RHICommandList* List)
+    { List->GetCmdContext()->RHICopyBufferToTexture(mSource.get(), mTarget.get()); }
+
+    void RHICommandList::SubmitUploads() { ALLOC_COMMAND(RHI_COMMAND_TYPE(SubmitUploads))(); }
+    void RHI_COMMAND_TYPE(SubmitUploads)::Execute(RHICommandList* List) { List->GetCmdContext()->RHISubmitUploads(); }
+
 }

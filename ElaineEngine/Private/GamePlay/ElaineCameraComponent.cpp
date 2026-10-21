@@ -29,6 +29,7 @@ namespace Elaine
 		{
 			mRenderCamera = new Camera(CameraName);
 		});
+        Root::instance()->FlushRenderCommands();
 	}
 
 	void CameraComponent::OnDestroy()

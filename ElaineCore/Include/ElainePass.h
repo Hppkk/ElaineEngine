@@ -35,8 +35,11 @@ namespace Elaine
 		void AppendVsMacros(const std::string& InMacrosString);
 		void AppendPsMacros(const std::string& InMacrosString);
 		void CompilePipeline();
+        void PrepareDependencies();
+        ShaderPass CreateSnapshot() const;
+        ~ShaderPass();
 		GRAPHICS_PIPELINE_STATE_DESC& GetGfxState() { return mRHIDesc; }
-		RHIPipeline* GetPipelineRHI() const { return mPipeline; }
+		RHIPipeline* GetPipelineRHI() const { return mPipeline.get(); }
 		const std::vector<RHIPipeline::MaterialParameterInfo>& GetMaterialParameters() const
 		{
 			static const std::vector<RHIPipeline::MaterialParameterInfo> Empty;
@@ -57,7 +60,7 @@ namespace Elaine
 		std::string		mPsMacros;
 		Name			mPassName;
 		std::string		mRenderQueueName = "opaque";
-		RHIPipeline*	mPipeline = nullptr;
+		RHIPipelineHandle mPipeline;
 		bool			mDirty = false;
 		std::vector<ShaderStageEntry> mShaders;
 		std::vector<std::string> mMacros;

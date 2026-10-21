@@ -17,7 +17,7 @@ namespace TaskGraph
 	void TaskDependency::AddResourceEvent(GraphTaskPtr InTask)
 	{
 		mDependency.push_back(InTask);
-		InTask->mDependency->mSubsequentTasks.push_back(mTask->shared_from_this());
+
 	}
 
 	bool TaskDependency::IsEmpty()
@@ -29,8 +29,9 @@ namespace TaskGraph
 	{
 		for (auto&& DependencyTask : mDependency)
 		{
-			if (DependencyTask->GetTaskState() != TaskState::Succeeded)
-				return false;
+			const auto State = DependencyTask->GetTaskState();
+            if (State == TaskState::Failed || State == TaskState::Cancelled) { mTask->Cancel(); return false; }
+            if (State != TaskState::Succeeded) return false;
 		}
 
 		return true;

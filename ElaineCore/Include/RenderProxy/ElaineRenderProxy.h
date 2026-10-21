@@ -5,6 +5,8 @@
 #include "render/common/ElaineRHIProtocol.h"
 #include "Resource/ElaineResourceBase.h"
 #include <unordered_set>
+#include "ElaineMaterialParamSnapshot.h"
+#include "Resource/ElaineMesh.h"
 
 namespace TaskGraph { class GraphTask; }
 
@@ -20,6 +22,15 @@ namespace Elaine
         Unknown
     };
 
+    struct RenderResourceUpdate
+    {
+        ResourceBasePtr Resource; // Stable identity; never dereferenced for data on RenderThread.
+        MaterialParamSnapshot Material;
+        MeshRenderData Mesh;
+        RHITextureHandle Texture;
+        bool IsMaterial = false, IsMesh = false, IsTexture = false;
+    };
+
     class RenderQueueSet;
 
     class ElaineCoreExport RenderProxy
@@ -29,7 +40,8 @@ namespace Elaine
 		void* mUserData = nullptr;
 		uint32_t mUserType = 0;
         RenderProxy();
-        virtual ~RenderProxy() = default;
+        virtual ~RenderProxy();
+        void CancelResourceNotifications();
 
         EProxyType GetType() const { return mType; }
         const AxisAlignedBox& GetWorldAABB() const { return mWorldAABB; }
@@ -83,10 +95,11 @@ namespace Elaine
         virtual void InitializeResourceBinding() {}
         virtual void OnResourceInitialized() {}
         virtual void OnResourceFailed() {}
+        virtual void ApplyResourceUpdate(const RenderResourceUpdate& Update) {}
 
         // 资源追踪内部方法
         void TrackResourceRecursive(ResourceBasePtr InResource);
-        void OnResourceLoaded(ResourceBase* InResource);
+        void OnResourceLoaded(const ResourceLoadResult& Result);
         void TryInitializeBindings();
 
     protected:
@@ -102,10 +115,15 @@ namespace Elaine
         RHI_DRAW_RESOURCE_BINDING mResourceBinding;
 
         // 资源依赖追踪
-        std::unordered_set<ResourceBase*> mTrackedResources;  // 防止重复追踪
+        std::unordered_set<std::string> mTrackedResources;  // 防止重复追踪
         std::atomic<int32_t> mPendingResourceCount{0};        // 待完成资源计数
         std::atomic<bool> mInitializationStarted{false};      // 是否已开始初始化流程
         std::atomic<bool> mBindingsInitialized{false};        // 资源绑定是否已初始化
+        struct Lifetime { std::mutex Mutex; RenderProxy* Proxy = nullptr; };
+        std::shared_ptr<Lifetime> mLifetime;
+        std::vector<ResourceSubscription> mSubscriptions;
+        std::atomic_bool mInitializationQueued{false};
+        std::atomic_bool mResourceFailed{false};
         std::mutex mTrackMutex;                               // 资源追踪锁
     };
 }

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineSingleton.h"
 #include "ElaineTimer.h"
@@ -49,6 +49,7 @@ namespace Elaine
 		bool					CheckThread(NamedThread InNamedThread);
 		void					RegisterRenderView(RenderView* InRenderView);
 		void					UnregisterRenderView(RenderView* InRenderView);
+        void FlushRenderCommands();
 	private:
 		// shutdown
 		void					Terminate();
@@ -68,7 +69,10 @@ namespace Elaine
 		SceneManager*							mMainSceneMgr = nullptr;
 		ERHI_TYPE									mRHIType = Vulkan;
 		bool									mbEnableVulkanValidationLayer = true;
-		ThreadWrap*								mRenderThread = nullptr;
+		std::atomic<bool> mStopping{false};
+        std::atomic<bool> mShutdownRender{false};
+        std::atomic<bool> mRenderStopped{false};
+        ThreadWrap*								mRenderThread = nullptr;
 		RenderPipeline*							mRenderPipeline[RP_Count] = {};
 		std::atomic<bool>						mbInitialize = false;
 	};

@@ -26,7 +26,7 @@ namespace Elaine
 
 	ThreadWrap::~ThreadWrap()
 	{
-		
+        if (m_thread.joinable()) m_thread.join();
 	}
 
 }

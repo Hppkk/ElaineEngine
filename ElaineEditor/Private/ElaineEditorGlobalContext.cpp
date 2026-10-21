@@ -71,8 +71,7 @@ namespace Editor
 		delete mOffscreenRT;
 		mOffscreenRT = nullptr;
 
-		mOffscreenColorTextures[0] = nullptr;
-		mOffscreenColorTextures[1] = nullptr;
+        for (auto& Owner : mOffscreenOwners) Owner.reset();
 		mDefaultCamera = nullptr;
 		mDefaultWorld = nullptr;
 	}
@@ -110,35 +109,19 @@ namespace Editor
 		// --- 创建离屏渲染目标 ---
 		mOffscreenRT = new Elaine::OffscreenRenderTarget(mViewportWidth, mViewportHeight);
 
-		// 在渲染线程上创建 2 个带 External 标志的纹理（双缓冲，类似 Swapchain）
-		Elaine::OffscreenRenderTarget* OffscreenRT = mOffscreenRT;
-		Elaine::RHITexture** ColorTexPtrs = mOffscreenColorTextures;
-		uint32_t W = mViewportWidth;
-		uint32_t H = mViewportHeight;
-
-		ENQUEUE_RENDER_COMMAND(CreateOffscreenColorTargets)([OffscreenRT, ColorTexPtrs, W, H](Elaine::RenderContext& InContext)
-		{
-			Elaine::TextureCreateFlags Flags =
-				Elaine::TextureCreateFlags::External |
-				Elaine::TextureCreateFlags::RenderTargetable |
-				Elaine::TextureCreateFlags::ShaderResource;
-
-			for (uint32_t i = 0; i < NUM_OFFSCREEN_BUFFERS; ++i)
-			{
-				Elaine::RHITexture* ColorTex = Elaine::RenderSystem::instance()->GetRHICommandContext()->RHICreateTexture2D(
-					W, H,
-					(uint8)Elaine::PF_R8G8B8A8,
-					1, 1,
-					Flags,
-					Elaine::ERHIAccess::RTV,
-					nullptr);
-
-				ColorTexPtrs[i] = ColorTex;
-			}
-
-			// 初始使用第 0 个纹理作为渲染目标
-			OffscreenRT->SetColorTarget(0, ColorTexPtrs[0]);
-		});
+        ENQUEUE_RENDER_COMMAND(CreateOffscreenTargets)([this](Elaine::RenderContext&) {
+        for (uint32_t i = 0; i < NUM_OFFSCREEN_BUFFERS; ++i)
+        {
+            Elaine::RHITextureDesc Desc;
+            Desc.mExtent.x = static_cast<float>(mViewportWidth); Desc.mExtent.y = static_cast<float>(mViewportHeight);
+            Desc.mFormat = Elaine::PF_R8G8B8A8; Desc.mNumMips = 1; Desc.mNumSamples = 1;
+            Desc.mDimension = Elaine::TextureDimension::Texture2D; Desc.mArraySize = 1;
+            Desc.mFlags = Elaine::TextureCreateFlags::External | Elaine::TextureCreateFlags::RenderTargetable | Elaine::TextureCreateFlags::ShaderResource;
+            mOffscreenOwners[i] = Elaine::GetDynamicRHI()->GetDefaultCommandContext()->RHICreateTexture(Desc, nullptr);
+        }
+        mOffscreenRT->SetColorTarget(0, mOffscreenOwners[0].get());
+        });
+        Elaine::Root::instance()->FlushRenderCommands();
 
 		// --- 创建场景视口 ---
 		Elaine::ViewportDesc Desc;
@@ -205,9 +188,8 @@ namespace Editor
 		mbSharedMemoryAttempted = true;
 
 		// 使用第一个纹理尝试共享内存
-		Elaine::RHITexture* ColorTex = mOffscreenColorTextures[0];
-		if (!ColorTex)
-			return false;
+		Elaine::RHITexture* ColorTex = mOffscreenOwners[0].get();
+		if (!ColorTex) { mbSharedMemoryAttempted = false; return false; }
 
 		void* SharedHandle = ColorTex->GetSharedMemoryHandle();
 		if (!SharedHandle)
@@ -236,19 +218,8 @@ namespace Editor
 
 		LOG_INFO("EditorGlobalContext: Initializing staging buffer fallback (double-buffered readback).");
 
-		// 在渲染线程初始化两个纹理的 readback 资源
-		Elaine::RHITexture** ColorTexPtrs = mOffscreenColorTextures;
-
-		ENQUEUE_RENDER_COMMAND(InitReadbackResources)([ColorTexPtrs](Elaine::RenderContext& InContext)
-		{
-			for (uint32_t i = 0; i < NUM_OFFSCREEN_BUFFERS; ++i)
-			{
-				if (ColorTexPtrs[i])
-				{
-					ColorTexPtrs[i]->InitReadbackResources();
-				}
-			}
-		});
+        for (auto Texture : mOffscreenOwners)
+            ENQUEUE_RENDER_COMMAND(InitViewportReadback)([Texture](Elaine::RenderContext&) { Texture->InitReadbackResources(); });
 
 		// 创建 D3D11 USAGE_DEFAULT 纹理用于 ImGui 显示
 		D3D11_TEXTURE2D_DESC TexDesc = {};
@@ -286,53 +257,38 @@ namespace Editor
 		mbFirstStagingFrame = true;
 	}
 
-	void EditorGlobalContext::EnqueueCopyToReadbackBuffer()
-	{
-		Elaine::RHITexture* WriteTexture = mOffscreenColorTextures[mWriteIndex];
-		if (!WriteTexture)
-			return;
-
-		ENQUEUE_RENDER_COMMAND(CopyToReadbackBuffer)([WriteTexture](Elaine::RenderContext& InContext)
-		{
-			WriteTexture->CopyToReadbackBuffer();
-		});
-	}
-
-	void EditorGlobalContext::UpdateDX11TextureFromReadback(ID3D11DeviceContext* InCtx)
-	{
-		if (!InCtx || !mStagingD3D11Texture)
-			return;
-
-		// 第一帧 readIndex 的 buffer 还没有有效数据
-		if (mbFirstStagingFrame)
-		{
-			mbFirstStagingFrame = false;
-			return;
-		}
-
-		// 读取上一帧写入的纹理（readIdx = 1 - writeIdx）
-		uint32_t ReadIndex = 1 - mWriteIndex;
-		Elaine::RHITexture* ReadTexture = mOffscreenColorTextures[ReadIndex];
-		if (!ReadTexture)
-			return;
-
-		uint32_t RowPitch = 0;
-		if (ReadTexture->ReadbackPixels(mPixelBuffer.data(), RowPitch))
-		{
-			// 更新 D3D11 纹理
-			InCtx->UpdateSubresource(mStagingD3D11Texture, 0, nullptr,
-				mPixelBuffer.data(), RowPitch, 0);
-		}
-	}
+    void EditorGlobalContext::EnqueueCopyToReadbackBuffer()
+    {
+        auto Texture = mOffscreenOwners[mWriteIndex]; auto Packet = mReadback;
+        if (!Texture) return;
+        { std::lock_guard<std::mutex> Lock(Packet->Mutex); if (Packet->Pending) return; Packet->Pending = true; }
+        // Runs after the previous RHI batch in the RenderThread synchronization window.
+        ENQUEUE_RENDER_COMMAND(ReadbackViewport)([Texture, Packet](Elaine::RenderContext&) {
+                std::vector<uint8_t> Pixels(Texture->GetWidth() * Texture->GetHeight() * 4); uint32_t Pitch = 0;
+                bool Ready = Texture->ReadbackPixels(Pixels.data(), Pitch);
+                Texture->CopyToReadbackBuffer();
+                std::lock_guard<std::mutex> Lock(Packet->Mutex);
+                if (Ready) { Packet->Pixels = std::move(Pixels); Packet->Pitch = Pitch; Packet->Ready = true; }
+                Packet->Pending = false;
+        });
+    }
+    void EditorGlobalContext::UpdateDX11TextureFromReadback(ID3D11DeviceContext* Context)
+    {
+        if (!Context || !mStagingD3D11Texture) return;
+        std::lock_guard<std::mutex> Lock(mReadback->Mutex);
+        if (!mReadback->Ready) return;
+        Context->UpdateSubresource(mStagingD3D11Texture, 0, nullptr, mReadback->Pixels.data(), mReadback->Pitch, 0);
+        mReadback->Ready = false;
+    }
 
 	void EditorGlobalContext::SwapOffscreenBuffers()
 	{
 		mWriteIndex = 1 - mWriteIndex;
 
 		// 切换 OffscreenRT 使用的 color target
-		if (mOffscreenRT && mOffscreenColorTextures[mWriteIndex])
+		if (mOffscreenRT && mOffscreenOwners[mWriteIndex].get())
 		{
-			mOffscreenRT->SetColorTarget(0, mOffscreenColorTextures[mWriteIndex]);
+			mOffscreenRT->SetColorTarget(0, mOffscreenOwners[mWriteIndex].get());
 		}
 	}
 

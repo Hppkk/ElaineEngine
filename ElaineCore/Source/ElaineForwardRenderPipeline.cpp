@@ -118,9 +118,9 @@ namespace Elaine
 			mSceneDepthTexture = ResourcePool.AcquirePersistentTexture("SceneDepth", DepthDesc, GraphicsContext);
 		}
 
-		RenderGraph::RGTextureHandle ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture, ShadowMapDesc);
-		RenderGraph::RGTextureHandle SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture, SceneColorDesc);
-		RenderGraph::RGTextureHandle SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture, DepthDesc);
+		RenderGraph::RGTextureHandle ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture.get(), ShadowMapDesc);
+		RenderGraph::RGTextureHandle SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture.get(), SceneColorDesc);
+		RenderGraph::RGTextureHandle SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture.get(), DepthDesc);
 
 		//=========================================================================
 		// Shadow Pass

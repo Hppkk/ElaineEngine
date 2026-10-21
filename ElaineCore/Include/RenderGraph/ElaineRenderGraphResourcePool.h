@@ -18,7 +18,7 @@ namespace RenderGraph
 	//=============================================================================
 	struct PooledTexture
 	{
-		Elaine::RHITexture* Texture = nullptr;
+		Elaine::RHITextureHandle Texture;
 		RGTextureDesc Desc;
 		std::string Name;								// 用于 Persistent 资源的名称匹配
 		uint32 FramesSinceLastUse = 0;
@@ -28,7 +28,7 @@ namespace RenderGraph
 
 	struct PooledBuffer
 	{
-		Elaine::RHIBuffer* Buffer = nullptr;
+		Elaine::RHIBufferHandle Buffer;
 		RGBufferDesc Desc;
 		std::string Name;								// 用于 Persistent 资源的名称匹配
 		uint32 FramesSinceLastUse = 0;
@@ -101,20 +101,20 @@ namespace RenderGraph
 		bool IsBufferCompatible(const PooledBuffer& Pooled, const RGBufferDesc& Desc) const;
 
 		// 创建 RHI 资源
-		Elaine::RHITexture* CreateRHITexture(const RGTextureDesc& Desc, 
+		Elaine::RHITextureHandle CreateRHITexture(const RGTextureDesc& Desc,
 			Elaine::RHICommandContext* Context);
-		Elaine::RHIBuffer* CreateRHIBuffer(const RGBufferDesc& Desc,
+		Elaine::RHIBufferHandle CreateRHIBuffer(const RGBufferDesc& Desc,
 			Elaine::RHICommandContext* Context);
 
 		// 释放 RHI 资源
-		void DestroyRHITexture(Elaine::RHITexture* Texture);
-		void DestroyRHIBuffer(Elaine::RHIBuffer* Buffer);
+		void DestroyRHITexture(Elaine::RHITextureHandle& Texture);
+		void DestroyRHIBuffer(Elaine::RHIBufferHandle& Buffer);
 
 		//=========================================================================
 		// 数据成员
 		//=========================================================================
 
-		std::vector<PooledTexture> mTexturePool;
+        std::vector<PooledTexture> mTexturePool;
 		std::vector<PooledBuffer> mBufferPool;
 
 		// 用于快速查找纹理

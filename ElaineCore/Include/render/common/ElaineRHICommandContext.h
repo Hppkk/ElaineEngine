@@ -50,6 +50,7 @@ namespace Elaine
 
 		// This method is queued with an RHIThread, otherwise it will flush after it is queued; without an RHI thread there is no benefit to queuing this frame advance commands
 		virtual void RHIEndFrame() = 0;
+        virtual void RHISubmitUploads() = 0;
 
 		//=========================================================================
 		// 交换链控制接口 - 由上层控制渲染目标
@@ -207,39 +208,42 @@ namespace Elaine
 
 		virtual void RHICopyTexture(RHITexture* SourceTexture, RHITexture* DestTexture, const RHICopyTextureInfo& CopyInfo) = 0;
 
-		virtual void RHICopyBufferRegion(RHIBuffer* DestBuffer, uint64 DstOffset, RHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes)
-		{
-			
-		}
+        virtual void RHICopyBufferRegion(RHIBuffer* DestBuffer, uint64 DstOffset, RHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes) = 0;
+        virtual void RHICopyBufferToTexture(RHIBuffer* Source, RHITexture* Target) = 0;
+        virtual void RHIKeepResources(const std::vector<RHIHandle>& Resources) {}
+        // RenderThread prepares independent staging. The existing list records all GPU work.
+        void UploadBuffer(RHIBuffer* Target, const void* Data, uint32 Size, ERHIAccess Access);
+        void UploadTexture(RHITexture* Target, const void* Data, size_t Size);
 
 		// 资源屏障 - 用于 RenderGraph 状态转换
 		virtual void RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier) = 0;
 
+        virtual void RHIPrepareGfxPipeline(RHIPipeline* Pipeline, const RHIRenderPassInfo& Pass) {}
 		virtual void RHIBindGfxPipeline(RHIPipeline* InPipeline) = 0;
-		virtual RHIBuffer* RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) = 0;
+		virtual RHIBufferHandle RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual RHIBuffer* RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
+		virtual RHIBufferHandle RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
 		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize)  = 0;
 		
-		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
+		virtual RHIBufferHandle RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) = 0;
+		virtual RHITextureHandle RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) = 0;
 
-		virtual RHITexture* RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) = 0;
+		virtual RHITextureHandle RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual RHITexture* RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) = 0;
+		virtual RHITextureHandle RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual RHIPipeline* RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) = 0;
-		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) = 0;
-		virtual RHISwapchain* RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) = 0;
+		virtual RHIPipelineHandle RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) = 0;
+		virtual RHIPipelineHandle RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) = 0;
+		virtual RHISwapchainHandle RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) = 0;
 
 		//@TODO : Destroy and RHIType
 		virtual void RHICreateSurface(void* InNativeHandle) = 0;
 
 		virtual void RHIWriteGPUFence(RHIGPUFence* FenceRHI) { }
 
-		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) = 0;
+		virtual RHIUniformBufferHandle RHICreateUniformBuffer(size_t InSize, void* InContents) = 0;
 		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) = 0;
 
 		/**
@@ -247,7 +251,7 @@ namespace Elaine
 		 * @param InDesc - 创建描述符，包含槽位、大小、初始数据
 		 * @return 创建的 UniformBuffer，带有槽位信息
 		 */
-		virtual RHIUniformBuffer* RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) = 0;
+		virtual RHIUniformBufferHandle RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) = 0;
 
 		/**
 		 * 按语义槽位绑定 UniformBuffer

@@ -1,5 +1,6 @@
 #pragma once
 #include "ElaineCorePrerequirements.h"
+#include "render/common/ElaineRHIProtocol.h"
 
 namespace Elaine
 {
@@ -22,8 +23,8 @@ namespace Elaine
 
 	struct RenderablePass
 	{
-		RenderProxy* mRenderObject = nullptr;
-		ShaderPass* mRenderPass = nullptr;
+		RHIPipelineHandle mPipeline;
+		RHI_DRAW_RESOURCE_BINDING mResourceBinding;
 	};
 
 	class ElaineCoreExport RenderQueue
@@ -32,6 +33,7 @@ namespace Elaine
 		RenderQueue(NamedRenderQueue InName);
 		void RecordRenderCommand(RHICommandList* InRHICommandList);
 		void UpdateRenderQueue(ShaderPass* InPass, RenderProxy* InObject, RenderQueuePriority InPriority);
+		void UpdateRenderQueue(RHIPipeline* InPipeline, const RHI_DRAW_RESOURCE_BINDING& InBinding, RenderQueuePriority InPriority);
 		void Render(RHICommandList* InRHICommandList);
 		void Clear();
 		bool IsEmpty();

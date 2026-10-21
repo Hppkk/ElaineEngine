@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineEnginePrerequirements.h"
 #include "ElaineActor.h"
 
@@ -13,7 +13,7 @@ namespace Elaine
 		~ActorManager();
 		Actor* CreateActor();
 		Actor* CreateActorByInfo(ActorInfoPtr InInfo);
-		Actor* CreateActorByInfo(const std::string& path, bool async = true);
+		Actor* CreateActorByInfo(const std::string& path);
 		void DestroyActor(Actor* InObject);
 		void DestroyAllActor();
 

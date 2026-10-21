@@ -1,4 +1,5 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "render/vulkan/ElaineVulkanRHI.h"
 #include "vulkan/ElaineVulkanPipeline.h"
 #include "vulkan/ElaineVulkanShader.h"
 #include "vulkan/ElaineVulkanDevice.h"
@@ -16,18 +17,22 @@ namespace VulkanRHI
     }
 
     VulkanLayout::~VulkanLayout()
-    {
+    { if (mPipelineLayout) vkDestroyPipelineLayout(mDevice->GetDevice(), mPipelineLayout, VULKAN_CPU_ALLOCATOR); }
 
-    }
-
-    VulkanPipeline::VulkanPipeline(VulkanDevice* InDevice)
+    VulkanPipeline::VulkanPipeline(VulkanDevice* InDevice) : mDevice(InDevice)
     {
         mLayout = new VulkanLayout(InDevice);
     }
 
     VulkanPipeline::~VulkanPipeline()
     {
+        if (mPipeline) vkDestroyPipeline(mDevice->GetDevice(), mPipeline, VULKAN_CPU_ALLOCATOR);
         SAFE_DELETE(mLayout);
+        if (mOwnsDescriptors)
+        {
+            for (auto* Set : mDescriptorSets) delete Set;
+            for (auto Layout : mDescriptorSetLayouts) vkDestroyDescriptorSetLayout(mDevice->GetDevice(), Layout, VULKAN_CPU_ALLOCATOR);
+        }
     }
 
     VulkanDescriptorSet* VulkanPipeline::GetDescriptorSet(int32 InSlot)
@@ -55,7 +60,8 @@ namespace VulkanRHI
 
     VulkanGfxPipeline::~VulkanGfxPipeline()
     {
-
+        mVariants.clear();
+        if (mOwnsShaders) { delete mVsShader; delete mPsShader; }
     }
 
     VulkanPiplineManager::VulkanPiplineManager(VulkanDevice* InDevice)
@@ -111,6 +117,10 @@ namespace VulkanRHI
 
     VulkanGfxPipeline* VulkanPiplineManager::CreateGraphicPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InState)
     {
+        auto VSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mVSPrepared);
+        auto PSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mPSPrepared);
+        if ((InState.mVSPrepared && !VSPrepared) || (InState.mPSPrepared && !PSPrepared))
+            throw std::runtime_error("Shader compilation output does not belong to the Vulkan backend");
         VulkanGfxPipeline* NewPipeline = new VulkanGfxPipeline(mDevice);
         NewPipeline->SetPipelineState(InState);  // 保存 State 用于创建变体
         
@@ -127,7 +137,7 @@ namespace VulkanRHI
         VulkanShader* NewPsShader = nullptr;
         if (!InState.mVSShaderCode.empty())
         {
-            NewVsShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader, NewPipeline, InState.mVSPath);
+            NewVsShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader, NewPipeline, InState.mVSPath, std::move(VSPrepared));
             NewPipeline->mVsShader = NewVsShader;
             //NewVsShader->GetDescriptorSetLayouts(ShaderLayouts);
             //VKVertexAttributeDescs = NewVsShader->GetVertexInputAttributeDescriptions();
@@ -135,13 +145,14 @@ namespace VulkanRHI
 
         if (!InState.mPSShaderCode.empty())
         {
-            NewPsShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader, NewPipeline, InState.mPSPath);
+            NewPsShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader, NewPipeline, InState.mPSPath, std::move(PSPrepared));
             NewPipeline->mPsShader = NewPsShader;
            // NewPsShader->GetDescriptorSetLayouts(ShaderLayouts);
         }
 
         if (!NewVsShader || !NewPsShader)
         {
+            delete NewPipeline;
             return nullptr;
         }
 
@@ -150,7 +161,7 @@ namespace VulkanRHI
         if (!CompileSucceed)
         {
             LOG_ERROR("Pipeline Compile Failed.");
-            assert(false);
+            delete NewPipeline;
             return nullptr;
         }
 
@@ -163,7 +174,7 @@ namespace VulkanRHI
         VkPipelineLayoutCreateInfo LayoutCreateInfo;
         Elaine::Memory::MemoryZero(LayoutCreateInfo);
         LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        LayoutCreateInfo.flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT;
+        LayoutCreateInfo.flags = 0;
         LayoutCreateInfo.pSetLayouts = NewPipeline->mDescriptorSetLayouts.data();
         LayoutCreateInfo.setLayoutCount = NewPipeline->mDescriptorSetLayouts.size();
         //todo 
@@ -176,12 +187,9 @@ namespace VulkanRHI
         VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         VertexInputStateCreateInfo.pVertexAttributeDescriptions = VKVertexAttributeDescs.data();
         VertexInputStateCreateInfo.vertexAttributeDescriptionCount = VKVertexAttributeDescs.size();
-        std::vector<VkVertexInputBindingDescription> VKVertexInputBindingDescs;
-        VkVertexInputBindingDescription TempInputBindingDesc;
-        TempInputBindingDesc.binding = 0;
-        TempInputBindingDesc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        TempInputBindingDesc.stride = InState.mVertexAttribute.mStride;
-        VKVertexInputBindingDescs.push_back(TempInputBindingDesc);
+        auto VKVertexInputBindingDescs = NewVsShader->GetVertexInputBindingDescription();
+        if (!VKVertexInputBindingDescs.empty() && InState.mVertexAttribute.mStride)
+            VKVertexInputBindingDescs[0].stride = InState.mVertexAttribute.mStride;
         VertexInputStateCreateInfo.pVertexBindingDescriptions = VKVertexInputBindingDescs.data();
         VertexInputStateCreateInfo.vertexBindingDescriptionCount = VKVertexInputBindingDescs.size();
         CreateInfo.pVertexInputState = &VertexInputStateCreateInfo;
@@ -364,54 +372,20 @@ namespace VulkanRHI
         CreateInfo.subpass = 0;
         CreateInfo.basePipelineHandle = VK_NULL_HANDLE;
         CreateInfo.basePipelineIndex = -1;
-        vkCreateGraphicsPipelines(mDevice->GetDevice(), mPipelineCache.GetHandle(), 1, &CreateInfo, VULKAN_CPU_ALLOCATOR, &NewPipeline->mPipeline);
-        mGfxPipelinePool.emplace(InState.mStateHash, NewPipeline);
+        if (vkCreateGraphicsPipelines(mDevice->GetDevice(), mPipelineCache.GetHandle(), 1, &CreateInfo, VULKAN_CPU_ALLOCATOR, &NewPipeline->mPipeline) != VK_SUCCESS) { delete NewPipeline; return nullptr; }
+
         return NewPipeline;
     }
 
     VulkanGfxPipeline* VulkanPiplineManager::GetOrCreateGfxPipelineForRenderPass(
-        const GRAPHICS_PIPELINE_STATE_DESC& InState,
-        const RenderPassKey& RPKey)
+        const GRAPHICS_PIPELINE_STATE_DESC& State, const RenderPassKey& Key, VulkanGfxPipeline* Base)
     {
-        // 构建变体 Key
-        PipelineVariantKey VariantKey;
-        VariantKey.StateHash = InState.mStateHash;
-        VariantKey.RenderPass = RPKey;
-
-        // 查找变体缓存
-        auto It = mPipelineVariantCache.find(VariantKey);
-        if (It != mPipelineVariantCache.end())
-        {
-            return It->second;
-        }
-
-        // 查找同一 StateHash 的已编译 Pipeline，以复用其 Shaders
-        VulkanGfxPipeline* ExistingPipeline = nullptr;
-        auto PoolIt = mGfxPipelinePool.find(InState.mStateHash);
-        if (PoolIt != mGfxPipelinePool.end())
-        {
-            ExistingPipeline = PoolIt->second;
-        }
-        else
-        {
-            // 也在变体缓存中查找
-            for (auto& Pair : mPipelineVariantCache)
-            {
-                if (Pair.first.StateHash == InState.mStateHash)
-                {
-                    ExistingPipeline = Pair.second;
-                    break;
-                }
-            }
-        }
-
-        // 创建新的 Pipeline 变体
-        VulkanGfxPipeline* NewPipeline = CreateGraphicPipelineWithRenderPass(InState, RPKey, ExistingPipeline);
-        if (NewPipeline)
-        {
-            mPipelineVariantCache.emplace(VariantKey, NewPipeline);
-        }
-        return NewPipeline;
+        auto It = Base->mVariants.find(Key);
+        if (It != Base->mVariants.end()) return It->second.get();
+        auto Variant = std::unique_ptr<VulkanGfxPipeline>(CreateGraphicPipelineWithRenderPass(State, Key, Base));
+        auto* Result = Variant.get();
+        if (Result) Base->mVariants.emplace(Key, std::move(Variant));
+        return Result;
     }
 
     VulkanGfxPipeline* VulkanPiplineManager::CreateGraphicPipelineWithRenderPass(
@@ -419,6 +393,10 @@ namespace VulkanRHI
         const RenderPassKey& RPKey,
         VulkanGfxPipeline* ExistingPipeline)
     {
+        auto VSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mVSPrepared);
+        auto PSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mPSPrepared);
+        if ((InState.mVSPrepared && !VSPrepared) || (InState.mPSPrepared && !PSPrepared))
+            throw std::runtime_error("Shader compilation output does not belong to the Vulkan backend");
         VulkanGfxPipeline* NewPipeline = new VulkanGfxPipeline(mDevice);
         NewPipeline->SetPipelineState(InState);  // 保存 State 用于创建变体
         
@@ -434,6 +412,9 @@ namespace VulkanRHI
         // 如果有现有 Pipeline，复用其 Shader 和 DescriptorSetLayouts
         if (ExistingPipeline && ExistingPipeline->mVsShader && ExistingPipeline->mPsShader)
         {
+            NewPipeline->mOwnsShaders = false;
+            NewPipeline->mOwnsDescriptors = false;
+            NewPipeline->mMaterialParametersRHI = ExistingPipeline->GetMaterialParameters();
             // 直接复用已编译的 Shader
             VsShader = ExistingPipeline->mVsShader;
             PsShader = ExistingPipeline->mPsShader;
@@ -442,6 +423,7 @@ namespace VulkanRHI
             
             // 复用 DescriptorSetLayouts
             NewPipeline->mDescriptorSetLayouts = ExistingPipeline->GetDescriptorSetLayouts();
+            NewPipeline->mDescriptorBindings = ExistingPipeline->GetDescriptorBindings();
             // @TODO
             NewPipeline->mDescriptorSets = ExistingPipeline->GetDescriptorSets();
         }
@@ -450,13 +432,13 @@ namespace VulkanRHI
             // 没有现有 Pipeline，需要创建和编译 Shader
             if (!InState.mVSShaderCode.empty())
             {
-                VsShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader, NewPipeline, InState.mVSPath);
+                VsShader = mDevice->GetShaderManager()->CreateShader(InState.mVSShaderCode, Elaine::EShaderStage::VertexShader, NewPipeline, InState.mVSPath, std::move(VSPrepared));
                 NewPipeline->mVsShader = VsShader;
             }
 
             if (!InState.mPSShaderCode.empty())
             {
-                PsShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader, NewPipeline, InState.mPSPath);
+                PsShader = mDevice->GetShaderManager()->CreateShader(InState.mPSShaderCode, Elaine::EShaderStage::FragmentShader, NewPipeline, InState.mPSPath, std::move(PSPrepared));
                 NewPipeline->mPsShader = PsShader;
             }
 
@@ -490,7 +472,7 @@ namespace VulkanRHI
         VkPipelineLayoutCreateInfo LayoutCreateInfo;
         Elaine::Memory::MemoryZero(LayoutCreateInfo);
         LayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-        LayoutCreateInfo.flags = VK_PIPELINE_LAYOUT_CREATE_INDEPENDENT_SETS_BIT_EXT;
+        LayoutCreateInfo.flags = 0;
         LayoutCreateInfo.pSetLayouts = NewPipeline->mDescriptorSetLayouts.data();
         LayoutCreateInfo.setLayoutCount = NewPipeline->mDescriptorSetLayouts.size();
 

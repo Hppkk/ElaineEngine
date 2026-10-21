@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineWorld.h"
 #include "ElaineWorldChunk.h"
 #include "GamePlay/ElaineActor.h"
@@ -41,10 +41,12 @@ namespace Elaine
         {
             mSceneManager = Root::instance()->CreateSceneManager("Main SceneManager");
         });
+        Root::instance()->FlushRenderCommands();
     }
 
     World::~World()
     {
+        Root::instance()->FlushRenderCommands();
         for (auto& Entry : mLoadedChunks)
         {
             if (Entry.second)
@@ -53,10 +55,10 @@ namespace Elaine
         }
         mLoadedChunks.clear();
         mActiveActors.clear();
-        ENQUEUE_RENDER_COMMAND(DestroySceneManager)([this](RenderContext& Context)
+        auto* Scene = mSceneManager;
+        ENQUEUE_RENDER_COMMAND(DestroySceneManager)([Scene](RenderContext& Context)
         {
-            if (mSceneManager)
-                Root::instance()->DestroySceneManager(mSceneManager);
+            if (Scene) Root::instance()->DestroySceneManager(Scene);
         });
         mSceneManager = nullptr;
         SAFE_DELETE(mSceneBVH);

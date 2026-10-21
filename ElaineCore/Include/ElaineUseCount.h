@@ -1,4 +1,5 @@
 #pragma once
+#include <atomic>
 
 namespace Elaine
 {
@@ -22,12 +23,12 @@ namespace Elaine
 
 		void _Incref() noexcept
 		{
-			_InterlockedIncrement(reinterpret_cast<volatile long*>(&_Used));
+			_Used.fetch_add(1, std::memory_order_relaxed);
 		}
 
 		void _Decref() noexcept
 		{
-			if (_InterlockedDecrement(reinterpret_cast<volatile long*>(&_Used)) == 0)
+			if (_Used.fetch_sub(1, std::memory_order_acq_rel) == 1)
 			{
 				Destroy();
 				delete this;
@@ -36,11 +37,11 @@ namespace Elaine
 
 		unsigned int getUseCount()
 		{
-			return _Used;
+			return _Used.load(std::memory_order_acquire);
 		}
 
 	public:
-		unsigned int _Used = 0;
+		std::atomic_uint _Used{0};
 	};
 
 	template<typename T, typename Deleter>
@@ -54,7 +55,6 @@ namespace Elaine
 		void Destroy() override
 		{
 			Del(Ptr);
-			delete this;
 		}
 	};
 }

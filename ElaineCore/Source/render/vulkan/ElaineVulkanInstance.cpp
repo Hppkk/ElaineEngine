@@ -3,6 +3,8 @@
 
 namespace VulkanRHI
 {
+    static std::atomic<uint32> ValidationErrors{0};
+    uint32 VulkanInstance::GetValidationErrorCount() { return ValidationErrors.load(); }
     VulkanInstance::VulkanInstance()
         : mHandle(nullptr)
         , mVersion(0u)
@@ -140,12 +142,15 @@ namespace VulkanRHI
         return extensions;
     }
 
-    static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugMessager(VkDebugUtilsMessageSeverityFlagBitsEXT,
+    static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugMessager(VkDebugUtilsMessageSeverityFlagBitsEXT Severity,
         VkDebugUtilsMessageTypeFlagsEXT,
         const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
         void*)
     {
-        LOG_DEBUG("VulkanRHI: Validation Layer Messmage: {}", pCallbackData->pMessage);
+        if (Severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT)
+        { ++ValidationErrors; LOG_ERROR("Vulkan validation: {}", pCallbackData->pMessage); }
+        else if (Severity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+        { LOG_WARN("Vulkan validation: {}", pCallbackData->pMessage); }
         return VK_FALSE;
     }
 

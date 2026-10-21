@@ -24,7 +24,8 @@ namespace TaskGraph
 		std::queue<GraphTaskPtr> mReadyForDispatch;
 		std::vector<GraphTaskPtr> mWaitForDispatch;
 		Elaine::ThreadWrap* mThreadHandle;
-		std::mutex mMtx;
+		std::atomic_bool mStopping{false};
+        std::mutex mMtx;
 		std::condition_variable mConditionVariable;
 	};
 }

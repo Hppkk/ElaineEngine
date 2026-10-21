@@ -186,7 +186,7 @@ namespace RenderGraph
 		virtual ~GraphResource();
 
 		// 获取 RHI 资源（仅在执行阶段有效）
-		RHIResource* GetRHIHandle() const { return mResourceRHI; }
+		RHIResource* GetRHIHandle() const { return mResourceRHI.get(); }
 
 		// 资源标识
 		const std::string& GetName() const { return mName; }
@@ -219,7 +219,7 @@ namespace RenderGraph
 		RGResourceHandle mHandle;
 		ERGResourceState mState = ERGResourceState::Uninitialized;
 		RGResourceLifetime mLifetime;
-		RHIResource* mResourceRHI = nullptr;
+		RHIHandle mResourceRHI = nullptr;
 		uint32 mRefCount = 0;
 		bool mNeverCull = false;
 	};

@@ -157,12 +157,12 @@ namespace Elaine
 			mSceneColorTexture = ResourcePool.AcquirePersistentTexture("SceneColor", SceneColorDesc, GraphicsContext);
 
 		// Import to RenderGraph
-		auto ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture, ShadowMapDesc);
-		auto GBufferA = Builder.ImportTexture("GBufferA", mGBufferA, GBufferADesc);
-		auto GBufferB = Builder.ImportTexture("GBufferB", mGBufferB, GBufferBDesc);
-		auto GBufferC = Builder.ImportTexture("GBufferC", mGBufferC, GBufferCDesc);
-		auto SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture, DepthDesc);
-		auto SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture, SceneColorDesc);
+		auto ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture.get(), ShadowMapDesc);
+		auto GBufferA = Builder.ImportTexture("GBufferA", mGBufferA.get(), GBufferADesc);
+		auto GBufferB = Builder.ImportTexture("GBufferB", mGBufferB.get(), GBufferBDesc);
+		auto GBufferC = Builder.ImportTexture("GBufferC", mGBufferC.get(), GBufferCDesc);
+		auto SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture.get(), DepthDesc);
+		auto SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture.get(), SceneColorDesc);
 
 		//=========================================================================
 		// Pass 1: VT Feedback Pass (optional)

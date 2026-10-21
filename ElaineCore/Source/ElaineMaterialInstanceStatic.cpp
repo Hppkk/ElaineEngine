@@ -7,6 +7,17 @@
 
 namespace Elaine
 {
+    struct MaterialInstanceStatic::LoadData : ResourceLoadData
+    {
+        MaterialPtr mOriginMaterialResource;
+        std::unordered_map<TextureSemantics, TexturePtr> mOverridedTextures;
+        std::unordered_map<uint64_t, float> mOverridedScalars;
+        std::unordered_map<uint64_t, Vector4> mOverridedVectors;
+        std::unordered_map<uint64_t, int32_t> mOverridedInts;
+        std::unordered_map<uint64_t, bool> mOverridedBools;
+    };
+
+
 	MaterialInstanceStatic::MaterialInstanceStatic(ResourceManager* InManager, const std::string& InResourceName)
 		: ResourceBase(InManager, InResourceName)
 	{
@@ -19,38 +30,39 @@ namespace Elaine
 	}
 
 	TexturePtr MaterialInstanceStatic::GetTexture(TextureSemantics InSemantics) const
-	{
-		auto it = mOverridedTextures.find(InSemantics);
+	{ auto it = mOverridedTextures.find(InSemantics);
 		if (it != mOverridedTextures.end())
 			return it->second;
 
 		return mOriginMaterialResource.isNull() ? TexturePtr() : mOriginMaterialResource->GetTexture(InSemantics);
 	}
 
-	bool MaterialInstanceStatic::LoadImpl()
-	{
+	std::unique_ptr<ResourceLoadData> MaterialInstanceStatic::LoadImpl()
+    {
+        auto Pending = std::make_unique<LoadData>();
+        auto& Data = *Pending;
         DataStream Stream(Root::instance()->GetResourcePath() + mResourceName);
         Stream.ReadAll();
         JsonCpp JsonMaterial = JsonCpp::parse(Stream.GetDataStream());
 		if (!JsonMaterial.contains("version") || JsonMaterial["version"] != "2.0.0")
 		{
 			LOG_ERROR("Material instance '%s' requires format version 2.0.0.", mResourceName.c_str());
-			return false;
+			return {};
 		}
-		mOverridedTextures.clear();
-		mOverridedScalars.clear();
-		mOverridedVectors.clear();
-		mOverridedInts.clear();
-		mOverridedBools.clear();
+		Data.mOverridedTextures.clear();
+		Data.mOverridedScalars.clear();
+		Data.mOverridedVectors.clear();
+		Data.mOverridedInts.clear();
+		Data.mOverridedBools.clear();
 
         //ClearDependencies();
 
         // origin material
         std::string OriginPath = JsonMaterial.value("origin", "");
+        if (OriginPath.empty()) throw std::runtime_error("Material instance requires an origin material");
         if (!OriginPath.empty())
         {
-            mOriginMaterialResource = MaterialManager::instance()->GetResource<Material>(OriginPath);
-            //AddResourceEvent(ResourceEvent(OriginPath.c_str(), RT_Material, mOriginMaterialResource->GetLoadTask()));
+            Data.mOriginMaterialResource = MaterialManager::instance()->RequestResource<Material>(OriginPath).GetResource();
         }
 
         // textures
@@ -62,8 +74,7 @@ namespace Elaine
                 std::string texPath = it.value();
                 
                 TextureSemantics TexSem = SemanticsRegister::GetSemantics(it.key().c_str());
-                mOverridedTextures[TexSem] = TextureManager::instance()->GetResource<Texture>(texPath);
-                //AddResourceEvent(ResourceEvent(texPath.c_str(), RT_Texture, mOverridedTextures[TexSem]->GetLoadTask()));
+                Data.mOverridedTextures[TexSem] = TextureManager::instance()->RequestResource<Texture>(texPath).GetResource();
             }
         }
 
@@ -77,56 +88,57 @@ namespace Elaine
 				const std::string Type = Value.is_object() ? Value.value("type", "") : (Value.is_number() ? "scalar" : "vector");
 				const auto& RawValue = Value.is_object() && Value.contains("value") ? Value["value"] : Value;
 				if (Type == "scalar" && RawValue.is_number())
-					mOverridedScalars[Hash] = RawValue.get<float>();
+					Data.mOverridedScalars[Hash] = RawValue.get<float>();
 				else if ((Type == "vector" || Type == "color") && RawValue.is_array())
                 {
-					mOverridedVectors[Hash] = Vector4(RawValue.size() > 0 ? RawValue[0].get<float>() : 0.0f,
+					Data.mOverridedVectors[Hash] = Vector4(RawValue.size() > 0 ? RawValue[0].get<float>() : 0.0f,
 						RawValue.size() > 1 ? RawValue[1].get<float>() : 0.0f,
 						RawValue.size() > 2 ? RawValue[2].get<float>() : 0.0f,
 						RawValue.size() > 3 ? RawValue[3].get<float>() : 0.0f);
 				}
 				else if (Type == "int" && RawValue.is_number_integer())
-					mOverridedInts[Hash] = RawValue.get<int32_t>();
+					Data.mOverridedInts[Hash] = RawValue.get<int32_t>();
 				else if (Type == "bool" && RawValue.is_boolean())
-					mOverridedBools[Hash] = RawValue.get<bool>();
+					Data.mOverridedBools[Hash] = RawValue.get<bool>();
             }
         }
 
-		return true;
+		Data.Dependencies.push_back(Data.mOriginMaterialResource);
+        for (const auto& Pair : Data.mOverridedTextures) if (Pair.second) Data.Dependencies.push_back(Pair.second);
+        return Pending;
 	}
 
 	float MaterialInstanceStatic::GetScalar(uint64_t InParamHash, float InDefault) const
-	{
-		auto It = mOverridedScalars.find(InParamHash);
+	{ auto It = mOverridedScalars.find(InParamHash);
 		if (It != mOverridedScalars.end()) return It->second;
 		return mOriginMaterialResource.isNull() ? InDefault : mOriginMaterialResource->GetScalar(InParamHash, InDefault);
 	}
 
 	Vector4 MaterialInstanceStatic::GetVector(uint64_t InParamHash, const Vector4& InDefault) const
-	{
-		auto It = mOverridedVectors.find(InParamHash);
+	{ auto It = mOverridedVectors.find(InParamHash);
 		if (It != mOverridedVectors.end()) return It->second;
 		return mOriginMaterialResource.isNull() ? InDefault : mOriginMaterialResource->GetVector(InParamHash, InDefault);
 	}
 
 	int32_t MaterialInstanceStatic::GetInt(uint64_t InParamHash, int32_t InDefault) const
-	{
-		auto It = mOverridedInts.find(InParamHash);
+	{ auto It = mOverridedInts.find(InParamHash);
 		return It != mOverridedInts.end() ? It->second : (mOriginMaterialResource.isNull() ? InDefault : mOriginMaterialResource->GetInt(InParamHash, InDefault));
 	}
 
 	bool MaterialInstanceStatic::GetBool(uint64_t InParamHash, bool InDefault) const
-	{
-		auto It = mOverridedBools.find(InParamHash);
+	{ auto It = mOverridedBools.find(InParamHash);
 		return It != mOverridedBools.end() ? It->second : (mOriginMaterialResource.isNull() ? InDefault : mOriginMaterialResource->GetBool(InParamHash, InDefault));
 	}
 
 	bool MaterialInstanceStatic::HasScalar(uint64_t InParamHash) const { return mOverridedScalars.find(InParamHash) != mOverridedScalars.end() || (!mOriginMaterialResource.isNull() && mOriginMaterialResource->HasScalar(InParamHash)); }
 	bool MaterialInstanceStatic::HasVector(uint64_t InParamHash) const { return mOverridedVectors.find(InParamHash) != mOverridedVectors.end() || (!mOriginMaterialResource.isNull() && mOriginMaterialResource->HasVector(InParamHash)); }
 
+
+
 	void MaterialInstanceStatic::UnloadImpl()
 	{
-		mOverridedTextures.clear();
+		mOriginMaterialResource = {};
+        mOverridedTextures.clear();
 		mOverridedScalars.clear();
 		mOverridedVectors.clear();
 		mOverridedInts.clear();
@@ -138,14 +150,11 @@ namespace Elaine
 
 	}
 
-	void MaterialInstanceStatic::ResourceArrivedImpl()
-	{
 
-	}
 
 	void MaterialInstanceStatic::GetDirectDependencies(std::vector<ResourceBasePtr>& OutDependencies) const
 	{
-		// 原始材质依赖
+        // 原始材质依赖
 		if (!mOriginMaterialResource.isNull())
 		{
 			OutDependencies.push_back(mOriginMaterialResource);
@@ -160,4 +169,16 @@ namespace Elaine
 			}
 		}
 	}
+    void MaterialInstanceStatic::ApplyLoadedData(ResourceLoadData& InData) noexcept
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        std::swap(mOriginMaterialResource, Data.mOriginMaterialResource);
+        std::swap(mOverridedTextures, Data.mOverridedTextures);
+        std::swap(mOverridedScalars, Data.mOverridedScalars);
+        std::swap(mOverridedVectors, Data.mOverridedVectors);
+        std::swap(mOverridedInts, Data.mOverridedInts);
+        std::swap(mOverridedBools, Data.mOverridedBools);
+        ++mDataRevision;
+    }
+
 }

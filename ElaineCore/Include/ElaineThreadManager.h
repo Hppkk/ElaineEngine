@@ -35,7 +35,8 @@ namespace Elaine
 		template <class Func, class... Args>
 		ThreadWrap* GetOrCreateThread(NamedThread InType, Func&& _Fx, Args&&... _Ax)
 		{
-			auto Iter = mThreads.find(InType);
+			std::lock_guard<std::mutex> Lock(mThreadMutex);
+            auto Iter = mThreads.find(InType);
 			if (Iter == mThreads.end())
 			{
 				auto task = std::bind(std::forward<Func>(_Fx), std::forward<Args>(_Ax)...);
@@ -59,7 +60,8 @@ namespace Elaine
 		const std::string&			GetStringName(NamedThread InName);
 		const std::wstring&			GetWStringName(NamedThread InName);
 	private:
-		std::map<NamedThread, ThreadWrap*> mThreads;
+		std::mutex mThreadMutex;
+        std::map<NamedThread, ThreadWrap*> mThreads;
 		std::map<NamedThread, std::string>   mNamedStrs;
 		std::map<NamedThread, std::wstring>  mNamedWStrs;
 	};

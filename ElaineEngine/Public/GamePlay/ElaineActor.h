@@ -25,16 +25,18 @@ namespace Elaine
 		ActorInfo();
 		ActorInfo(ResourceManager* InManager, const std::string& InPath);
 		~ActorInfo();
-		virtual bool	LoadImpl() override;
+		std::unique_ptr<ResourceLoadData> LoadImpl() override;
+        void PrepareDependencies(ResourceLoadData& Data) override;
+        void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
 		virtual	void	UnloadImpl() override;
 		virtual void	SaveResourceImpl() override;
-		virtual void	ResourceArrivedImpl() override;
 		void			ImportData(const JsonCpp& jsonNode);
 		void			ExportData(JsonCpp& jsonNode);
 		const std::string& GetName() const { return mName; }
 		void SetName(const std::string& InName) { mName = InName; }
 		void			ExportToFile();
 	private:
+        struct LoadData;
 		std::string mGUID;
 		std::string mName;
 		std::set<Actor*> mInstances;

@@ -12,7 +12,7 @@ namespace Elaine
 
     SkyRenderProxy::~SkyRenderProxy()
     {
-
+        CancelResourceNotifications();
     }
 
     void SkyRenderProxy::InitializeResourceBinding()
@@ -69,9 +69,9 @@ namespace Elaine
         };
 
         //@TODO RHI thread.
-        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] =
-            RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
+        auto VertexBuffer = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
                 CpuData.data(), CpuData.size() * sizeof(VertexData));
+        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = VertexBuffer.get();
 
         mResourceBinding.mVertexCount = 36;
         mResourceBinding.mInstanceCount = 1;
@@ -79,8 +79,7 @@ namespace Elaine
 
         // 从 RenderMaterialProxy 获取已解析的 RHI 纹理
         RHITexture* CubeRHI = mMaterialProxy.GetResolvedTexture(BaseColor);
-        if (!CubeRHI && !mCubeTexture.isNull() && mCubeTexture->IsLoaded())
-            CubeRHI = mCubeTexture->GetTextureRHI();
+        if (!CubeRHI) CubeRHI = mCubeTextureRHI.get();
 
         if (CubeRHI)
             mResourceBinding.SetTexture(0, CubeRHI, SAMPLER_CUBEMAP);
@@ -103,6 +102,14 @@ namespace Elaine
         CurrentRenderQueue->UpdateRenderQueue(SkyPass, this, -1000);
     }
 
+    void SkyRenderProxy::ApplyResourceUpdate(const RenderResourceUpdate& Update)
+    {
+        mMaterialProxy.ApplyResourceUpdate(Update);
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
+        if (Update.IsTexture && mCubeTexture.get() == Update.Resource.get()) mCubeTextureRHI = Update.Texture;
+        RHITexture* Cube = mMaterialProxy.GetResolvedTexture(BaseColor);
+        mResourceBinding.SetTexture(0, Cube ? Cube : mCubeTextureRHI.get(), SAMPLER_CUBEMAP);
+    }
     void SkyRenderProxy::PrepareResourceBinding()
     {
 

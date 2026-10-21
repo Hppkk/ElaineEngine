@@ -1,6 +1,7 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineRenderQueue.h"
 #include "ElainePass.h"
+#include "RenderProxy/ElaineRenderProxy.h"
 
 namespace Elaine
 {
@@ -23,15 +24,24 @@ namespace Elaine
 
 	void RenderQueue::UpdateRenderQueue(ShaderPass* InPass, RenderProxy* InObject, RenderQueuePriority InPriority)
 	{
+		if (InPass && InObject)
+			UpdateRenderQueue(InPass->GetPipelineRHI(), InObject->GetResourceBinding(), InPriority);
+	}
+
+	void RenderQueue::UpdateRenderQueue(RHIPipeline* InPipeline, const RHI_DRAW_RESOURCE_BINDING& InBinding, RenderQueuePriority InPriority)
+	{
+		if (!InPipeline)
+			return;
+
 		auto Iter = mRenderableObjects.find(InPriority);
 		if (Iter == mRenderableObjects.end())
 		{
 			Iter = mRenderableObjects.emplace(InPriority, std::vector<RenderablePass>()).first;
 		}
 		RenderablePass Element;
-		Element.mRenderPass = InPass;
-		Element.mRenderObject = InObject;
-		Iter->second.push_back(Element);
+		Element.mPipeline = InPipeline;
+		Element.mResourceBinding = InBinding;
+		Iter->second.push_back(std::move(Element));
 	}
 
 	void RenderQueue::Render(RHICommandList* InRHICommandList)
@@ -40,10 +50,19 @@ namespace Elaine
 		{
 			for (auto&& CurrElement : CurrRenderableObjects.second)
 			{
-				RHI_DRAW_RESOURCE_BINDING& RenderGfxState = CurrElement.mRenderObject->GetResourceBinding();
-				InRHICommandList->BindGfxPipeline(CurrElement.mRenderPass->GetPipelineRHI());
+				RHI_DRAW_RESOURCE_BINDING& RenderGfxState = CurrElement.mResourceBinding;
+				InRHICommandList->BindGfxPipeline(CurrElement.mPipeline.get());
 				InRHICommandList->BindDrawData(&RenderGfxState);
-				InRHICommandList->DrawPrimitive(RenderGfxState.mFirstIndex, RenderGfxState.mVertexCount, RenderGfxState.mInstanceCount);
+				if (RenderGfxState.mIndexBuffer)
+				{
+					InRHICommandList->DrawIndexedPrimitive(RenderGfxState.mIndexBuffer.get(), RenderGfxState.mVertexOffset,
+						RenderGfxState.mFirstInstance, RenderGfxState.mVertexCount, RenderGfxState.mFirstIndex,
+						RenderGfxState.mIndexCount / 3, RenderGfxState.mInstanceCount);
+				}
+				else
+				{
+					InRHICommandList->DrawPrimitive(RenderGfxState.mFirstVertex, RenderGfxState.mVertexCount, RenderGfxState.mInstanceCount);
+				}
 			}
 		}
 	}

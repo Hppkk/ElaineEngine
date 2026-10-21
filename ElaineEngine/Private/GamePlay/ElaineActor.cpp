@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "GamePlay/ElaineActor.h"
 #include "GamePlay/ElaineComponent.h"
 #include "GamePlay/ElaineActorManager.h"
@@ -11,6 +11,15 @@
 
 namespace Elaine
 {
+    struct ActorInfo::LoadData : ResourceLoadData
+    {
+        JsonCpp Json;
+        std::string GUID, Name;
+        std::vector<ActorInfoPtr> Children;
+        std::vector<ActorComponentInfo*> Components;
+        ~LoadData() override { for (auto* Info : Components) delete Info; }
+    };
+
 	ActorInfo::ActorInfo()
 	{
 
@@ -22,33 +31,59 @@ namespace Elaine
 
 	}
 
-	ActorInfo::~ActorInfo()
-	{
+	ActorInfo::~ActorInfo() { for (auto* Info : mActorComponentInfos) delete Info; }
 
-	}
-
-	bool ActorInfo::LoadImpl()
-	{
-		DataStream JsonFileStream(Root::instance()->GetResourcePath() + mResourceName, DataStream::In);
-		JsonFileStream.ReadAll();
-		JsonCpp JsonData(JsonFileStream.GetDataStream());
-		ImportData(JsonData);
-
-		return true;
-	}
+	std::unique_ptr<ResourceLoadData> ActorInfo::LoadImpl()
+    {
+        auto Data = std::make_unique<LoadData>();
+        DataStream Stream(Root::instance()->GetResourcePath() + mResourceName, DataStream::In);
+        Stream.ReadAll();
+        Data->Json = JsonCpp::parse(Stream.GetDataStream());
+        if (!Data->Json.is_object()) throw std::runtime_error("Actor resource must be an object");
+        Data->Name = Data->Json.value("Name", "");
+        Data->GUID = Data->Json.value("GUID", "");
+        return Data;
+    }
+    void ActorInfo::PrepareDependencies(ResourceLoadData& InData)
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        if (Data.Json.contains("Components"))
+            for (const auto& Json : Data.Json["Components"])
+            {
+                if (!Json.contains("Type")) continue;
+                Name Type(Json["Type"].get<std::string>().c_str());
+                std::unique_ptr<ActorComponentInfo> Info(ComponentFactoryManager::instance()->CreateActorComponentInfo(Type));
+                if (!Info) throw std::runtime_error("Unknown actor component type");
+                Info->ImportData(Json);
+                Data.Components.push_back(Info.get());
+                Info.release();
+            }
+        if (Data.Json.contains("Children"))
+            for (const auto& Json : Data.Json["Children"])
+            {
+                ActorInfoPtr Child(new ActorInfo());
+                Child->ImportData(Json);
+                Data.Children.push_back(std::move(Child));
+            }
+    }
+    void ActorInfo::ApplyLoadedData(ResourceLoadData& InData) noexcept
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        mGUID.swap(Data.GUID); mName.swap(Data.Name);
+        mChildren.swap(Data.Children); mActorComponentInfos.swap(Data.Components);
+    }
 
 	void ActorInfo::UnloadImpl()
-	{
-		ExportToFile();
-	}
+    {
+        for (auto* Info : mActorComponentInfos) delete Info;
+        mActorComponentInfos.clear(); mChildren.clear(); mName.clear(); mGUID.clear();
+    }
 
 	void ActorInfo::SaveResourceImpl()
 	{
 	}
 
-	void ActorInfo::ResourceArrivedImpl()
-	{
-	}
+
 
 	void ActorInfo::ExportToFile()
 	{
@@ -94,7 +129,7 @@ namespace Elaine
 		{
 			for (const auto& childJson : jsonNode["Children"])
 			{
-				ActorInfoPtr NewActorInfo = ActorInfoMgr::instance()->GetResource<ActorInfo>("");
+				ActorInfoPtr NewActorInfo = ActorInfoPtr(new ActorInfo());
 
 				NewActorInfo->ImportData(childJson);
 				mChildren.push_back(NewActorInfo);

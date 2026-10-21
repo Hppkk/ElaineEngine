@@ -13,6 +13,7 @@ namespace Elaine
     class RHITexture;
     class RHIUniformBuffer;
     class RenderContext;
+    struct RenderResourceUpdate;
 
     struct alignas(16) MaterialUniformData
     {
@@ -69,6 +70,7 @@ namespace Elaine
 
         /** 按名称获取指定 ShaderPass */
         ShaderPass* GetPass(const Name& InPassType) const;
+        const std::vector<ShaderPass>& GetPasses() const { return mPasses; }
 
         /** 获取已解析的 RHI 纹理（从 Texture Resource 解析出的 GPU 句柄） */
         RHITexture* GetResolvedTexture(TextureSemantics InSem) const;
@@ -80,8 +82,9 @@ namespace Elaine
         Vector4 GetVector(uint64_t InParamHash, const Vector4& InDefault = Vector4::ZERO) const;
         int32_t GetInt(uint64_t InParamHash, int32_t InDefault = 0) const;
         bool GetBool(uint64_t InParamHash, bool InDefault = false) const;
-        RHIUniformBuffer* GetMaterialUniformBuffer() const { return mMaterialUniformBuffer; }
-        void BindToResourceBinding(RHI_DRAW_RESOURCE_BINDING& OutBinding) { mBoundResourceBinding = &OutBinding; OutBinding.SetPSUniformBuffer(0, mMaterialUniformBuffer); }
+        RHIUniformBuffer* GetMaterialUniformBuffer() const { return mMaterialUniformBuffer.get(); }
+        void BindToResourceBinding(RHI_DRAW_RESOURCE_BINDING& OutBinding);
+        void ApplyResourceUpdate(const RenderResourceUpdate& Update);
 
         /** 是否已准备就绪（资源链全部加载 + RHI 资源已解析） */
         bool IsReady() const { return mReady; }
@@ -100,9 +103,10 @@ namespace Elaine
     private:
         // ---------- 缓存的资源引用（ResourcePtr，引用计数安全） ----------
         MaterialInstanceStaticPtr mCachedSource;
+        mutable std::vector<ShaderPass> mPasses;
 
         // ---------- 已解析的 RHI 资源（仅渲染线程访问） ----------
-        RHITexture* mResolvedTextures[Tex_Count] = {};
+        RHITextureHandle mResolvedTextures[Tex_Count] = {};
 
         // ---------- 参数副本 ----------
         std::unordered_map<uint64_t, float> mScalars;
@@ -113,8 +117,8 @@ namespace Elaine
         std::vector<uint8_t> mPackedUniformData;
         size_t mUniformDataSize = sizeof(MaterialUniformData);
         size_t mAllocatedUniformSize = 0;
-        RHI_DRAW_RESOURCE_BINDING* mBoundResourceBinding = nullptr;
-        RHIUniformBuffer* mMaterialUniformBuffer = nullptr;
+        MaterialParamSnapshot mSnapshot;
+        RHIUniformBufferHandle mMaterialUniformBuffer;
         uint64_t mUploadedRevision = ~uint64_t(0);
 
         // ---------- 状态 ----------

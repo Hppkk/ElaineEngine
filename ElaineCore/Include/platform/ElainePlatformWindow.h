@@ -1,9 +1,12 @@
 #pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineVector2.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 #include "ElaineRenderCommandQueue.h"
 #include "ElaineRenderTarget.h"
 #include "ElaineSwapchainRenderTarget.h"
+#include "render/common/ElaineRHICommandContext.h"
+#include "render/common/ElaineRHI.h"
 
 namespace Elaine
 {
@@ -90,22 +93,20 @@ namespace Elaine
             return true;
         }
 
+        // Startup-only: the render driver is already running, including inline RHI mode.
         void createSwapchain()
         {
-            //ENQUEUE_RENDER_COMMAND(CreateSwapchain)(
-            //    [this](RenderContext& Context)
-            //    {
-            //        // --- 渲染线程执行 ---
-
-            //        // RHI 工厂模式创建
-            //        this->mSwapchainRHI = Context.mCommandCtxRHI->RHICreateSwapchain(m_desc.width, m_desc.height, false, PF_R8G8B8A8);
-            //        Context.mCommandCtxRHI->RHISetSwapchain(mSwapchainRHI);
-            //    });
-
-            mSwapchainRHI = RenderSystem::instance()->GetRHICommandContext()->RHICreateSwapchain(m_desc.width, m_desc.height, false, PF_R8G8B8A8);
-            RenderSystem::instance()->GetRHICommandContext()->RHISetSwapchain(mSwapchainRHI);
-
-            mSwapchainRenderTarget.SetSwapchain(mSwapchainRHI);
+            auto Done = std::make_shared<std::promise<void>>(); auto Ready = Done->get_future();
+            TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady([this, Done] {
+                try {
+                    auto* Context = GetDynamicRHI()->GetDefaultCommandContext();
+                    mSwapchainOwner = Context->RHICreateSwapchain(m_desc.width, m_desc.height, false, PF_R8G8B8A8);
+                    Context->RHISetSwapchain(mSwapchainOwner.get());
+                    Done->set_value();
+                } catch (...) { Done->set_exception(std::current_exception()); }
+            }, NamedThread::RenderThread);
+            Ready.get();
+            mSwapchainRenderTarget.SetSwapchain(mSwapchainOwner.get());
         }
 
         void destroy()
@@ -206,16 +207,12 @@ namespace Elaine
 
             m_desc.width = width;
             m_desc.height = height;
-            ENQUEUE_RENDER_COMMAND(ResizeSwapchain)(
-                [SwapchainRHI = mSwapchainRHI, width, height](RenderContext& Context)
-                {
-                    // --- 渲染线程 ---
-                    // 1. 等待 GPU 空闲 (必须！不能销毁正在用的 BackBuffer)
-                    Context.mCommandCtxRHI->RHIWaitIdle();
-
-                    // 2. 调用具体的 Resize 实现 (销毁旧的 VkSwapchain, 创建新的)
-                    Context.mCommandCtxRHI->RHIWindowResize(SwapchainRHI, width, height);
-                });
+            if (mSwapchainOwner && width && height)
+                TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady([Swapchain = mSwapchainOwner, width, height] {
+                    auto* Context = GetDynamicRHI()->GetDefaultCommandContext();
+                    Context->RHIWaitIdle();
+                    Context->RHIWindowResize(Swapchain.get(), width, height);
+                }, NamedThread::RenderThread);
             if (m_resizeCallback) m_resizeCallback(width, height);
         }
 
@@ -259,7 +256,7 @@ namespace Elaine
 
         // 实现 RenderTarget 的交换链接口
         bool IsSwapchainTarget() const override { return true; }
-        RHISwapchain* GetSwapchain() const override { return mSwapchainRHI; }
+        RHISwapchain* GetSwapchain() const override { return mSwapchainOwner.get(); }
         void SetCurrentImageIndex(uint32 Index) override { mSwapchainRenderTarget.SetCurrentImageIndex(Index); }
         uint32 GetCurrentImageIndex() const override { return mSwapchainRenderTarget.GetCurrentImageIndex(); }
         RHITexture* GetColorTarget(uint32 Index = 0) override { return mSwapchainRenderTarget.GetColorTarget(Index); }
@@ -277,7 +274,7 @@ namespace Elaine
         CloseCallback   m_closeCallback;
         FocusCallback   m_focusCallback;
         MoveCallback    m_moveCallback;
-        RHISwapchain*   mSwapchainRHI = nullptr;
+        RHISwapchainHandle mSwapchainOwner;
         SwapchainRenderTarget   mSwapchainRenderTarget;
         bool            mbInitilize = false;
     };

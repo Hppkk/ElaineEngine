@@ -1,9 +1,11 @@
 #include "ElainePrecompiledHeader.h"
+#include "render/vulkan/ElaineVulkanRHI.h"
 #include "vulkan/ElaineVulkanCommandBuffer.h"
 #include "vulkan/ElaineVulkanDevice.h"
 #include "vulkan/ElaineVulkanMemory.h"
 #include "vulkan/ElaineVulkanQueue.h"
 #include "vulkan/ElaineVulkanPipeline.h"
+#include "vulkan/ElaineVulkanDescriptorSet.h"
 #include "vulkan/ElaineVulkanCommandContext.h"
 
 namespace VulkanRHI
@@ -22,12 +24,16 @@ namespace VulkanRHI
 		std::lock_guard<std::recursive_mutex> lock(mCmdPool->GetMutex());
 		AllocMemory();
 
-		mFence = mDevice->GetFenceManager()->AllocateFence(!bInIsUploadOnly);
+		mFence = mDevice->GetFenceManager()->AllocateFence(false);
 	}
 
 	VulkanCommandBuffer::~VulkanCommandBuffer()
-	{
-	}
+    {
+        ReleaseCompletedReferences();
+        Elaine::FlushRHIResourceReleases();
+        mDevice->GetDeferredDeletionQueue().OnCmdBufferDeleted(this);
+        mDevice->GetFenceManager()->ReleaseFence(mFence);
+    }
 
 
 	void VulkanCommandBuffer::AllocMemory(VkCommandBufferLevel InBufferLevel)
@@ -100,28 +106,15 @@ namespace VulkanRHI
 		mWaitSemaphores.push_back(InWaitSemaphore);
 	}
 
-	void VulkanCommandBuffer::RefreshFenceStatus(bool bResetFence)
-	{
-		if (mState == EState::Submitted)
-		{
-			mState = EState::NeedReset;
-		}
-
-		VulkanFenceManager* FenceMgr = mFence->GetOwner();
-		if (FenceMgr->IsFenceSignaled(mFence))
-		{
-			//for (VulkanSemaphore* Semaphore : mSubmittedWaitSemaphores)
-			//{
-			//	//Semaphore->Release();
-			//}
-			mSubmittedWaitSemaphores.clear();
-			if (bResetFence)
-			{
-				FenceMgr->ResetFence(mFence);
-			}
-			
-		}
-	}
+    void VulkanCommandBuffer::RefreshFenceStatus(bool)
+    {
+        // A submission generation advances once, only after its fence signals.
+        if (mState != EState::Submitted || !mDevice->GetFenceManager()->IsFenceSignaled(mFence)) return;
+        ++mFenceSignaledCounter;
+        ReleaseCompletedReferences();
+        mSubmittedWaitSemaphores.clear();
+        mState = EState::NeedReset;
+    }
 
 	void VulkanCommandBuffer::BindGfxPipeline(VulkanGfxPipeline* InGfxPipeline)
 	{
@@ -178,7 +171,8 @@ namespace VulkanRHI
 			std::lock_guard<std::recursive_mutex> lock(mCmdPool->GetMutex());
 			if (mState == EState::NeedReset)
 			{
-				vkResetCommandBuffer(mHandle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
+				mDevice->GetFenceManager()->ResetFence(mFence);
+                vkResetCommandBuffer(mHandle, VK_COMMAND_BUFFER_RESET_RELEASE_RESOURCES_BIT);
 			}
 			else
 			{
@@ -232,12 +226,6 @@ namespace VulkanRHI
 			delete CmdBuffer;
 		}
 
-		for (int32 Index = 0; Index < mFreeCmdBuffers.size(); ++Index)
-		{
-			VulkanCommandBuffer* CmdBuffer = mFreeCmdBuffers[Index];
-			delete CmdBuffer;
-		}
-
 		vkDestroyCommandPool(mDevice->GetDevice(), mHandle, VULKAN_CPU_ALLOCATOR);
 		mHandle = VK_NULL_HANDLE;
 	}
@@ -245,19 +233,6 @@ namespace VulkanRHI
 
 	VulkanCommandBuffer* VulkanCommandPool::Create(bool bIsUploadOnly)
 	{
-		for (int32 Index = mFreeCmdBuffers.size() - 1; Index >= 0; --Index)
-		{
-			VulkanCommandBuffer* CmdBuffer = mFreeCmdBuffers[Index];
-
-			if (CmdBuffer->mbIsUploadOnly == bIsUploadOnly)
-			{
-				mFreeCmdBuffers.erase(mFreeCmdBuffers.begin() + Index);
-				CmdBuffer->RefreshFenceStatus(false);
-				//CmdBuffer->AllocMemory();
-				mCmdBuffers.push_back(CmdBuffer);
-				return CmdBuffer;
-			}
-		}
 
 		VulkanCommandBuffer* CmdBuffer = new VulkanCommandBuffer(mDevice, this, bIsUploadOnly);
 		mCmdBuffers.push_back(CmdBuffer);
@@ -296,51 +271,20 @@ namespace VulkanRHI
 		mActiveCmdBuffer->Begin();
 	}
 
-	void VulkanCommandBufferManager::PrepareForNewActiveCommandBuffer()
-	{
-		std::lock_guard<std::recursive_mutex> lock(mPool->mMtx);
-		if (GVulkanUploadCmdBufferSemaphore)
-		{
-			mActiveCmdBufferSemaphore = new VulkanSemaphore(mDevice);
-		}
-
-		auto& FreeCmdBuffers = mPool->mFreeCmdBuffers;
-
-		for (int32 Index = 0; Index < FreeCmdBuffers.size(); ++Index)
-		{
-			VulkanCommandBuffer* CmdBuffer = FreeCmdBuffers[Index];
-			CmdBuffer->RefreshFenceStatus(false);
-			if (!CmdBuffer->mbIsUploadOnly)
-			{
-				if (CmdBuffer->mState == VulkanCommandBuffer::EState::ReadyForBegin || CmdBuffer->mState == VulkanCommandBuffer::EState::NeedReset)
-				{
-					mActiveCmdBuffer = CmdBuffer;
-					mActiveCmdBuffer->Begin();
-					FreeCmdBuffers.erase(FreeCmdBuffers.begin() + Index);
-					return;
-				}
-			}
-		}
-		mActiveCmdBuffer = mPool->Create(false);
-		mActiveCmdBuffer->Begin();
-	}
-
-	void VulkanCommandBufferManager::RefreshCommandBufferState()
-	{
-		auto iter = mPool->mUsedCmdBuffers.begin();
-		while (iter != mPool->mUsedCmdBuffers.end())
-		{
-			if (vkGetFenceStatus(mDevice->GetDevice(), (*iter)->GetFence()->GetHandle()) == VK_SUCCESS)
-			{
-				mPool->mFreeCmdBuffers.push_back(*iter);
-				iter = mPool->mUsedCmdBuffers.erase(iter);
-			}
-			else
-			{
-				++iter;
-			}
-		}
-	}
+    void VulkanCommandBufferManager::PrepareForNewActiveCommandBuffer()
+    {
+        std::lock_guard<std::recursive_mutex> Lock(mPool->mMtx);
+        for (auto* Buffer : mPool->mCmdBuffers)
+        {
+            Buffer->RefreshFenceStatus();
+            if (!Buffer->mbIsUploadOnly && (Buffer->mState == VulkanCommandBuffer::EState::ReadyForBegin || Buffer->mState == VulkanCommandBuffer::EState::NeedReset))
+            { mActiveCmdBuffer = Buffer; Buffer->Begin(); return; }
+        }
+        mActiveCmdBuffer = mPool->Create(false);
+        mActiveCmdBuffer->Begin();
+    }
+    void VulkanCommandBufferManager::RefreshCommandBufferState()
+    { for (auto* Buffer : mPool->mCmdBuffers) Buffer->RefreshFenceStatus(); }
 
 	VulkanCommandBuffer* VulkanCommandBufferManager::GetUploadCmdBuffer()
 	{
@@ -422,7 +366,7 @@ namespace VulkanRHI
 		{
 			mQueue->Submit(mUploadCmdBuffer, NumSignalSemaphores, SignalSemaphores);
 		}
-		mPool->mUsedCmdBuffers.push_back(mUploadCmdBuffer);
+
 		mUploadCmdBuffer = nullptr;
 	}
 
@@ -464,7 +408,7 @@ namespace VulkanRHI
 		{
 			mQueue->Submit(mActiveCmdBuffer, VkSemaphores.size(), VkSemaphores.data());
 		}
-		mPool->mUsedCmdBuffers.push_back(mActiveCmdBuffer);
+
 		mActiveCmdBuffer = nullptr;
 		if (GVulkanUploadCmdBufferSemaphore && mActiveCmdBufferSemaphore != nullptr)
 		{
@@ -472,4 +416,11 @@ namespace VulkanRHI
 		}
 		PrepareForNewActiveCommandBuffer();
 	}
+    void VulkanCommandBuffer::KeepDescriptorPool(std::unique_ptr<VulkanDescriptorPool> Pool) { mDescriptorPools.push_back(std::move(Pool)); }
+    void VulkanCommandBuffer::KeepDescriptorSet(std::unique_ptr<VulkanDescriptorSet> Set) { mDescriptorSets.push_back(std::move(Set)); }
+    void VulkanCommandBuffer::ReleaseCompletedReferences()
+    {
+        mDescriptorSets.clear(); mDescriptorPools.clear(); mResources.clear();
+    }
+
 }

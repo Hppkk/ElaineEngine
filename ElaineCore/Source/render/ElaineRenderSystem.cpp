@@ -2,6 +2,8 @@
 #include "render/ElaineRenderSystem.h"
 #include "render/common/ElaineRHICommandContext.h"
 #include "ElaineRenderCommandQueue.h"
+#include "render/common/ElaineRHICommandList.h"
+#include "render/common/ElaineRHICommandContext.h"
 
 namespace Elaine
 {
@@ -18,9 +20,15 @@ namespace Elaine
 		mRenderCommandQueue = new RenderCommandQueue();
 	}
 
-	RHIBuffer* RenderSystem::CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize)
+	RHIBufferHandle RenderSystem::CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize)
 	{
-		return mImmedCommandCtx->RHICreateVertexBuffer(InSize, InUsage, InResourceState, InData);
+        CheckRHICreationThread();
+        auto* Context = GetDynamicRHI()->GetDefaultCommandContext();
+        auto* List = Context->GetRHICommandListMgr()->CreateCommandList();
+        auto Buffer = Context->RHICreateBuffer(static_cast<uint32>(InSize), InUsage | BufferUsageFlags::Static, 0, ERHIAccess::Unknown, nullptr);
+        if (InData && Buffer) Context->UploadBuffer(Buffer.get(), InData, static_cast<uint32>(InSize), InResourceState);
+        List->SubmitUploads();
+        return Buffer;
 	}
 
 	RenderSystem::~RenderSystem()

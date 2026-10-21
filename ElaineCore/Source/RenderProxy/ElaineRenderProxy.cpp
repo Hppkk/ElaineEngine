@@ -1,107 +1,87 @@
-﻿#include "ElainePrecompiledHeader.h"
+#include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineRenderProxy.h"
 #include "TaskGraph/ElaineTaskGraph.h"
 
 namespace Elaine
 {
-	RenderProxy::RenderProxy()
-	{
-	}
+    RenderProxy::RenderProxy() : mLifetime(std::make_shared<Lifetime>()) { mLifetime->Proxy = this; }
+    RenderProxy::~RenderProxy() { CancelResourceNotifications(); }
+    void RenderProxy::CancelResourceNotifications()
+    {
+        std::lock_guard<std::mutex> Lock(mLifetime->Mutex);
+        mLifetime->Proxy = nullptr;
+        mSubscriptions.clear();
+    }
+    void RenderProxy::TrackResource(ResourceBasePtr Resource) { TrackResourceRecursive(Resource); }
+    void RenderProxy::TrackResourceRecursive(ResourceBasePtr Resource)
+    {
+        if (!Resource) return;
+        std::lock_guard<std::mutex> Lock(mTrackMutex);
+        if (!mTrackedResources.insert(std::string(typeid(*Resource).name()) + ":" + Resource->GetPath()).second) return;
+        ++mPendingResourceCount;
+        std::weak_ptr<Lifetime> Weak = mLifetime;
+        auto First = std::make_shared<std::atomic_bool>(true);
+        mSubscriptions.push_back(Resource->ObserveChanges([Weak, First](const ResourceLoadResult& Result) {
+            RenderResourceUpdate Update;
+            Update.Resource = Result.Resource;
+            const bool Refresh = Result.Succeeded() || (Result.Resource && !Result.Resource->IsReady());
+            if (Refresh && Result.Resource)
+            {
+                if (auto* Material = dynamic_cast<MaterialInstanceStatic*>(Result.Resource.get()))
+                {
+                    Update.IsMaterial = true;
+                    Update.Material.Source = static_pointer_cast<MaterialInstanceStatic>(Result.Resource);
+                    Update.Material.Revision = Material->GetLayoutRevision();
+                    Update.Material.CaptureResources();
+                }
+                if (auto* Mesh = dynamic_cast<Elaine::Mesh*>(Result.Resource.get()))
+                { Update.IsMesh = true; if (Mesh->IsReady()) Update.Mesh = Mesh->CreateRenderData(); }
+                if (auto* Texture = dynamic_cast<Elaine::Texture*>(Result.Resource.get()))
+                { Update.IsTexture = true; if (Texture->IsReady()) Update.Texture = Texture->GetTextureRHI(); }
+            }
+            const bool Initial = First->exchange(false);
+            TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady([Weak, Result, Initial, Update = std::move(Update)] {
+                if (auto Life = Weak.lock())
+                {
+                    std::lock_guard<std::mutex> Lock(Life->Mutex);
+                    auto* Proxy = Life->Proxy;
+                    if (!Proxy) return;
+                    Proxy->ApplyResourceUpdate(Update);
+                    if (Initial) Proxy->OnResourceLoaded(Result);
+                }
+            }, NamedThread::RenderThread);
+        }));
+    }
+    void RenderProxy::OnResourceLoaded(const ResourceLoadResult& Result)
+    {
+        if (!Result.Succeeded()) mResourceFailed = true;
+        if (--mPendingResourceCount == 0 && mInitializationStarted) TryInitializeBindings();
+    }
 
-	void RenderProxy::TrackResource(ResourceBasePtr InResource)
-	{
-		if (InResource.isNull())
-			return;
-
-		TrackResourceRecursive(InResource);
-	}
-
-	void RenderProxy::TrackResourceRecursive(ResourceBasePtr InResource)
-	{
-		if (InResource.isNull())
-			return;
-
-		ResourceBase* RawPtr = InResource.get();
-
-		{
-			std::lock_guard<std::mutex> Lock(mTrackMutex);
-
-			// 检查是否已追踪
-			if (mTrackedResources.find(RawPtr) != mTrackedResources.end())
-				return;
-
-			mTrackedResources.insert(RawPtr);
-		}
-
-		// 增加待完成计数
-		mPendingResourceCount.fetch_add(1);
-
-		// 注册加载完成回调
-		RenderProxy* Self = this;
-		ResourceBasePtr HoldRef = InResource;  // 防止资源在回调前被释放
-
-		InResource->RegisterLoadCompleteCallback(
-			[Self, HoldRef](ResourceBase* LoadedResource)
-			{
-				Self->OnResourceLoaded(LoadedResource);
-			}
-		);
-	}
-
-	void RenderProxy::OnResourceLoaded(ResourceBase* InResource)
-	{
-		// 当资源加载完成后，追踪其子依赖
-		std::vector<ResourceBasePtr> Dependencies;
-		InResource->GetDirectDependencies(Dependencies);
-
-		for (auto& Dep : Dependencies)
-		{
-			TrackResourceRecursive(Dep);
-		}
-
-		// 递减待完成计数
-		int32_t Remaining = mPendingResourceCount.fetch_sub(1) - 1;
-
-		// 如果所有资源已加载完成且已开始初始化流程，触发初始化
-		if (Remaining == 0 && mInitializationStarted.load())
-		{
-			TryInitializeBindings();
-		}
-	}
-
-	void RenderProxy::BeginInitialization()
-	{
-		mInitializationStarted.store(true);
-
-		// 如果所有资源已加载完成，立即初始化
-		if (mPendingResourceCount.load() == 0)
-		{
-			TryInitializeBindings();
-		}
-	}
-
-	void RenderProxy::TryInitializeBindings()
-	{
-		// 使用 exchange 确保只初始化一次
-		if (mBindingsInitialized)
-			return;
-
-		// 在渲染线程执行初始化
-		RenderProxy* Self = this;
-		auto InitTask = TaskGraph::TaskGraph::instance()->CreateTask([Self]()
-		{
-			try
-			{
-				Self->InitializeResourceBinding();
-				Self->OnResourceInitialized();
-				Self->mBindingsInitialized = true;
-			}
-			catch (...)
-			{
-				Self->OnResourceFailed();
-			}
-		}, NamedThread::RenderThread);
-
-		TaskGraph::TaskGraph::instance()->Dispatch(InitTask);
-	}
+    void RenderProxy::BeginInitialization()
+    {
+        mInitializationStarted = true;
+        if (mPendingResourceCount == 0) TryInitializeBindings();
+    }
+    void RenderProxy::TryInitializeBindings()
+    {
+        if (mInitializationQueued.exchange(true)) return;
+        std::weak_ptr<Lifetime> Weak = mLifetime;
+        TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady([Weak] {
+            if (auto Life = Weak.lock())
+            {
+                std::lock_guard<std::mutex> Lock(Life->Mutex);
+                auto* Proxy = Life->Proxy;
+                if (!Proxy) return;
+                if (Proxy->mResourceFailed) { Proxy->OnResourceFailed(); return; }
+                try
+                {
+                    Proxy->InitializeResourceBinding();
+                    Proxy->OnResourceInitialized();
+                    Proxy->mBindingsInitialized = true;
+                }
+                catch (...) { Proxy->OnResourceFailed(); }
+            }
+        }, NamedThread::RenderThread);
+    }
 }

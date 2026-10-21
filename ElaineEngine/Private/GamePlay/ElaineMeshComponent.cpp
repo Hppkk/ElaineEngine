@@ -31,7 +31,8 @@ namespace Elaine
         if (InPath == mPath)
             return;
 
-        mMesh = MeshManager::instance()->GetResource(InPath);
+        mPath = InPath;
+        mMesh = MeshManager::instance()->RequestResource(InPath).GetResult().Resource;
         MarkRenderStateDirty();
     }
 
@@ -40,6 +41,7 @@ namespace Elaine
         if (InIndex >= mMaterials.size())
             return;
 
+        delete mMaterials[InIndex];
         mMaterials[InIndex] = new MaterialInstanceDynamic();
         mMaterials[InIndex]->ChangeMaterial(InMatName);
         MarkRenderStateDirty();
@@ -80,6 +82,7 @@ namespace Elaine
                     mRenderProxy->mUserType = 1; // 1 = Actor
                 }
             });
+        Root::instance()->FlushRenderCommands();
     }
 
     void StaticMeshComponent::OnUnregisterWorldImpl()
@@ -90,9 +93,9 @@ namespace Elaine
             mRenderProxy = nullptr;
 
             ENQUEUE_RENDER_COMMAND(DestroyProxy)(
-                [ProxyToDestroy, this](RenderContext& Context)
+                [ProxyToDestroy, Scene = GetActor()->GetSceneManager()](RenderContext& Context)
                 {
-                    GetActor()->GetSceneManager()->DestroyRenderProxy(ProxyToDestroy);
+                    if (Scene) Scene->DestroyRenderProxy(ProxyToDestroy);
                 });
         }
     }

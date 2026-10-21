@@ -254,10 +254,12 @@ namespace VulkanRHI
 	VulkanFramebufferCache::VulkanFramebufferCache(VulkanDevice* InDevice)
 		: mDevice(InDevice)
 	{
+        mDevice->RegisterFramebufferCache(this);
 	}
 
 	VulkanFramebufferCache::~VulkanFramebufferCache()
 	{
+        mDevice->UnregisterFramebufferCache(this);
 		Clear();
 	}
 
@@ -291,6 +293,19 @@ namespace VulkanRHI
 		return Framebuffer;
 	}
 
+    void VulkanFramebufferCache::InvalidateView(VkImageView View)
+    {
+        for (auto It = mCache.begin(); It != mCache.end(); )
+        {
+            const auto& Key = It->first;
+            if (std::find(Key.Attachments.begin(), Key.Attachments.begin() + Key.NumAttachments, View) != Key.Attachments.begin() + Key.NumAttachments)
+            {
+                mDevice->GetDeferredDeletionQueue().EnqueueResource(DeferredDeletionQueue::EType::Framebuffer, It->second);
+                It = mCache.erase(It);
+            }
+            else ++It;
+        }
+    }
 	void VulkanFramebufferCache::Clear()
 	{
 		for (auto& Pair : mCache)

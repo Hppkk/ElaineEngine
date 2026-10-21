@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "GamePlay/ElaineActorManager.h"
 #include "ElaineResourceManager.h"
 #include "ElaineActorInfoMgr.h"
@@ -34,24 +34,12 @@ namespace Elaine
 		return newGo;
 	}
 
-	Actor* ActorManager::CreateActorByInfo(const std::string& path, bool async)
-	{
-		MemoryScope Scope({Memory::TypeId("Actor"), 0, 0});
-		ActorInfoPtr NewInfo = ActorInfoMgr::instance()->CreateEmptyResource(path);
-		if (async)
-		{
-			
-		}
-		else
-		{
-			NewInfo->LoadResource();
-		}
-
-		Actor* newGo = new Actor(mWorld);
-		newGo->Initialize(NewInfo);
-		m_ActorSet.insert(newGo);
-		return newGo;
-	}
+    Actor* ActorManager::CreateActorByInfo(const std::string& Path)
+    {
+        auto Request = ActorInfoMgr::instance()->RequestResource<ActorInfo>(Path);
+        if (!Request.IsComplete() || !Request.GetResult().Succeeded()) return nullptr;
+        return CreateActorByInfo(static_pointer_cast<ActorInfo>(Request.GetResult().Resource));
+    }
 
 	void ActorManager::DestroyActor(Actor* InObject)
 	{

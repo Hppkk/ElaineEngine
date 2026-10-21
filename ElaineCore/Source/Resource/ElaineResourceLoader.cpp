@@ -1,96 +1,35 @@
 ﻿#include "ElainePrecompiledHeader.h"
 #include "Resource/ElaineResourceLoader.h"
-#include "Resource/ElaineResourceManager.h"
-#include "TaskGraph/ElaineTaskGraph.h"
-
+#include "Resource/ElaineResourcePipeline.h"
 namespace Elaine
 {
-	ResourceLoader::ResourceLoader()
-	{
-	}
-
-	ResourceLoader::~ResourceLoader()
-	{
-	}
-
-	void ResourceLoader::RegisterManager(ResourceType InType, ResourceManager* InManager)
-	{
-		if (InType < RT_Count)
-		{
-			mManagers[InType] = InManager;
-		}
-	}
-
-	ResourceBasePtr ResourceLoader::LoadResource(const std::string& InPath, ResourceType InType, bool InAsync)
-	{
-		ResourceManager* Manager = GetManager(InType);
-		if (Manager == nullptr)
-		{
-			return nullptr;
-		}
-
-		return Manager->GetResource(InPath, InAsync);
-	}
-
-	ResourceBasePtr ResourceLoader::LoadResourceAuto(const std::string& InPath, bool InAsync)
-	{
-		ResourceType Type = InferTypeFromPath(InPath);
-		return LoadResource(InPath, Type, InAsync);
-	}
-
-	void ResourceLoader::LoadDependencies(
-		const std::vector<std::pair<std::string, ResourceType>>& InDependencies,
-		std::vector<std::shared_ptr<TaskGraph::GraphTask>>& OutTasks)
-	{
-		for (const auto& [Path, Type] : InDependencies)
-		{
-			ResourceBasePtr Res = LoadResource(Path, Type, true);  // 异步加载
-			if (!Res.isNull())
-			{
-				auto Task = Res->GetLoadTask();
-				if (Task)
-				{
-					OutTasks.push_back(Task);
-				}
-			}
-		}
-	}
-
-	ResourceType ResourceLoader::InferTypeFromPath(const std::string& InPath)
-	{
-		// 获取扩展名
-		size_t DotPos = InPath.rfind('.');
-		if (DotPos == std::string::npos)
-			return RT_Count;  // 无效类型
-
-		std::string Ext = InPath.substr(DotPos);
-
-		// 转小写
-		for (auto& c : Ext) c = tolower(c);
-
-		// 根据扩展名判断类型
-		if (Ext == ".png" || Ext == ".jpg" || Ext == ".tga" || Ext == ".dds" || Ext == ".hdr" || Ext == ".tex")
-			return RT_Texture;
-		else if (Ext == ".material")
-			return RT_Material;
-		else if (Ext == ".mi")
-			return RT_MaterialInstance;
-		else if (Ext == ".vert" || Ext == ".frag" || Ext == ".glsl" || Ext == ".hlsl" || Ext == ".spv")
-			return RT_Shader;
-		else if (Ext == ".obj" || Ext == ".fbx" || Ext == ".gltf" || Ext == ".mesh")
-			return RT_Mesh;
-		else if (Ext == ".actor")
-			return RT_Actor;
-
-		return RT_Count;  // 未知类型
-	}
-
-	ResourceManager* ResourceLoader::GetManager(ResourceType InType) const
-	{
-		if (InType < RT_Count)
-		{
-			return mManagers[InType];
-		}
-		return nullptr;
-	}
+    void ResourceLoader::RegisterManager(ResourceType Type, ResourceManager* Manager)
+    { if (Type < RT_Count) mManagers[Type] = Manager; }
+    ResourceManager* ResourceLoader::GetManager(ResourceType Type) const
+    { return Type < RT_Count ? mManagers[Type] : nullptr; }
+    ResourceRequestBase ResourceLoader::RequestResource(const std::string& Path, ResourceType Type)
+    {
+        if (auto* Manager = GetManager(Type)) return Manager->RequestResource(Path);
+        auto Data = std::make_shared<ResourceRequestData>();
+        Data->Finish({{}, ResourceRequestState::Failed, "Unsupported resource type"});
+        return ResourceRequestBase(Data);
+    }
+    ResourceRequestBase ResourceLoader::RequestResource(const std::string& Path)
+    { return RequestResource(Path, InferTypeFromPath(Path)); }
+    ResourceLoadResult ResourceLoader::LoadBlocking(const std::string& Path, ResourceType Type)
+    { return ResourcePipeline::Get().LoadBlocking(RequestResource(Path, Type)); }
+    ResourceType ResourceLoader::InferTypeFromPath(const std::string& Path)
+    {
+        const auto Dot = Path.rfind('.');
+        if (Dot == std::string::npos) return RT_Count;
+        std::string Ext = Path.substr(Dot);
+        for (auto& C : Ext) C = static_cast<char>(std::tolower(static_cast<unsigned char>(C)));
+        if (Ext == ".texture" || Ext == ".tex") return RT_Texture;
+        if (Ext == ".material") return RT_Material;
+        if (Ext == ".mi") return RT_MaterialInstance;
+        if (Ext == ".vs" || Ext == ".ps" || Ext == ".gs" || Ext == ".cs" || Ext == ".vert" || Ext == ".frag") return RT_Shader;
+        if (Ext == ".mesh") return RT_Mesh;
+        if (Ext == ".actor") return RT_Actor;
+        return RT_Count;
+    }
 }

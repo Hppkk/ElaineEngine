@@ -1,6 +1,7 @@
 ﻿#include "ElaineEditor.h"
 #include "ElaineEngine.h"
 #include "ElainePlatformWindow.h"
+#include "ElaineBarrier.h"
 
 namespace Editor
 {
@@ -59,6 +60,12 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
+        bool Smoke = false, DedicatedRHI = true;
+        for (int i = 1; i < argc; ++i)
+        {
+            if (std::string(argv[i]) == "--resource-smoke") Smoke = true;
+            if (std::string(argv[i]) == "--rhi-inline") DedicatedRHI = false;
+        }
 		// --- Create window using PlatformWindow ---
 		Elaine::WindowDesc CreateDesc{};
 		CreateDesc.title = "ElaineEditor";
@@ -73,7 +80,7 @@ extern "C" {
 		INIT_DESC.Height = G_WIN_HEIGHT;
 		INIT_DESC.Width = G_WIN_WIDTH;
 		INIT_DESC.RHIType = Elaine::Vulkan;
-		INIT_DESC.UseRHIThread = true;
+		INIT_DESC.UseRHIThread = DedicatedRHI;
 		INIT_DESC.NativeHandle = NewWindow->getNativeHandle();
 		NewEngine->Initialize(INIT_DESC);
 		NewEngine->PostInitialize();
@@ -81,11 +88,17 @@ extern "C" {
 		// --- Create editor (场景/视口/离屏渲染 由 EditorGlobalContext 管理) ---
 		ElaineEditor* NewEditor = new ElaineEditor(NewEngine);
 		NewEditor->Initialize(NewWindow);
-		NewEditor->Run();
+        if (Smoke)
+        {
+            for (int Frame = 0; Frame < 180 && !NewWindow->shouldClose(); ++Frame)
+            { NewWindow->pollEvents(); NewEditor->Tick(); }
+        }
+        else NewEditor->Run();
 
 		delete NewEditor;
 		delete NewEngine;
-		return 0;
+        delete NewWindow;
+        return Smoke && Elaine::GetRHIValidationErrorCount() != 0 ? 1 : 0;
 	}
 
 #ifdef __cplusplus

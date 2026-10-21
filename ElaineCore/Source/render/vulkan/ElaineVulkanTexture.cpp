@@ -1,4 +1,5 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "render/common/ElaineRHI.h"
 #include "render/vulkan/ElaineVulkanTexture.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "render/vulkan/ElaineVulkanPhysicalDevice.h"
@@ -129,7 +130,7 @@ namespace VulkanRHI
 
 		if (ViewType != VK_IMAGE_VIEW_TYPE_MAX_ENUM)
 		{
-			mDefaultView.Create(*InDevice, mHandle, ViewType, GetFullAspectMask(), InDesc.mFormat, mViewFormat, 0, Math::max(InDesc.mNumMips, (uint8)1u), 0, bArray ? Math::max((uint16)1u, InDesc.mArraySize) : Math::max((uint16)1u, InDesc.mDepth), true);
+			mDefaultView.Create(*InDevice, mHandle, ViewType, GetFullAspectMask(), InDesc.mFormat, mViewFormat, 0, Math::max(InDesc.mNumMips, (uint8)1u), 0, GetNumberOfArrayLevels(), true);
 		}
 
 		if (mFullAspectMask == mPartialAspectMask)
@@ -139,9 +140,10 @@ namespace VulkanRHI
 		else
 		{
 			//mPartialView = new VulkanTextureView;
-			//mPartialView->Create(*InDevice, mHandle, ViewType, mPartialAspectMask, InDesc.mFormat, mViewFormat, 0, Math::max(InDesc.mNumMips, (uint8)1u), 0, bArray ? Math::max((uint16)1u, InDesc.mArraySize) : Math::max((uint16)1u, InDesc.mDepth), false);
+			//mPartialView->Create(*InDevice, mHandle, ViewType, mPartialAspectMask, InDesc.mFormat, mViewFormat, 0, Math::max(InDesc.mNumMips, (uint8)1u), 0, GetNumberOfArrayLevels(), false);
 		}
 
+        if (bExternal && mExternalHandleType != (VkExternalMemoryHandleTypeFlagBits)0) GetSharedMemoryHandle();
 
 	}
 
@@ -176,7 +178,7 @@ namespace VulkanRHI
 			const bool bArray = ViewType == VK_IMAGE_VIEW_TYPE_1D_ARRAY || ViewType == VK_IMAGE_VIEW_TYPE_2D_ARRAY || ViewType == VK_IMAGE_VIEW_TYPE_CUBE_ARRAY;
 			mDefaultView.Create(*InDevice, mHandle, ViewType, GetFullAspectMask(), InDesc.mFormat, mViewFormat, 
 				0, Math::max(InDesc.mNumMips, (uint8)1u), 0, 
-				bArray ? Math::max((uint16)1u, InDesc.mArraySize) : Math::max((uint16)1u, InDesc.mDepth), true);
+				GetNumberOfArrayLevels(), true);
 		}
 		
 		mPartialView = &mDefaultView;
@@ -512,137 +514,83 @@ namespace VulkanRHI
 		}
 	}
 
-	void VulkanTexture::InitReadbackResources()
-	{
-		if (mCpuReadbackBuffer == nullptr)
-		{
-			mCpuReadbackBuffer = new VulkanCpuReadbackBuffer();
-		}
+    void VulkanTexture::InitReadbackResources()
+    {
+        CheckRHIContextThread();
+        if (mCpuReadbackBuffer && mCpuReadbackBuffer->bReady) return;
+        if (GetDesc().mDimension != TextureDimension::Texture2D || GetDesc().mNumMips != 1 ||
+            GPixelFormats[GetFormat()].BlockSizeX != 1 || GPixelFormats[GetFormat()].BlockSizeY != 1)
+            throw std::runtime_error("Readback supports uncompressed single-mip 2D textures only");
+        if (!mCpuReadbackBuffer) mCpuReadbackBuffer = new VulkanCpuReadbackBuffer();
+        auto& Readback = *mCpuReadbackBuffer;
+        Readback.TotalSize = GetWidth() * GetHeight() * GPixelFormats[GetFormat()].BlockBytes;
+        Readback.Staging = mDevice->GetStagingManager()->AcquireBuffer(Readback.TotalSize,
+            VK_BUFFER_USAGE_TRANSFER_DST_BIT, VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+        Readback.Buffer = Readback.Staging->GetHandle();
+        Readback.MappedPointer = Readback.Staging->GetMappingPointer();
+        Readback.bReady = true;
+    }
 
-		if (mCpuReadbackBuffer->bReady)
-			return;
+    void VulkanTexture::CopyToReadbackBuffer()
+    {
+        CheckRHIContextThread();
+        if (!mCpuReadbackBuffer || !mCpuReadbackBuffer->bReady) return;
+        auto& Readback = *mCpuReadbackBuffer;
+        if (Readback.Submission && !IsReadbackReady()) return;
+        auto* Context = static_cast<VulkanCommandContext*>(RenderSystem::instance()->GetRHICommandContext());
+        auto* Manager = Context->GetCommandBufferManager();
+        const auto OldLayout = GetImageLayout();
+        if (OldLayout == VK_IMAGE_LAYOUT_UNDEFINED || OldLayout == VK_IMAGE_LAYOUT_PREINITIALIZED) return;
+        auto* Commands = Manager->GetUploadCmdBuffer();
+        Commands->Keep(this);
+        const auto Range = VulkanPipelineBarrier::MakeSubresourceRange(GetFullAspectMask(), 0, 1, 0, 1);
+        VulkanSetImageLayout(Commands->GetHandle(), this, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, Range);
+        VkBufferImageCopy Region = {};
+        Region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        Region.imageExtent = {GetWidth(), GetHeight(), 1};
+        vkCmdCopyImageToBuffer(Commands->GetHandle(), mHandle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            Readback.Buffer, 1, &Region);
+        VkBufferMemoryBarrier Host = {VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER};
+        Host.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+        Host.dstAccessMask = VK_ACCESS_HOST_READ_BIT;
+        Host.srcQueueFamilyIndex = Host.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+        Host.buffer = Readback.Buffer; Host.size = VK_WHOLE_SIZE;
+        vkCmdPipelineBarrier(Commands->GetHandle(), VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
+            0, 0, nullptr, 1, &Host, 0, nullptr);
+        VulkanSetImageLayout(Commands->GetHandle(), this, OldLayout, Range);
+        Readback.Submission = Commands;
+        Readback.Counter = Commands->GetCompletedFenceCounter();
+        Manager->SubmitUploadCmdBuffer();
+    }
 
-		uint32 Width = GetWidth();
-		uint32 Height = GetHeight();
-		uint32 BytesPerPixel = GPixelFormats[GetFormat()].BlockBytes;
-		uint32 BufferSize = Width * Height * BytesPerPixel;
+    bool VulkanTexture::ReadbackPixels(void* OutData, uint32& OutRowPitch)
+    {
+        CheckRHIContextThread();
+        if (!OutData || !IsReadbackReady()) return false;
+        auto& Readback = *mCpuReadbackBuffer;
+        Readback.Staging->InvalidateMappedMemory();
+        OutRowPitch = GetWidth() * GPixelFormats[GetFormat()].BlockBytes;
+        Memory::MemoryCopy(OutData, Readback.MappedPointer, Readback.TotalSize);
+        return true;
+    }
 
-		// 通过 StagingBufferManager 创建 host-visible staging buffer
-		VulkanStagingBuffer* StagingBuf = mDevice->GetStagingManager()->AcquireBuffer(
-			BufferSize,
-			VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-			VK_MEMORY_PROPERTY_HOST_CACHED_BIT);
+    bool VulkanTexture::IsReadbackReady() const
+    {
+        CheckRHIContextThread();
+        if (!mCpuReadbackBuffer || !mCpuReadbackBuffer->Submission) return false;
+        mCpuReadbackBuffer->Submission->RefreshFenceStatus();
+        return mCpuReadbackBuffer->Submission->GetCompletedFenceCounter() > mCpuReadbackBuffer->Counter;
+    }
 
-		mCpuReadbackBuffer->Buffer = StagingBuf->GetHandle();
-		//mCpuReadbackBuffer->Allocation = StagingBuf->mAllocation;
-		mCpuReadbackBuffer->MappedPointer = StagingBuf->GetMappingPointer();
-		mCpuReadbackBuffer->TotalSize = BufferSize;
-		mCpuReadbackBuffer->MipOffsets[0] = 0;
-		mCpuReadbackBuffer->MipSize[0] = BufferSize;
-		mCpuReadbackBuffer->bReady = true;
-
-		// 注意：StagingBuffer 对象的生命周期由 StagingManager 管理，
-		// 但我们持有其 VkBuffer handle 和 Allocation。
-		// 不要通过 ReleaseBuffer 释放它，因为我们需要持久持有。
-	}
-
-	void VulkanTexture::CopyToReadbackBuffer()
-	{
-		if (mCpuReadbackBuffer == nullptr || !mCpuReadbackBuffer->bReady)
-			return;
-
-		if (mHandle == VK_NULL_HANDLE || mCpuReadbackBuffer->Buffer == VK_NULL_HANDLE)
-			return;
-
-		// 获取当前活跃的 command buffer（渲染线程）
-		VulkanCommandContext* VkCtx = static_cast<VulkanCommandContext*>(
-			RenderSystem::instance()->GetRHICommandContext());
-		VulkanCommandBuffer* CmdBuffer = VkCtx->GetCommandBufferManager()->GetActiveCmdBuffer();
-
-		if (!CmdBuffer || !CmdBuffer->HasBegun())
-			return;
-
-		uint32 Width = GetWidth();
-		uint32 Height = GetHeight();
-
-		// 保存当前布局
-		VkImageLayout OldLayout = GetImageLayout();
-
-		// Transition to TRANSFER_SRC_OPTIMAL
-		if (OldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-		{
-			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(
-				GetFullAspectMask(), 0, 1, 0, 1);
-			VulkanSetImageLayout(CmdBuffer->GetHandle(), this,
-				VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, SubRange);
-		}
-
-		// vkCmdCopyImageToBuffer
-		VkBufferImageCopy Region = {};
-		Region.bufferOffset = 0;
-		Region.bufferRowLength = 0;   // tightly packed
-		Region.bufferImageHeight = 0; // tightly packed
-		Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		Region.imageSubresource.mipLevel = 0;
-		Region.imageSubresource.baseArrayLayer = 0;
-		Region.imageSubresource.layerCount = 1;
-		Region.imageOffset = { 0, 0, 0 };
-		Region.imageExtent = { Width, Height, 1 };
-
-		vkCmdCopyImageToBuffer(CmdBuffer->GetHandle(),
-			mHandle, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-			mCpuReadbackBuffer->Buffer, 1, &Region);
-
-		// Transition back to original layout
-		if (OldLayout != VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL)
-		{
-			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(
-				GetFullAspectMask(), 0, 1, 0, 1);
-			VulkanSetImageLayout(CmdBuffer->GetHandle(), this,
-				OldLayout, SubRange);
-		}
-	}
-
-	bool VulkanTexture::ReadbackPixels(void* OutData, uint32& OutRowPitch)
-	{
-		if (mCpuReadbackBuffer == nullptr || !mCpuReadbackBuffer->bReady)
-			return false;
-
-		if (mCpuReadbackBuffer->MappedPointer == nullptr)
-			return false;
-
-		// Invalidate for CPU read (ensures GPU writes are visible)
-		//mCpuReadbackBuffer->Allocation.InvalidateMappedMemory(mDevice);
-
-		uint32 BytesPerPixel = GPixelFormats[GetFormat()].BlockBytes;
-		OutRowPitch = GetWidth() * BytesPerPixel;
-		Memory::MemoryCopy(OutData, mCpuReadbackBuffer->MappedPointer, mCpuReadbackBuffer->TotalSize);
-		return true;
-	}
-
-	bool VulkanTexture::IsReadbackReady() const
-	{
-		return mCpuReadbackBuffer != nullptr && mCpuReadbackBuffer->bReady;
-	}
-
-	void VulkanTexture::DestroyReadbackResources()
-	{
-		if (mCpuReadbackBuffer != nullptr)
-		{
-			if (mCpuReadbackBuffer->Buffer != VK_NULL_HANDLE && mCpuReadbackBuffer->bReady)
-			{
-				// 注意：VkBuffer 和 Allocation 由 StagingBufferManager 创建，
-				// 但我们没有释放回 manager。手动销毁。
-				vkDestroyBuffer(mDevice->GetDevice(), mCpuReadbackBuffer->Buffer, VULKAN_CPU_ALLOCATOR);
-				//mDevice->GetMemoryManager()->FreeVulkanAllocation(mCpuReadbackBuffer->Allocation);
-				mCpuReadbackBuffer->Buffer = VK_NULL_HANDLE;
-				mCpuReadbackBuffer->MappedPointer = nullptr;
-				mCpuReadbackBuffer->bReady = false;
-			}
-			delete mCpuReadbackBuffer;
-			mCpuReadbackBuffer = nullptr;
-		}
-	}
+    void VulkanTexture::DestroyReadbackResources()
+    {
+        if (!mCpuReadbackBuffer) return;
+        // Texture retirement already waited for its last graphics submission.
+        if (mCpuReadbackBuffer->Staging)
+            mDevice->GetStagingManager()->ReleaseBuffer(nullptr, mCpuReadbackBuffer->Staging);
+        delete mCpuReadbackBuffer;
+        mCpuReadbackBuffer = nullptr;
+    }
 
 	void VulkanTexture::GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat, VkFormat* OutViewFormat, bool bForceLinearTexture)
 	{
@@ -680,7 +628,7 @@ namespace VulkanRHI
 		default:
 			break;
 		}
-		VkFormat srgbFormat = EngineToVkTextureFormat(InDesc.mFormat, !EnumHasAllFlags(Flags, TextureCreateFlags::UAV));
+		VkFormat srgbFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAnyFlags(Flags, TextureCreateFlags::SRGB) && !EnumHasAllFlags(Flags, TextureCreateFlags::UAV));
 		VkFormat nonSrgbFormat = EngineToVkTextureFormat(InDesc.mFormat, false);
 		ImageCreateInfo.format = EnumHasAnyFlags(Flags, TextureCreateFlags::UAV) ? nonSrgbFormat : srgbFormat;
 		if (OutViewFormat)
@@ -923,7 +871,7 @@ namespace VulkanRHI
 			ViewInfo.subresourceRange.layerCount = 6;
 			break;
 		case VK_IMAGE_VIEW_TYPE_CUBE_ARRAY:
-			ViewInfo.subresourceRange.layerCount = 6 * NumArraySlices;
+			ViewInfo.subresourceRange.layerCount = NumArraySlices;
 			break;
 		case VK_IMAGE_VIEW_TYPE_1D_ARRAY:
 		case VK_IMAGE_VIEW_TYPE_2D_ARRAY:
@@ -957,7 +905,8 @@ namespace VulkanRHI
 	{
 		if (mView)
 		{
-			Device.GetDeferredDeletionQueue().EnqueueResource(DeferredDeletionQueue::EType::ImageView, mView);
+			Device.InvalidateImageView(mView);
+            Device.GetDeferredDeletionQueue().EnqueueResource(DeferredDeletionQueue::EType::ImageView, mView);
 			mImage = VK_NULL_HANDLE;
 			mView = VK_NULL_HANDLE;
 			mViewId = 0;

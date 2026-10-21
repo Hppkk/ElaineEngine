@@ -30,6 +30,9 @@ namespace VulkanRHI
 		virtual Elaine::RHICommandContext* CreateCommandContex() override;
 		virtual void DestroyCommandContext(RHICommandContext* InCtx) override;
 		virtual void Destroy();
+        std::shared_ptr<const Elaine::RHIShaderCompileResult> PrepareShader(const std::string& Code, const std::string& Path, EShaderStage Stage) override;
+        void ProcessGPUCompletions() override;
+        uint64_t GetValidationErrorCount() const override;
 		VulkanInstance* GetVkInstance() { return mInstance; }
 		VulkanDevice* GetDevice() { return mDevice; }
 		VulkanPhysicalDevice* GetPhyDevice() { return mPhyDevice; }

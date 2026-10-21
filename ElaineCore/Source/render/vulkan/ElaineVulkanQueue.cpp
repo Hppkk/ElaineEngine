@@ -71,7 +71,7 @@ namespace VulkanRHI
 		}
 
 
-		vkQueueSubmit(mQueueHandle, 1, &SubmitInfo, Fence->GetHandle());
+		if (vkQueueSubmit(mQueueHandle, 1, &SubmitInfo, Fence->GetHandle()) != VK_SUCCESS) throw std::runtime_error("Graphics submission failed");
 	
 
 		CmdBuffer->mState = VulkanCommandBuffer::EState::Submitted;
@@ -90,7 +90,7 @@ namespace VulkanRHI
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMtx);
 		mLastSubmittedCmdBuffer = CmdBuffer;
-		//mLastSubmittedCmdBufferFenceCounter = CmdBuffer->GetFenceSignaledCounterH();
+		mLastSubmittedCmdBufferFenceCounter = CmdBuffer->mSubmittedFenceCounter;
 		++mSubmitCounter;
 	}
 

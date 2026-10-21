@@ -19,6 +19,8 @@
 #include "ElaineMaterialInstanceStaticManager.h"
 #include "ElaineMeshManager.h"
 #include "ElaineShaderManager.h"
+#include "Resource/ElaineResourcePipeline.h"
+#include "render/common/ElaineRHI.h"
 #include <filesystem>
 
 namespace Elaine
@@ -39,6 +41,7 @@ namespace Elaine
 
 	void Root::Initialize(const RHI_PARAM_DESC& InDesc)
 	{
+        ResourcePipeline::Get().Start();
 		TextureUtils::Initialize();
 		SystemInfo::LogSystemInfo();
 		new FileManager();
@@ -60,6 +63,7 @@ namespace Elaine
 		
 		LoadConfig(mResourcePath + "config/EngineConfig.cfg");
 		new ThreadManager();
+        ThreadManager::instance()->InitilizeThread(NamedThread::GameThread);
 		new TaskGraph::TaskGraph();
 		TaskGraph::TaskGraph::instance()->Initialize();
 		new ModuleManager();
@@ -67,18 +71,11 @@ namespace Elaine
 		// 文件监控只产生事件，所有资源重载都在逻辑线程的 TickTime 中执行。
 		FileMonitor::instance()->RegisterCallback([this](const std::string& ChangedPath)
 		{
-			const bool ShaderChanged = ChangedPath.find("/shader/") != std::string::npos || ChangedPath.find("\\shader\\") != std::string::npos;
 			ShaderManager::instance()->ReloadIfFileChanged(ChangedPath);
 			TextureManager::instance()->ReloadIfFileChanged(ChangedPath);
 			MeshManager::instance()->ReloadIfFileChanged(ChangedPath);
 			MaterialManager::instance()->ReloadIfFileChanged(ChangedPath);
 			MaterialInstanceStaticManager::instance()->ReloadIfFileChanged(ChangedPath);
-			MaterialInstanceStaticManager::instance()->ReloadResourcesDependingOn(ChangedPath);
-			if (ShaderChanged)
-			{
-				MaterialManager::instance()->ReloadResourcesDependingOn(ChangedPath);
-				MaterialInstanceStaticManager::instance()->ReloadResourcesDependingOn(ChangedPath);
-			}
 		});
 		FileMonitor::instance()->Start(mResourcePath);
 		GETMODULE(RenderModule)->LoadDynamicRHI(InDesc);
@@ -150,40 +147,38 @@ namespace Elaine
 
 	}
 
-	void Root::RenderOneFrame()
-	{
-		RenderToLogic_Barrier->Signal();
-		while (true)
-		{
-			if (!mbInitialize)
-				continue;
-			
-			
-			CalculateDeltaTime();
-			CalculateFPS(mDeltaTime);
-			//PreFrame(mDeltaTime);
-			//BeginFrame(mDeltaTime);
-			//FixedUpdate(mDeltaTime);
-			//EndFrame(mDeltaTime);
-			//PostFrame(mDeltaTime);
-			LogicToRender_Barrier->Wait();
-			RenderSystem::instance()->GetRenderCommandQueue()->Execute();
-			RenderToLogic_Barrier->Signal();
-
-			WaitForRenderThread_Gfx();
-			for (RenderView* CurrentView : mRenderViews)
-			{
-				if (!CurrentView->IsValid() || !CurrentView->IsActive())
-					continue;
-
-				//TODO: GetPipeline()
-				mRenderPipeline[RP_Forward]->Render(CurrentView);
-			}
-
-			TaskGraph::TaskGraph::instance()->ExecuteInThread(NamedThread::RenderThread);
-			NotifyForRHIThread_Gfx();
-		}
-	}
+    void Root::RenderOneFrame()
+    {
+        RenderToLogic_Barrier->Signal();
+        while (!mStopping)
+        {
+            const bool HasFrame = LogicToRender_Barrier->WaitFor(2);
+            if (mStopping) break;
+            // The original RHI frame barrier also protects immediate resource creation.
+            WaitForRenderThread_Gfx();
+            if (HasFrame) RenderSystem::instance()->GetRenderCommandQueue()->Execute();
+            TaskGraph::TaskGraph::instance()->ExecuteInThread(NamedThread::RenderThread);
+            if (mShutdownRender)
+            {
+                if (!mRenderStopped)
+                {
+                    for (auto* Scene : mSceneMgrs) delete Scene;
+                    mSceneMgrs.clear(); mRenderViews.clear();
+                    for (auto*& Pipeline : mRenderPipeline) { delete Pipeline; Pipeline = nullptr; }
+                    mRenderStopped = true;
+                }
+            }
+            else if (HasFrame && mbInitialize)
+            {
+                CalculateDeltaTime(); CalculateFPS(mDeltaTime);
+                RenderToLogic_Barrier->Signal();
+                for (auto* View : mRenderViews)
+                    if (View->IsValid() && View->IsActive()) mRenderPipeline[RP_Forward]->Render(View);
+            }
+            // Resource lists progress even during startup or with no active viewport.
+            NotifyForRHIThread_Gfx();
+        }
+    }
 
 	void Root::TickTime()
 	{
@@ -258,22 +253,34 @@ namespace Elaine
 		 mRHIType = (ERHI_TYPE)WinConfigJson.value("RenderRHI", 0);
 	}
 
-	void Root::Terminate()
-	{
-		if (FileMonitor::instance()->IsRunning()) FileMonitor::instance()->Stop();
-		delete RenderSystem::instance();
-		delete ThreadManager::instance();
-		//delete LogSystem::instance();
-		//delete WindowSystem::instance();
-		SAFE_DELETE(mTimer);
-		delete InputSystem::instance();
-		delete FileManager::instance();
-		delete TaskGraph::TaskGraph::instance();
-		for (auto iter : mSceneMgrs)
-		{
-			SAFE_DELETE(iter);
-		}
-		delete ModuleManager::instance();
-		delete FileMonitor::instance();
-	}
+    void Root::FlushRenderCommands()
+    {
+        if (!mRenderThread || CheckThread(NamedThread::RenderThread)) return;
+        auto Done = std::make_shared<std::promise<void>>();
+        auto Ready = Done->get_future();
+        ENQUEUE_RENDER_COMMAND(FlushCommands)([Done](RenderContext&) { Done->set_value(); });
+        LogicToRender_Barrier->Signal();
+        Ready.get();
+    }
+
+    void Root::Terminate()
+    {
+        if (!mRenderThread) return;
+        if (FileMonitor::instance()->IsRunning()) FileMonitor::instance()->Stop();
+        ResourcePipeline::Get().Shutdown();
+        mShutdownRender = true;
+        LogicToRender_Barrier->Signal();
+        while (!mRenderStopped) std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        // The render thread remains available to consume resource batches in inline-RHI mode.
+        delete ModuleManager::instance();
+        delete RenderSystem::instance();
+        mStopping = true; LogicToRender_Barrier->Signal();
+        ThreadManager::instance()->DestroyThread(mRenderThread); mRenderThread = nullptr;
+        delete TaskGraph::TaskGraph::instance();
+        delete ThreadManager::instance();
+        SAFE_DELETE(mTimer);
+        delete InputSystem::instance();
+        delete FileManager::instance();
+        delete FileMonitor::instance();
+    }
 }

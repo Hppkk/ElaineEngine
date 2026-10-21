@@ -28,27 +28,45 @@ namespace VulkanRHI
 {
 	class ShaderIncludeResolver :public shaderc::CompileOptions::IncluderInterface
 	{
+        struct Include { std::string Name, Content; };
 	public:
+        explicit ShaderIncludeResolver(std::vector<std::string>& Files) : mFiles(Files) {}
 		shaderc_include_result* GetInclude(const char* InRequestedSource,
 			shaderc_include_type InType,
 			const char* InRequestingSource,
 			size_t InIncludeDepth) override
 		{
-			std::string SPath = Root::instance()->GetResourcePath() + "shader/vulkan/" + InRequestedSource;
-			MemoryMapFile mmapFile(SPath);
-			mContent = (char*)Memory::SystemMalloc(mmapFile.MapSize());
-			Memory::MemoryCopy(mContent, mmapFile.MapPointer(), mmapFile.MapSize());
-			shaderc_include_result* Result = new shaderc_include_result;
-			Result->source_name = InRequestedSource;
-			Result->source_name_length = strlen(InRequestedSource);
-			Result->content = (const char*)mContent;
-			Result->content_length = mmapFile.MapSize();
-			Result->user_data = mContent;
+            auto* Data = new Include;
+            const auto RootPath = std::filesystem::path(Root::instance()->GetResourcePath()) / "shader/vulkan";
+            auto Path = RootPath / InRequestedSource;
+            if (InType == shaderc_include_type_relative)
+            {
+                auto Parent = std::filesystem::path(InRequestingSource).parent_path();
+                if (!Parent.is_absolute()) Parent = RootPath / Parent;
+                const auto Relative = Parent / InRequestedSource;
+                if (std::filesystem::exists(Relative)) Path = Relative;
+            }
+            Data->Name = Path.lexically_normal().generic_string();
+            mFiles.push_back(Data->Name);
+            std::error_code FileError;
+            const auto FileSize = std::filesystem::file_size(Path, FileError);
+            if (FileError) Data->Content = "#error Shader include was not found";
+            else if (FileSize != 0)
+            {
+                MemoryMapFile File(Data->Name);
+                if (File.MapPointer()) Data->Content.assign(static_cast<const char*>(File.MapPointer()), File.MapSize());
+                else Data->Content = "#error Shader include could not be mapped";
+            }
+            auto* Result = new shaderc_include_result;
+            Result->source_name = Data->Name.c_str(); Result->source_name_length = Data->Name.size();
+            Result->content = Data->Content.c_str(); Result->content_length = Data->Content.size();
+            Result->user_data = Data;
 			return Result;
 		}
 
 		void ReleaseInclude(shaderc_include_result* InData) override
 		{
+            delete static_cast<Include*>(InData->user_data);
 			SAFE_DELETE(InData);
 		}
 
@@ -58,6 +76,7 @@ namespace VulkanRHI
 		}
 	private:
 		char* mContent = nullptr;
+        std::vector<std::string>& mFiles;
 	};
 
 	class VulkanShaderCompileManager::Private
@@ -73,11 +92,12 @@ namespace VulkanRHI
 				shaderc_optimization_level optimization_level = shaderc_optimization_level_performance;
 #endif
 				mOptions.SetOptimizationLevel(optimization_level);
-				mOptions.SetIncluder(std::make_unique<ShaderIncludeResolver>());
+				mOptions.SetIncluder(std::make_unique<ShaderIncludeResolver>(SourceFiles));
 				mInitilizeOnce = true;
 			}
 		}
 
+        std::vector<std::string> SourceFiles;
 		bool CompileGLSLToSPV(EShaderStage InShaderStage, const std::string& InShaderString, const std::string& InExportPath, const std::string& InEntry, shaderc::SpvCompilationResult& InOutResult)
 		{
 			shaderc_shader_kind shaderstate = shaderc_glsl_vertex_shader;
@@ -181,6 +201,7 @@ namespace VulkanRHI
 
 	VulkanShader::~VulkanShader()
 	{
+        if (mShaderModule && mVkDevice) vkDestroyShaderModule(mVkDevice->GetDevice(), mShaderModule, VULKAN_CPU_ALLOCATOR);
 		Elaine::Memory::MemoryZero(mShaderStageInfo);
 	}
 
@@ -219,7 +240,7 @@ namespace VulkanRHI
 		CreateInfo.codeSize = mSPVCodeDesc.mContentSize * sizeof(uint32_t);
 		CreateInfo.pCode = mSPVCodeDesc.mSPVCodeContent;
 
-		vkCreateShaderModule(mVkDevice->GetDevice(), &CreateInfo, VULKAN_CPU_ALLOCATOR, &mShaderModule);
+        if (vkCreateShaderModule(mVkDevice->GetDevice(), &CreateInfo, VULKAN_CPU_ALLOCATOR, &mShaderModule) != VK_SUCCESS) throw std::runtime_error("Shader module creation failed");
 		mShaderStageInfo.module = mShaderModule;
 		mbCompiled = true;
 
@@ -301,12 +322,13 @@ namespace VulkanRHI
 		return NewShader;
 	}
 
-	VulkanShader* VulkanShaderManager::CreateShader(const std::string& InShaderCode, EShaderStage InStage, VulkanPipeline* InPipeline, const std::string& InShaderPath)
+	VulkanShader* VulkanShaderManager::CreateShader(const std::string& InShaderCode, EShaderStage InStage, VulkanPipeline* InPipeline, const std::string& InShaderPath, std::shared_ptr<const PreparedShader> Prepared)
 	{
 		VulkanShader* NewShader = new VulkanShader(mDevice, InShaderCode, InStage);
+        NewShader->mPrepared = std::move(Prepared);
 		NewShader->mPipeline = InPipeline;
 		NewShader->mShaderPath = InShaderPath;
-		mShaderCache.emplace(NewShader->GetHash(), NewShader);
+
 		return NewShader;
 	}
 
@@ -345,28 +367,15 @@ namespace VulkanRHI
 	//	return CompileSuccessed;
 	//}
 
-	bool VulkanShaderCompileManager::CompileShaderToSPV(VulkanShader* InShader)
-	{
-		VulkanShaderCompileManager::Private Comiler;
-		shaderc::SpvCompilationResult Result;
-		bool CompileSuccessed;
-		CompileSuccessed = Comiler.CompileGLSLToSPV(InShader->mRHIShaderStage, InShader->GetShaderString(), InShader->mShaderPath, InShader->mShaderStageInfo.pName, Result);
-		if (CompileSuccessed)
-		{
-			InShader->mSPVCodeDesc.SetCode(Result.begin(), Result.end() - Result.begin());
-		}
-		return CompileSuccessed;
-	}
+    bool VulkanShaderCompileManager::CompileShaderToSPV(VulkanShader* Shader)
+    {
+        if (!Shader->mPrepared) return false;
+        Shader->mSPVCodeDesc.SetCode(Shader->mPrepared->Spirv.data(), Shader->mPrepared->Spirv.size());
+        return true;
+    }
 
-	bool VulkanShaderCompileManager::PostCompileShader(VulkanShader* InVertexShader, VulkanShader* InFragmentShader)
-	{
-		assert(InVertexShader->mPipeline == InFragmentShader->mPipeline);
-
-		PipelineReflectionData PipelineRefData;
-		PipelineRefData.mPipeline = InVertexShader->mPipeline;
-
-		auto ReflectShaderResourceInfo = [&](VulkanShader* InShader)
-			{
+    void VulkanShaderCompileManager::ReflectCPU(VulkanShader* InShader, PipelineReflectionData& PipelineRefData)
+    {
 				spirv_cross::CompilerReflection reflection(InShader->GetSPVCodeDesc().mSPVCodeContent, InShader->GetSPVCodeDesc().mContentSize);
 				spirv_cross::ShaderResources resources = reflection.get_shader_resources();
 				for (const auto& resource : resources.uniform_buffers)
@@ -431,6 +440,9 @@ namespace VulkanRHI
 				for (const auto& resource : resources.sampled_images)
 				{
 					DescriptorBindingInfo bindingInfo{};
+                    const auto& Image = reflection.get_type(resource.base_type_id).image;
+                    bindingInfo.isColor2DSampler = Image.dim == spv::Dim2D && !Image.arrayed && !Image.ms &&
+                        reflection.get_type(Image.type).basetype == spirv_cross::SPIRType::Float && !Image.depth;
 					bindingInfo.set = reflection.get_decoration(resource.id, spv::DecorationDescriptorSet);
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // �� VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
@@ -583,132 +595,76 @@ namespace VulkanRHI
 						currentOffset += attr.size;
 					}
 					TempInputBindingDesc.stride = currentOffset;
-					InVertexShader->mVertexInputBindingDescs.push_back(TempInputBindingDesc);
+					if (!sortedAttributes.empty()) InShader->mVertexInputBindingDescs.push_back(TempInputBindingDesc);
 				}
-			};
 
-		ReflectShaderResourceInfo(InVertexShader);
-		ReflectShaderResourceInfo(InFragmentShader);
+    }
+    std::shared_ptr<const PreparedShader> VulkanShaderCompileManager::PrepareCPU(const std::string& Code, const std::string& Path, EShaderStage Stage)
+    {
+        Private Compiler;
+        shaderc::SpvCompilationResult Result;
+        const char* Entry = Stage == EShaderStage::VertexShader ? VS_SHADER_MAIN : Stage == EShaderStage::FragmentShader ? PS_SHADER_MAIN : Stage == EShaderStage::ComputeShader ? CS_SHADER_MAIN : GS_SHADER_MAIN;
+        const auto Source = Code.find("#version") == std::string::npos ? "#version 450 core\n#extension GL_ARB_separate_shader_objects : enable\n" + Code : Code;
+        if (!Compiler.CompileGLSLToSPV(Stage, Source, Path, Entry, Result)) throw std::runtime_error(Result.GetErrorMessage());
+        auto Prepared = std::make_shared<PreparedShader>();
+        Prepared->Spirv.assign(Result.begin(), Result.end());
+        Prepared->SourceFiles = std::move(Compiler.SourceFiles);
+        VulkanShader Shader(nullptr, Code, Stage);
+        Shader.mSPVCodeDesc.SetCode(Prepared->Spirv.data(), Prepared->Spirv.size());
+        ReflectCPU(&Shader, Prepared->Reflection);
+        Prepared->InputBindings = Shader.mVertexInputBindingDescs;
+        return Prepared;
+    }
+    bool VulkanShaderCompileManager::PostCompileShader(VulkanShader* VS, VulkanShader* PS)
+    {
+        if (!VS->mPrepared || !PS->mPrepared) return false;
+        PipelineReflectionData Data = VS->mPrepared->Reflection;
+        Data.mPipeline = VS->mPipeline;
+        for (const auto& Set : PS->mPrepared->Reflection.descriptorSets)
+            for (const auto& Binding : Set.second)
+            {
+                auto& Bindings = Data.descriptorSets[Set.first];
+                auto It = std::find_if(Bindings.begin(), Bindings.end(), [&](const DescriptorBindingInfo& B) { return B.binding == Binding.binding; });
+                if (It == Bindings.end()) Bindings.push_back(Binding);
+                else
+                {
+                    if (It->type != Binding.type || It->count != Binding.count || It->blockSize != Binding.blockSize)
+                        throw std::runtime_error("Shader descriptor declarations disagree between stages");
+                    It->stageFlags |= Binding.stageFlags;
+                }
+            }
+        for (auto& Parameter : PS->mPrepared->Reflection.materialParameters)
+        {
+            auto It = std::find_if(Data.materialParameters.begin(), Data.materialParameters.end(), [&](const RHIPipeline::MaterialParameterInfo& P) { return P.Set == Parameter.Set && P.Binding == Parameter.Binding && P.Offset == Parameter.Offset; });
+            if (It == Data.materialParameters.end()) Data.materialParameters.push_back(Parameter);
+        }
+        VS->mInputAttributeDescriptions = Data.inputAttributes;
+        VS->mVertexInputBindingDescs = VS->mPrepared->InputBindings;
+        if (!GeneratePipelineDescriptors(Data)) return false;
+        Data.mPipeline->mMaterialParameters = Data.materialParameters;
+        Data.mPipeline->mMaterialParametersRHI = Data.materialParameters;
+        return true;
+    }
 
-		InVertexShader->mInputAttributeDescriptions = PipelineRefData.inputAttributes;
-
-		//create shader descriptor 
-
-		if (!GeneratePipelineDescriptors(PipelineRefData))
-		{
-			return false;
-		}
-		InVertexShader->mPipeline->mMaterialParameters = PipelineRefData.materialParameters;
-		InVertexShader->mPipeline->mMaterialParametersRHI.clear();
-		for (const auto& Parameter : PipelineRefData.materialParameters)
-		{
-			RHIPipeline::MaterialParameterInfo RHIParameter;
-			RHIParameter.Name = Parameter.Name;
-			RHIParameter.NameHash = Parameter.NameHash;
-			RHIParameter.Type = static_cast<RHIPipeline::MaterialParameterType>(Parameter.Type);
-			RHIParameter.Offset = Parameter.Offset;
-			RHIParameter.Size = Parameter.Size;
-			RHIParameter.ArrayCount = Parameter.ArrayCount;
-			RHIParameter.Set = Parameter.Set;
-			RHIParameter.Binding = Parameter.Binding;
-			InVertexShader->mPipeline->mMaterialParametersRHI.push_back(std::move(RHIParameter));
-		}
-
-
-		return true;
-	}
-
-	bool VulkanShaderCompileManager::GeneratePipelineDescriptors(PipelineReflectionData& InPipelineRefData)
-	{
-		std::vector<uint32_t> setIndices;
-		for (const auto& [set, _] : InPipelineRefData.descriptorSets)
-		{
-			setIndices.push_back(set);
-		}
-		std::sort(setIndices.begin(), setIndices.end());
-		uint32_t RealSetIndex = 0;
-		for (uint32_t setIndex : setIndices)
-		{
-			if (setIndex != RealSetIndex)
-			{
-				for (;RealSetIndex < setIndex; ++RealSetIndex)
-				{
-					VkDescriptorSetLayoutCreateInfo EmptyLayoutInfo { };
-					EmptyLayoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-					EmptyLayoutInfo.bindingCount = 0;
-					EmptyLayoutInfo.pBindings = nullptr;
-					VkDescriptorSetLayout EmptySetLayout;
-					vkCreateDescriptorSetLayout(mDevice->GetDevice(), &EmptyLayoutInfo, VULKAN_CPU_ALLOCATOR, &EmptySetLayout);
-					InPipelineRefData.mPipeline->mDescriptorSetLayouts.push_back(EmptySetLayout);
-
-					VulkanDescriptorSet* DescriptorSetRHI = new VulkanDescriptorSet(RealSetIndex, true);
-					VkDescriptorSetAllocateInfo DescriptorSetAllocInfo{ };
-					DescriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-					DescriptorSetAllocInfo.descriptorPool = VK_NULL_HANDLE;
-					DescriptorSetAllocInfo.descriptorSetCount = 1;
-					DescriptorSetAllocInfo.pSetLayouts = &EmptySetLayout;
-					VulkanCommandContext* VkCommandCtx = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
-					VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
-					InPipelineRefData.mPipeline->mDescriptorSets.push_back(DescriptorSetRHI);
-					InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
-				}
-			}
-			++RealSetIndex;
-
-			const auto& bindings = InPipelineRefData.descriptorSets.at(setIndex);
-			std::vector<VkDescriptorSetLayoutBinding> layoutBindings;
-			for (const auto& binding : bindings)
-			{
-				VkDescriptorSetLayoutBinding layoutBinding{};
-				layoutBinding.binding = binding.binding;
-				layoutBinding.descriptorType = binding.type;
-				layoutBinding.descriptorCount = binding.count;
-				layoutBinding.stageFlags = binding.stageFlags;
-				layoutBinding.pImmutableSamplers = nullptr;
-
-				layoutBindings.push_back(layoutBinding);
-			}
-
-			VkDescriptorSetLayoutCreateInfo layoutInfo{};
-			layoutInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-			layoutInfo.bindingCount = static_cast<uint32_t>(layoutBindings.size());
-			layoutInfo.pBindings = layoutBindings.data();
-			//layoutInfo.flags = VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT;
-
-			VkDescriptorSetLayout setLayout;
-			vkCreateDescriptorSetLayout(mDevice->GetDevice(), &layoutInfo, VULKAN_CPU_ALLOCATOR, &setLayout);
-			InPipelineRefData.mPipeline->mDescriptorSetLayouts.push_back(setLayout);
-			VulkanCommandContext* VkCommandCtx = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
-			if (setIndex == 0 && !VkCommandCtx->IsCreateCommonDescriptorSets())
-			{
-				for (int Index = 0; Index < MAX_FRAMES_IN_FLIGHT; ++Index)
-				{
-					VulkanDescriptorSet* DescriptorSetRHI = new VulkanDescriptorSet(setIndex);
-					VkDescriptorSetAllocateInfo DescriptorSetAllocInfo{ };
-					DescriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-					DescriptorSetAllocInfo.descriptorPool = VK_NULL_HANDLE;
-					DescriptorSetAllocInfo.descriptorSetCount = 1;
-					DescriptorSetAllocInfo.pSetLayouts = &setLayout;
-					VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
-					VkCommandCtx->SetCommonDescriptorSets(DescriptorSetRHI, Index);
-					InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
-				}
-			}
-			else if (setIndex != 0)
-			{
-				VulkanDescriptorSet* DescriptorSetRHI = new VulkanDescriptorSet(setIndex);
-				VkDescriptorSetAllocateInfo DescriptorSetAllocInfo{ };
-				DescriptorSetAllocInfo.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-				DescriptorSetAllocInfo.descriptorPool = VK_NULL_HANDLE;
-				DescriptorSetAllocInfo.descriptorSetCount = 1;
-				DescriptorSetAllocInfo.pSetLayouts = &setLayout;
-				VkCommandCtx->GetDescriptorSetManager()->AllocateDescriptorSets(DescriptorSetAllocInfo, &DescriptorSetRHI);
-				InPipelineRefData.mPipeline->mDescriptorSets.push_back(DescriptorSetRHI);
-				InPipelineRefData.mPipeline->mDescriptorSetMap[DescriptorSetRHI->GetSet()] = DescriptorSetRHI;
-			}
-		}
-		return true;
-	}
+    bool VulkanShaderCompileManager::GeneratePipelineDescriptors(PipelineReflectionData& Data)
+    {
+        Data.mPipeline->mDescriptorBindings = Data.descriptorSets;
+        uint32 MaxSet = 0;
+        for (const auto& Set : Data.descriptorSets) MaxSet = std::max(MaxSet, Set.first);
+        if (MaxSet >= 32) throw std::runtime_error("Shader descriptor set exceeds supported range");
+        for (uint32 Set = 0; Set <= MaxSet; ++Set)
+        {
+            std::vector<VkDescriptorSetLayoutBinding> Bindings;
+            for (const auto& Binding : Data.descriptorSets[Set])
+                Bindings.push_back({Binding.binding, Binding.type, Binding.count, Binding.stageFlags, nullptr});
+            VkDescriptorSetLayoutCreateInfo Info{}; Info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+            Info.bindingCount = static_cast<uint32>(Bindings.size()); Info.pBindings = Bindings.data();
+            VkDescriptorSetLayout Layout;
+            if (vkCreateDescriptorSetLayout(mDevice->GetDevice(), &Info, VULKAN_CPU_ALLOCATOR, &Layout) != VK_SUCCESS) return false;
+            Data.mPipeline->mDescriptorSetLayouts.push_back(Layout);
+        }
+        return true;
+    }
 
 	void VulkanShaderCompileManager::AddWaitCompile(VulkanShader* InShader)
 	{
@@ -726,14 +682,14 @@ namespace VulkanRHI
 		if (InPipeline->GetType() == VulkanPipeline::Graphic)
 		{
 			VulkanGfxPipeline* CurrentPipeline = static_cast<VulkanGfxPipeline*>(InPipeline);
-			PreprocessShader(CurrentPipeline->mVsShader);
+
 			if (!CompileShaderToSPV(CurrentPipeline->mVsShader))
 			{
 				return false;
 			}
 			CurrentPipeline->mVsShader->CreateShaderModule();
 
-			PreprocessShader(CurrentPipeline->mPsShader);
+
 			if (!CompileShaderToSPV(CurrentPipeline->mPsShader))
 			{
 				return false;

@@ -1,4 +1,5 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "render/vulkan/ElaineVulkanRHI.h"
 #include "vulkan/ElaineVulkanSwapChain.h"
 #include "vulkan/ElaineVulkanPhysicalDevice.h"
 #include "vulkan/ElaineVulkanDevice.h"
@@ -27,9 +28,10 @@ namespace VulkanRHI
 		VkPresentInfoKHR PresentInfo;
 		Elaine::Memory::MemoryZero(PresentInfo);
 		PresentInfo.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+        VkSemaphore Semaphore = VK_NULL_HANDLE;
 		if (InSemaphore != nullptr)
 		{
-			VkSemaphore Semaphore = InSemaphore->GetHandle();
+			Semaphore = InSemaphore->GetHandle();
 			PresentInfo.waitSemaphoreCount = 1;
 			PresentInfo.pWaitSemaphores = &Semaphore;
 		}
@@ -333,6 +335,10 @@ namespace VulkanRHI
 
 	void VulkanSwapChain::Destroy()
 	{
+        if (!mSwapChainHandle) return;
+        for (auto*& Texture : mBackBufferTextures) { delete Texture; Texture = nullptr; }
+        delete mBackBufferProxy; mBackBufferProxy = nullptr;
+        mDevice->GetDeferredDeletionQueue().ReleaseResources(true);
 		vkDestroySwapchainKHR(mDevice->GetDevice(), mSwapChainHandle, VULKAN_CPU_ALLOCATOR);
 		mSwapChainHandle = nullptr;
 		VulkanFenceManager* FenceMgr = mDevice->GetFenceManager();
@@ -365,6 +371,7 @@ namespace VulkanRHI
 			&ImageIndex);
 		if (Result == VK_SUCCESS || Result == VK_SUBOPTIMAL_KHR)
 		{
+            mCurrentImageIndex = ImageIndex;
 			if (Result == VK_SUBOPTIMAL_KHR)
 			{
 				LOG_WARN("VulkanSwapChain: AcquireNextImage returned VK_SUBOPTIMAL_KHR. Swapchain might need recreation soon.");

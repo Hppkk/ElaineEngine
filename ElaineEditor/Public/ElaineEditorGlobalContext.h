@@ -3,6 +3,8 @@
 #include "ElaineEditorGridManager.h"
 #include "ElaineGizmoManager.h"
 #include <d3d11.h>
+#include "render/common/ElaineRHICommandContext.h"
+#include <mutex>
 
 namespace Elaine
 {
@@ -44,7 +46,7 @@ namespace Editor
 		//=====================================================================
 		Elaine::Viewport* GetSceneViewport() const { return mSceneViewport; }
 		Elaine::OffscreenRenderTarget* GetOffscreenRT() const { return mOffscreenRT; }
-		Elaine::RHITexture* GetOffscreenColorTexture() const { return mOffscreenColorTextures[mWriteIndex]; }
+		Elaine::RHITexture* GetOffscreenColorTexture() const { return mOffscreenOwners[mWriteIndex].get(); }
 		EditorGizmoManager& GetGizmoManager() { return mGizmoManager; }
 		EditorGridManager& GetGridManager() { return mGridManager; }
 
@@ -86,7 +88,9 @@ namespace Editor
 		static constexpr uint32_t       NUM_OFFSCREEN_BUFFERS = 2;
 		Elaine::Viewport*               mSceneViewport = nullptr;
 		Elaine::OffscreenRenderTarget*   mOffscreenRT = nullptr;
-		Elaine::RHITexture*              mOffscreenColorTextures[NUM_OFFSCREEN_BUFFERS] = {};
+        Elaine::RHITextureHandle mOffscreenOwners[NUM_OFFSCREEN_BUFFERS];
+        struct ReadbackPacket { std::mutex Mutex; std::vector<uint8_t> Pixels; uint32_t Pitch = 0; bool Ready = false; bool Pending = false; };
+        std::shared_ptr<ReadbackPacket> mReadback = std::make_shared<ReadbackPacket>();
 		uint32_t                         mWriteIndex = 0;
 		uint32_t                         mViewportWidth = 1280;
 		uint32_t                         mViewportHeight = 720;

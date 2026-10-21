@@ -38,6 +38,7 @@ namespace VulkanRHI
 		VkShaderStageFlags stageFlags;
 		size_t blockSize;
 		bool isArray;
+        bool isColor2DSampler = false;
 		std::string name;
 		RHIResourceVisibility mVisibility;
 	};
@@ -65,6 +66,12 @@ namespace VulkanRHI
 		VulkanPipeline* mPipeline = nullptr;
 	};
 
+    struct PreparedShader final : Elaine::RHIShaderCompileResult
+    {
+        std::vector<uint32_t> Spirv;
+        PipelineReflectionData Reflection;
+        std::vector<VkVertexInputBindingDescription> InputBindings;
+    };
 	//struct ElaineCoreExport ShaderCompileResult
 	//{
 	//	ShaderCompileResult() = default;
@@ -128,6 +135,7 @@ namespace VulkanRHI
 		std::vector<VkVertexInputAttributeDescription> mInputAttributeDescriptions;
 		std::vector<VkVertexInputBindingDescription> mVertexInputBindingDescs;
 		VulkanPipeline* mPipeline = nullptr;
+        std::shared_ptr<const PreparedShader> mPrepared;
 		bool mbCompiled = false;
 		friend class VulkanShaderCompileManager;
 		friend class VulkanShaderManager;
@@ -140,7 +148,7 @@ namespace VulkanRHI
 		VulkanShaderManager(VulkanDevice* InDevice);
 		~VulkanShaderManager();
 		VulkanShader* GetOrCreateShader(const std::string& InShaderCode, EShaderStage InStage);
-		VulkanShader* CreateShader(const std::string& InShaderCode, EShaderStage InStage, VulkanPipeline* InPipeline, const std::string& InShaderPath);
+		VulkanShader* CreateShader(const std::string& InShaderCode, EShaderStage InStage, VulkanPipeline* InPipeline, const std::string& InShaderPath, std::shared_ptr<const PreparedShader> Prepared = {});
 		bool CompileShader();
 	private:
 		std::map<std::string, VulkanShader*> mShaderCache;
@@ -163,6 +171,8 @@ namespace VulkanRHI
 	class ElaineCoreExport VulkanShaderCompileManager :public Elaine::Singleton<VulkanShaderCompileManager>
 	{
 	public:
+        static std::shared_ptr<const PreparedShader> PrepareCPU(const std::string& Code, const std::string& Path, EShaderStage Stage);
+        static void ReflectCPU(VulkanShader* Shader, PipelineReflectionData& Reflection);
 		class Private;
 	public:
 		VulkanShaderCompileManager(VulkanDevice* InDevice);

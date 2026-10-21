@@ -1,6 +1,6 @@
 #include "ElainePrecompiledHeader.h"
-#include "RenderGraph/ElaineRenderGraphResourcePool.h"
 #include "render/common/ElaineRHICommandContext.h"
+#include "RenderGraph/ElaineRenderGraphResourcePool.h"
 #include "render/common/ElaineRHITypes.h"
 
 namespace RenderGraph
@@ -30,12 +30,12 @@ namespace RenderGraph
 			{
 				Pooled.InUse = true;
 				Pooled.FramesSinceLastUse = 0;
-				return Pooled.Texture;
+				return Pooled.Texture.get();
 			}
 		}
 
 		// 没有找到，创建新的
-		Elaine::RHITexture* NewTexture = CreateRHITexture(Desc, Context);
+		auto NewTexture = CreateRHITexture(Desc, Context);
 		if (NewTexture)
 		{
 			PooledTexture Pooled;
@@ -44,11 +44,11 @@ namespace RenderGraph
 			Pooled.InUse = true;
 			Pooled.FramesSinceLastUse = 0;
 
-			mTextureToIndex[NewTexture] = static_cast<uint32>(mTexturePool.size());
+			mTextureToIndex[NewTexture.get()] = static_cast<uint32>(mTexturePool.size());
 			mTexturePool.push_back(Pooled);
 		}
 
-		return NewTexture;
+		return NewTexture.get();
 	}
 
 	void RenderGraphResourcePool::ReleaseTexture(Elaine::RHITexture* Texture)
@@ -76,12 +76,12 @@ namespace RenderGraph
 			{
 				Pooled.InUse = true;
 				Pooled.FramesSinceLastUse = 0;
-				return Pooled.Buffer;
+				return Pooled.Buffer.get();
 			}
 		}
 
 		// 创建新的
-		Elaine::RHIBuffer* NewBuffer = CreateRHIBuffer(Desc, Context);
+		auto NewBuffer = CreateRHIBuffer(Desc, Context);
 		if (NewBuffer)
 		{
 			PooledBuffer Pooled;
@@ -90,11 +90,11 @@ namespace RenderGraph
 			Pooled.InUse = true;
 			Pooled.FramesSinceLastUse = 0;
 
-			mBufferToIndex[NewBuffer] = static_cast<uint32>(mBufferPool.size());
+			mBufferToIndex[NewBuffer.get()] = static_cast<uint32>(mBufferPool.size());
 			mBufferPool.push_back(Pooled);
 		}
 
-		return NewBuffer;
+		return NewBuffer.get();
 	}
 
 	void RenderGraphResourcePool::ReleaseBuffer(Elaine::RHIBuffer* Buffer)
@@ -119,12 +119,12 @@ namespace RenderGraph
 			{
 				Pooled.InUse = true;
 				Pooled.FramesSinceLastUse = 0;
-				return Pooled.Texture;
+				return Pooled.Texture.get();
 			}
 		}
 
 		// 创建新的持久资源
-		Elaine::RHITexture* NewTexture = CreateRHITexture(Desc, Context);
+		auto NewTexture = CreateRHITexture(Desc, Context);
 		if (NewTexture)
 		{
 			PooledTexture Pooled;
@@ -135,10 +135,10 @@ namespace RenderGraph
 			Pooled.InUse = true;
 			Pooled.FramesSinceLastUse = 0;
 
-			mTextureToIndex[NewTexture] = static_cast<uint32>(mTexturePool.size());
+			mTextureToIndex[NewTexture.get()] = static_cast<uint32>(mTexturePool.size());
 			mTexturePool.push_back(Pooled);
 		}
-		return NewTexture;
+		return NewTexture.get();
 	}
 
 	Elaine::RHIBuffer* RenderGraphResourcePool::AcquirePersistentBuffer(const std::string& Name,
@@ -151,12 +151,12 @@ namespace RenderGraph
 			{
 				Pooled.InUse = true;
 				Pooled.FramesSinceLastUse = 0;
-				return Pooled.Buffer;
+				return Pooled.Buffer.get();
 			}
 		}
 
 		// 创建新的持久资源
-		Elaine::RHIBuffer* NewBuffer = CreateRHIBuffer(Desc, Context);
+		auto NewBuffer = CreateRHIBuffer(Desc, Context);
 		if (NewBuffer)
 		{
 			PooledBuffer Pooled;
@@ -167,10 +167,10 @@ namespace RenderGraph
 			Pooled.InUse = true;
 			Pooled.FramesSinceLastUse = 0;
 
-			mBufferToIndex[NewBuffer] = static_cast<uint32>(mBufferPool.size());
+			mBufferToIndex[NewBuffer.get()] = static_cast<uint32>(mBufferPool.size());
 			mBufferPool.push_back(Pooled);
 		}
-		return NewBuffer;
+		return NewBuffer.get();
 	}
 
 	//=============================================================================
@@ -207,13 +207,13 @@ namespace RenderGraph
 				if (Pooled.FramesSinceLastUse > mExpirationFrames)
 				{
 					// 释放过期资源
-					mTextureToIndex.erase(Pooled.Texture);
+					mTextureToIndex.erase(Pooled.Texture.get());
 					DestroyRHITexture(Pooled.Texture);
 
 					// 移除条目（与最后一个交换）
 					if (i != mTexturePool.size() - 1)
 					{
-						mTextureToIndex[mTexturePool.back().Texture] = static_cast<uint32>(i);
+						mTextureToIndex[mTexturePool.back().Texture.get()] = static_cast<uint32>(i);
 						std::swap(mTexturePool[i], mTexturePool.back());
 					}
 					mTexturePool.pop_back();
@@ -232,12 +232,12 @@ namespace RenderGraph
 				Pooled.FramesSinceLastUse++;
 				if (Pooled.FramesSinceLastUse > mExpirationFrames)
 				{
-					mBufferToIndex.erase(Pooled.Buffer);
+					mBufferToIndex.erase(Pooled.Buffer.get());
 					DestroyRHIBuffer(Pooled.Buffer);
 
 					if (i != mBufferPool.size() - 1)
 					{
-						mBufferToIndex[mBufferPool.back().Buffer] = static_cast<uint32>(i);
+						mBufferToIndex[mBufferPool.back().Buffer.get()] = static_cast<uint32>(i);
 						std::swap(mBufferPool[i], mBufferPool.back());
 					}
 					mBufferPool.pop_back();
@@ -318,54 +318,20 @@ namespace RenderGraph
 			Pooled.Desc.Usage == Desc.Usage;
 	}
 
-	Elaine::RHITexture* RenderGraphResourcePool::CreateRHITexture(const RGTextureDesc& Desc,
-		Elaine::RHICommandContext* Context)
-	{
-		if (!Context)
-			return nullptr;
-
-		return Context->RHICreateTexture2D(
-			Desc.Width,
-			Desc.Height,
-			static_cast<uint8>(Desc.Format),
-			Desc.MipLevels,
-			Desc.NumSamples,
-			Desc.Flags,
-			Desc.InitialState,
-			nullptr
-		);
-	}
-
-	Elaine::RHIBuffer* RenderGraphResourcePool::CreateRHIBuffer(const RGBufferDesc& Desc,
-		Elaine::RHICommandContext* Context)
-	{
-		if (!Context)
-			return nullptr;
-
-		return Context->RHICreateBuffer(
-			Desc.Size,
-			Desc.Usage,
-			Desc.Stride,
-			Desc.InitialState,
-			nullptr
-		);
-	}
-
-	void RenderGraphResourcePool::DestroyRHITexture(Elaine::RHITexture* Texture)
-	{
-		// RHI资源通过引用计数自动管理
-		// 这里只需要解除引用
-		if (Texture)
-		{
-			// TODO: 
-		}
-	}
-
-	void RenderGraphResourcePool::DestroyRHIBuffer(Elaine::RHIBuffer* Buffer)
-	{
-		if (Buffer)
-		{
-			// TODO: 
-		}
-	}
+    Elaine::RHITextureHandle RenderGraphResourcePool::CreateRHITexture(const RGTextureDesc& Desc, Elaine::RHICommandContext*)
+    {
+        Elaine::RHITextureDesc RHI;
+        RHI.mExtent = { static_cast<float>(Desc.Width), static_cast<float>(Desc.Height) };
+        RHI.mFormat = Desc.Format; RHI.mNumMips = Desc.MipLevels; RHI.mNumSamples = Desc.NumSamples;
+        RHI.mArraySize = Desc.ArraySize; RHI.mFlags = Desc.Flags; RHI.mDimension = Elaine::TextureDimension::Texture2D;
+        auto Resource = Elaine::GetDynamicRHI()->GetDefaultCommandContext()->RHICreateTexture(RHI, nullptr);
+        return Resource;
+    }
+    Elaine::RHIBufferHandle RenderGraphResourcePool::CreateRHIBuffer(const RGBufferDesc& Desc, Elaine::RHICommandContext*)
+    {
+        auto Resource = Elaine::GetDynamicRHI()->GetDefaultCommandContext()->RHICreateBuffer(Desc.Size, Desc.Usage, Desc.Stride, Desc.InitialState, nullptr);
+        return Resource;
+    }
+    void RenderGraphResourcePool::DestroyRHITexture(Elaine::RHITextureHandle& Resource) { Resource.reset(); }
+    void RenderGraphResourcePool::DestroyRHIBuffer(Elaine::RHIBufferHandle& Resource) { Resource.reset(); }
 }

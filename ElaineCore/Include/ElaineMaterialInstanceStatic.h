@@ -27,7 +27,7 @@ namespace Elaine
             return mOriginMaterialResource->GetPass(InPassType);
         }
         const MaterialPtr& GetOriginMaterial() const { return mOriginMaterialResource; }
-		uint64_t GetLayoutRevision() const { return mOriginMaterialResource.isNull() ? 0 : mOriginMaterialResource->GetLayoutRevision(); }
+		uint64_t GetLayoutRevision() const { return mDataRevision + (mOriginMaterialResource ? mOriginMaterialResource->GetLayoutRevision() : 0); }
         TexturePtr GetTexture(TextureSemantics InSemantics) const;
         float GetScalar(uint64_t InParamHash, float InDefault = 0.0f) const;
         Vector4 GetVector(uint64_t InParamHash, const Vector4& InDefault = Vector4::ZERO) const;
@@ -42,16 +42,19 @@ namespace Elaine
         }
 
     protected:
-        virtual bool LoadImpl() override;
+        std::unique_ptr<ResourceLoadData> LoadImpl() override;
         virtual	void UnloadImpl() override;
         virtual void SaveResourceImpl() override;
-        virtual void ResourceArrivedImpl() override;
 
     public:
         // ResourceBase override: 获取所有直接依赖（原始材质 + 覆盖的纹理）
         void GetDirectDependencies(std::vector<ResourceBasePtr>& OutDependencies) const override;
 
     private:
+        friend struct MaterialParamSnapshot;
+        uint64_t mDataRevision = 0;
+        struct LoadData;
+        void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
         MaterialPtr mOriginMaterialResource;
         std::unordered_map<TextureSemantics, TexturePtr> mOverridedTextures;
         std::unordered_map<uint64_t, float> mOverridedScalars;

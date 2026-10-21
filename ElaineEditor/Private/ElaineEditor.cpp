@@ -1,4 +1,5 @@
 ﻿#include "ElaineEditor.h"
+#include "Resource/ElaineResourcePipeline.h"
 #include "ElaineImGuiLayer.h"
 #include "ElaineRoot.h"
 #include "ElaineSceneHierarchyPanel.h"
@@ -96,6 +97,7 @@ namespace Editor
 		if (!mImGuiLayer) return;
 
 		Elaine::RenderToLogic_Barrier->Wait();
+        Elaine::ResourcePipeline::Get().BeginFrame();
 		auto* Ctx = EditorGlobalContext::instance();
 
 		// ============================================================

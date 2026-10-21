@@ -25,7 +25,8 @@ namespace VulkanRHI
 			return mBufferOffset;
 		}
 
-		inline size_t GetBufferSize() const
+		inline size_t GetStride() const { return mBufferStride; }
+        inline size_t GetBufferSize() const
 		{
 			return mBufferSize;
 		}

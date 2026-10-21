@@ -1,5 +1,6 @@
 #pragma once
 #include "ElaineUseCount.h"
+#include <utility>
 
 namespace Elaine
 {
@@ -54,7 +55,7 @@ namespace Elaine
 		}
 
 		template<typename Ty2>
-		ResourcePtr(ResourcePtr<_Ty>&& InOther, Ty2* InPtr)
+		ResourcePtr(ResourcePtr<Ty2>&& InOther, _Ty* InPtr)
 		{
 			_Ptr = InPtr;
 			_Used = InOther._Used;
@@ -63,7 +64,7 @@ namespace Elaine
 		}
 
 		template<typename Ty2>
-		ResourcePtr(ResourcePtr<_Ty>& InOther, Ty2* InPtr)
+		ResourcePtr(const ResourcePtr<Ty2>& InOther, _Ty* InPtr)
 		{
 			_Ptr = InPtr;
 			_Used = InOther._Used;
@@ -88,7 +89,7 @@ namespace Elaine
 
 		unsigned int getUsed() const
 		{
-			return _Used->getUseCount();
+			return _Used ? _Used->getUseCount() : 0;
 		}
 
 		_Ty* get() const
@@ -99,6 +100,7 @@ namespace Elaine
 		template<typename Ty2>
 		ResourcePtr& operator=(ResourcePtr<Ty2>&& InOther)
 		{
+			ResourcePtr Old(std::move(*this));
 			_Ptr = static_cast<_Ty*>(InOther._Ptr);
 			_Used = InOther._Used;
 			InOther._Used = nullptr;
@@ -109,44 +111,49 @@ namespace Elaine
 		template<typename Ty2>
 		ResourcePtr& operator=(ResourcePtr<Ty2>& InOther)
 		{
-			_Ptr = static_cast<_Ty*>(InOther._Ptr);
-			_Used = InOther._Used;
-			if (_Used)
-				_Used->_Incref();
-
+			ResourcePtr Copy(InOther);
+			swap(Copy);
 			return *this;
 		}
 
+		void swap(ResourcePtr& Other) noexcept
+		{
+			std::swap(_Ptr, Other._Ptr);
+			std::swap(_Used, Other._Used);
+		}
+
+		void reset() noexcept { ResourcePtr Empty; swap(Empty); }
+		explicit operator bool() const noexcept { return _Ptr != nullptr; }
+
+	private:
+		template<typename Ty2>
+		ResourcePtr& AssignCopy(const ResourcePtr<Ty2>& InOther)
+		{
+			ResourcePtr Copy(InOther);
+			swap(Copy);
+			return *this;
+		}
+	public:
 		template<typename Ty2>
 		ResourcePtr& operator=(const ResourcePtr<Ty2>& InOther)
 		{
-			_Ptr = static_cast<_Ty*>(InOther._Ptr);
-			_Used = InOther._Used;
-			if (_Used)
-				_Used->_Incref();
-			return *this;
+			return AssignCopy(InOther);
 		}
 
 		ResourcePtr& operator=(const ResourcePtr<_Ty>& InOther)
 		{
-			if (InOther._Used)
-				InOther._Used->_Incref();
-			_Used = InOther._Used;
-			_Ptr = InOther._Ptr;
-			return *this;
+			return AssignCopy(InOther);
 		}
 
 		ResourcePtr& operator=(ResourcePtr<_Ty>& InOther)
 		{
-			if (InOther._Used)
-				InOther._Used->_Incref();
-			_Used = InOther._Used;
-			_Ptr = InOther._Ptr;
-			return *this;
+			return AssignCopy(InOther);
 		}
 
 		ResourcePtr& operator=(ResourcePtr<_Ty>&& InOther) noexcept
 		{
+			if (this == &InOther) return *this;
+			ResourcePtr Old(std::move(*this));
 			_Used = InOther._Used;
 			_Ptr = InOther._Ptr;
 			InOther._Used = nullptr;
@@ -161,7 +168,7 @@ namespace Elaine
 
 		bool isNull() const
 		{
-			return !_Used || _Used->getUseCount() == 0;
+			return _Ptr == nullptr;
 		}
 
 		_Ty& operator*() const
@@ -195,7 +202,7 @@ namespace Elaine
 	}
 
 	template <class Ty1, class Ty2>
-	ResourcePtr<Ty1> dynamic_pointer_cast(ResourcePtr<Ty2>& _Other) noexcept
+	ResourcePtr<Ty1> dynamic_pointer_cast(const ResourcePtr<Ty2>& _Other) noexcept
 	{
 		const auto _Ptr = dynamic_cast<typename ResourcePtr<Ty1>::element_type*>(_Other.get());
 
@@ -221,7 +228,7 @@ namespace Elaine
 	}
 
 	template <class Ty1, class Ty2>
-	ResourcePtr<Ty1> static_pointer_cast(ResourcePtr<Ty2>& _Other) noexcept
+	ResourcePtr<Ty1> static_pointer_cast(const ResourcePtr<Ty2>& _Other) noexcept
 	{
 		const auto _Ptr = static_cast<typename ResourcePtr<Ty1>::element_type*>(_Other.get());
 

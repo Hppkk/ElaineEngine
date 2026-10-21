@@ -1,4 +1,6 @@
 #pragma once
+#include "render/vulkan/ElaineVulkanTypes.h"
+#include "render/common/ElaineRHIProtocol.h"
 
 namespace VulkanRHI
 {
@@ -6,6 +8,8 @@ namespace VulkanRHI
 	class VulkanCommandBufferManager;
 	class VulkanCommandPool;
 	class VulkanFence;
+    class VulkanDescriptorPool;
+    class VulkanDescriptorSet;
 	class VulkanSemaphore;
 	class VulkanRenderPass;
 	class VulkanGfxPipeline;
@@ -29,10 +33,16 @@ namespace VulkanRHI
 	public:
 		VulkanCommandBuffer(VulkanDevice* InDevice, VulkanCommandPool* InCommandBufferPool, bool bInIsUploadOnly);
 		~VulkanCommandBuffer();
+        VulkanCommandBuffer(const VulkanCommandBuffer&) = delete;
+        VulkanCommandBuffer& operator=(const VulkanCommandBuffer&) = delete;
 		VulkanCommandPool* GetOwner()
 		{
 			return mCmdPool;
 		}
+        void Keep(const Elaine::RHIHandle& Resource) { if (Resource) mResources.push_back(Resource); }
+        void KeepDescriptorPool(std::unique_ptr<VulkanDescriptorPool> Pool);
+        void KeepDescriptorSet(std::unique_ptr<VulkanDescriptorSet> Set);
+        void ReleaseCompletedReferences();
 		void Begin();
 		void End();
 		void BeginUniformUpdateBarrier();
@@ -89,11 +99,15 @@ namespace VulkanRHI
 		}
 
 		VulkanFence* GetFence() const { return mFence; }
+        uint64 GetCompletedFenceCounter() const { return mFenceSignaledCounter; }
 
 	private:
 		void AllocMemory(VkCommandBufferLevel InBufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 		void FreeMemory();
 	private:
+        std::vector<Elaine::RHIHandle> mResources;
+        std::vector<std::unique_ptr<VulkanDescriptorPool>> mDescriptorPools;
+        std::vector<std::unique_ptr<VulkanDescriptorSet>> mDescriptorSets;
 		VulkanDevice*							mDevice;
 		VulkanCommandPool*						mCmdPool;
 		VkCommandBuffer							mHandle;

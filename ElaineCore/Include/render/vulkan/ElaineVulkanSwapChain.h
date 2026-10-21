@@ -1,4 +1,5 @@
 #pragma once
+#include "render/vulkan/ElaineVulkanTypes.h"
 
 namespace VulkanRHI
 {
@@ -6,12 +7,14 @@ namespace VulkanRHI
 	class VulkanSemaphore;
 	class VulkanFence;
 	class VulkanQueue;
+	class VulkanTexture;
 	class VulkanTextureView;
 
 	class ElaineCoreExport VulkanSwapChain : public RHISwapchain
 	{
 	public:
 		VulkanSwapChain(VulkanDevice* InDevice, uint32 Width, uint32 Height, bool bIsFullscreen, VulkanSwapChain* InSwapChain, PixelFormat InFormat);
+		~VulkanSwapChain() override { Destroy(); }
 		const VkSwapchainKHR& GetSwapChain() const { return mSwapChainHandle; }
 		void Present(VulkanQueue* InGfxQueue, VulkanSemaphore* InSemaphore);
 		void Destroy();

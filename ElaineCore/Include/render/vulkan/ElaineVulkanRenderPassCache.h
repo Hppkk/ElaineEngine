@@ -110,6 +110,7 @@ namespace VulkanRHI
 		~VulkanFramebufferCache();
 
 		VkFramebuffer GetOrCreateFramebuffer(const FramebufferKey& Key);
+        void InvalidateView(VkImageView View);
 		void Clear();
 
 	private:

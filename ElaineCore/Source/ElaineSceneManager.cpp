@@ -1,4 +1,5 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "render/common/ElaineRHICommandContext.h"
 #include "ElaineSceneManager.h"
 #include "ElaineThreadManager.h"
 #include "ElaineRenderQueue.h"
@@ -31,6 +32,9 @@ namespace Elaine
 
 	SceneManager::~SceneManager()
 	{
+        for (auto* Proxy : mRenderProxys) { Proxy->CancelResourceNotifications(); delete Proxy; }
+        mRenderProxys.clear();
+        delete mQuadTree;
 		// QueueSet is deleted in FrameData destructor
 		//ThreadManager::instance()->DestroyThread(mRenderThread);
 	}
@@ -97,7 +101,7 @@ namespace Elaine
 			Desc.InitialData = nullptr;
 			Desc.Size = sizeof(CommonUniformBufferCPU);
 			Desc.Slot = RHIUniformSlot::PerFrame;
-			mCommonUniformBufferRHI = mRHICommandCtx->RHICreateUniformBufferWithSlot(Desc);
+			mCommonUniformBufferRHI = GetDynamicRHI()->GetDefaultCommandContext()->RHICreateUniformBufferWithSlot(Desc);
 		}
 
 		// 提交
@@ -150,6 +154,7 @@ namespace Elaine
 		if (InProxy == nullptr)
 			return;
 
+		InProxy->CancelResourceNotifications();
 		mRenderProxys.erase(InProxy);
 		mQuadTree->RemoveRenderProxy(InProxy);
 		SAFE_DELETE(InProxy);

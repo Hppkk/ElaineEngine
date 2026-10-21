@@ -41,9 +41,12 @@ namespace TaskGraph
 
     TaskGraph::~TaskGraph()
     {
+        TaskScheduler* Scheduler;
+        { std::lock_guard<std::mutex> Lock(mDispatchMutex); Scheduler = mTaskScheduler; mTaskScheduler = nullptr; }
+        delete Scheduler;
         for (int Index = 1; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
-            if (Index >= 6)
+            if (mWorkers[Index]->IsInitialized())
             {
                 mWorkers[Index]->Destroy();
             }
@@ -58,7 +61,7 @@ namespace TaskGraph
         for (int Index = 1; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
             mWorkers[Index] = new Worker((Elaine::NamedThread)Index);
-            if (Index >= 6)
+            if (Index >= (int)Elaine::NamedThread::TaskThread0 && Index <= (int)Elaine::NamedThread::TaskThread7)
             {
                 mWorkers[Index]->Initialize();
             }
@@ -102,7 +105,8 @@ namespace TaskGraph
         if (InTask == nullptr)
             return;
 
-        mTaskScheduler->QueueTask(InTask);
+        std::lock_guard<std::mutex> Lock(mDispatchMutex);
+        if (mTaskScheduler) mTaskScheduler->QueueTask(InTask); else InTask->Cancel();
     }
 
     Worker* TaskGraph::GetWorker(Elaine::NamedThread InNamedThread) const
@@ -114,9 +118,9 @@ namespace TaskGraph
     {
         uint32_t MinTaskCount = UINT32_MAX;
         Worker* IdleWorker = nullptr;
-        for (int Index = 4; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
+        for (int Index = (int)Elaine::NamedThread::TaskThread0; Index <= (int)Elaine::NamedThread::TaskThread7; ++Index)
         {
-            if (mWorkers[Index] == nullptr)
+            if (mWorkers[Index] == nullptr || !mWorkers[Index]->IsInitialized())
                 continue;
 
             if (MinTaskCount > mWorkers[Index]->GetTaskCount())

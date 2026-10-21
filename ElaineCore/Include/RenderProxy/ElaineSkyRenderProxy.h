@@ -12,7 +12,13 @@ namespace Elaine
         SkyRenderProxy();
         virtual ~SkyRenderProxy();
 
-        void SetCubeTexture(const TexturePtr& InCube) { mCubeTexture = InCube; }
+        void SetCubeTexture(const TexturePtr& InCube)
+        {
+            if (mCubeTexture == InCube) return;
+            mCubeTexture = InCube;
+            mCubeTextureRHI.reset();
+            TrackResource(InCube);
+        }
         void SetExposure(float InExposure) { mExposure = InExposure; }
         void SetRotation(const Quaternion& InRot) { mRotation = InRot; }
 
@@ -20,8 +26,18 @@ namespace Elaine
          * 从逻辑线程的 MaterialParamSnapshot 更新渲染线程的材质代理。
          * 必须在渲染线程（ENQUEUE_RENDER_COMMAND 的 lambda 中）调用。
          */
-        void UpdateMaterial(const MaterialParamSnapshot& InSnapshot) { mMaterialProxy.UpdateFromSnapshot(InSnapshot); }
-        void UpdateMaterial(const MaterialParamSnapshot& InSnapshot, RenderContext& InContext) { mMaterialProxy.UpdateFromSnapshot(InSnapshot, InContext); }
+        void UpdateMaterial(const MaterialParamSnapshot& InSnapshot)
+        {
+            TrackResource(InSnapshot.Source);
+            for (const auto& Pair : InSnapshot.OverridedTextures) TrackResource(Pair.second);
+            mMaterialProxy.UpdateFromSnapshot(InSnapshot);
+        }
+        void UpdateMaterial(const MaterialParamSnapshot& InSnapshot, RenderContext& InContext)
+        {
+            TrackResource(InSnapshot.Source);
+            for (const auto& Pair : InSnapshot.OverridedTextures) TrackResource(Pair.second);
+            mMaterialProxy.UpdateFromSnapshot(InSnapshot, InContext);
+        }
 
         TexturePtr GetCubeTexture() const { return mCubeTexture; }
         float GetExposure() const { return mExposure; }
@@ -35,10 +51,12 @@ namespace Elaine
         void UpdateRenderQueue(RenderQueueSet* InRenderQueue) override;
         void PrepareResourceBinding() override;
         void InitializeResourceBinding() override;
+        void ApplyResourceUpdate(const RenderResourceUpdate& Update) override;
 
     private:
         RenderMaterialProxy mMaterialProxy;   // 渲染线程材质代理（值语义）
         TexturePtr mCubeTexture;
+        RHITextureHandle mCubeTextureRHI;
         float mExposure = 1.0f;
         Quaternion mRotation = Quaternion::IDENTITY;
     };

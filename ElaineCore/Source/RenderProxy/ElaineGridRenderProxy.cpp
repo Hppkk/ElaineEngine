@@ -13,6 +13,7 @@ namespace Elaine
 
     GridRenderProxy::~GridRenderProxy()
     {
+        CancelResourceNotifications();
     }
 
     void GridRenderProxy::InitializeResourceBinding()
@@ -46,6 +47,11 @@ namespace Elaine
         CurrentRenderQueue->UpdateRenderQueue(GridPass, this, -900);
     }
 
+    void GridRenderProxy::ApplyResourceUpdate(const RenderResourceUpdate& Update)
+    {
+        mMaterialProxy.ApplyResourceUpdate(Update);
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
+    }
     void GridRenderProxy::PrepareResourceBinding()
     {
     }

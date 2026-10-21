@@ -46,25 +46,25 @@ namespace Elaine
 		// GBuffer Textures
 		//=========================================================================
 		// RT0: BaseColor(RGB) + Metallic(A) - RGBA8_UNORM (sRGB for color)
-		RHITexture* mGBufferA = nullptr;
+		RHITextureHandle mGBufferA = nullptr;
 
 		// RT1: WorldNormal(RGB) + Roughness(A) - RGBA16F for precision
-		RHITexture* mGBufferB = nullptr;
+		RHITextureHandle mGBufferB = nullptr;
 
 		// RT2: Emissive(RGB) + AO(A) - RGBA8_UNORM
-		RHITexture* mGBufferC = nullptr;
+		RHITextureHandle mGBufferC = nullptr;
 
 		// Depth: D32_SFLOAT
-		RHITexture* mSceneDepthTexture = nullptr;
+		RHITextureHandle mSceneDepthTexture = nullptr;
 
 		//=========================================================================
 		// Other Persistent Textures
 		//=========================================================================
 		// Shadow map
-		RHITexture* mShadowMapTexture = nullptr;
+		RHITextureHandle mShadowMapTexture = nullptr;
 
 		// Scene color (output of lighting pass, input of post-process)
-		RHITexture* mSceneColorTexture = nullptr;
+		RHITextureHandle mSceneColorTexture = nullptr;
 
 		bool mVTEnabled = false;
 

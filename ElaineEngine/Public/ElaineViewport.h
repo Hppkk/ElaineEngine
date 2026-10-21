@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineEnginePrerequirements.h"
 #include "ElaineRenderTarget.h"
 
@@ -22,6 +22,7 @@ namespace Elaine
 	{
 	public:
         Viewport(const ViewportDesc& InDesc);
+        ~Viewport();
         void SetTarget(RenderTarget* InTarget);
         void SetCamera(CameraComponent* InCamera);
         void SetWorld(World* InWorld);

@@ -26,6 +26,7 @@ namespace Elaine
         void UpdateRenderQueue(RenderQueueSet* InRenderQueue) override;
         void PrepareResourceBinding() override;
         void InitializeResourceBinding() override;
+        void ApplyResourceUpdate(const RenderResourceUpdate& Update) override;
 
     private:
         RenderMaterialProxy mMaterialProxy;   // 渲染线程材质代理（值语义）

@@ -53,6 +53,7 @@ namespace Elaine
                     SkyProxy->BeginInitialization();
                 }
             });
+        Root::instance()->FlushRenderCommands();
     }
 
     SkyComponent::~SkyComponent()
@@ -87,7 +88,7 @@ namespace Elaine
 
     void SkyComponent::SetCubeTexture(const std::string& InPath)
     {
-        mCubeTexture = TextureManager::instance()->GetResource(InPath);
+        mCubeTexture = TextureManager::instance()->RequestResource(InPath).GetResult().Resource;
         SkyRenderProxy* ProxyCopy = mProxy;
         TexturePtr CubeCopy = mCubeTexture;
         ENQUEUE_RENDER_COMMAND(UpdateSkyCube)([ProxyCopy, CubeCopy](RenderContext& InContext)

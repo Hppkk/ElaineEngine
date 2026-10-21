@@ -10,6 +10,20 @@
 
 namespace Elaine
 {
+    struct Material::LoadData : ResourceLoadData
+    {
+        Version mVersion;
+        TexturePtr mTextures[Tex_Count];
+        std::unordered_map<Name, ShaderPass*> mPassMap;
+        std::unordered_map<uint64_t, float> mScalarDefaults;
+        std::unordered_map<uint64_t, Vector4> mVectorDefaults;
+        std::unordered_map<uint64_t, int32_t> mIntDefaults;
+        std::unordered_map<uint64_t, bool> mBoolDefaults;
+        std::vector<MaterialParameterDesc> mParameterLayout;
+        ~LoadData() override { for (auto& Pair : mPassMap) delete Pair.second; }
+    };
+
+
 	Material::Material(ResourceManager* InManager, const std::string& InResourceName)
 		: ResourceBase(InManager, InResourceName)
 	{
@@ -17,29 +31,25 @@ namespace Elaine
 	}
 
 	float Material::GetScalar(uint64_t InParamHash, float InDefault) const
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	{ std::lock_guard<std::mutex> Lock(mDataMutex);
 		auto It = mScalarDefaults.find(InParamHash);
 		return It == mScalarDefaults.end() ? InDefault : It->second;
 	}
 
 	Vector4 Material::GetVector(uint64_t InParamHash, const Vector4& InDefault) const
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	{ std::lock_guard<std::mutex> Lock(mDataMutex);
 		auto It = mVectorDefaults.find(InParamHash);
 		return It == mVectorDefaults.end() ? InDefault : It->second;
 	}
 
 	int32_t Material::GetInt(uint64_t InParamHash, int32_t InDefault) const
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	{ std::lock_guard<std::mutex> Lock(mDataMutex);
 		auto It = mIntDefaults.find(InParamHash);
 		return It == mIntDefaults.end() ? InDefault : It->second;
 	}
 
 	bool Material::GetBool(uint64_t InParamHash, bool InDefault) const
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	{ std::lock_guard<std::mutex> Lock(mDataMutex);
 		auto It = mBoolDefaults.find(InParamHash);
 		return It == mBoolDefaults.end() ? InDefault : It->second;
 	}
@@ -50,7 +60,7 @@ namespace Elaine
 
 	Material::~Material()
 	{
-
+        for (auto& Pair : mPassMap) delete Pair.second;
 	}
 
 	void Material::SetTexture(TextureSemantics InSemantics, TexturePtr InTexture)
@@ -61,32 +71,32 @@ namespace Elaine
 	}
 
 	TexturePtr Material::GetTexture(TextureSemantics InSemantics) const
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	{ std::lock_guard<std::mutex> Lock(mDataMutex);
 		return mTextures[InSemantics];
 	}
 
-	bool Material::LoadImpl()
-	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+	std::unique_ptr<ResourceLoadData> Material::LoadImpl()
+    {
+        auto Pending = std::make_unique<LoadData>();
+        auto& Data = *Pending;
 		DataStream Stream(Root::instance()->GetResourcePath() + mResourceName);
 		Stream.ReadAll();
 		JsonCpp JsonMaterial = JsonCpp::parse(Stream.GetDataStream());
 		if (!JsonMaterial.contains("version") || JsonMaterial["version"] != "2.0.0")
 		{
 			LOG_ERROR("Material '%s' requires format version 2.0.0.", mResourceName.c_str());
-			return false;
+			return {};
 		}
-		mVersion = Version(JsonMaterial["version"]);
-		mScalarDefaults.clear();
-		mVectorDefaults.clear();
-		mIntDefaults.clear();
-		mBoolDefaults.clear();
-		mParameterLayout.clear();
-		for (auto& [PassName, Pass] : mPassMap)
+		Data.mVersion = Version(JsonMaterial["version"]);
+		Data.mScalarDefaults.clear();
+		Data.mVectorDefaults.clear();
+		Data.mIntDefaults.clear();
+		Data.mBoolDefaults.clear();
+		Data.mParameterLayout.clear();
+		for (auto& [PassName, Pass] : Data.mPassMap)
 			if (Pass) ShaderPassManager::instance()->DestroyShaderPass(Pass);
-		mPassMap.clear();
-		for (auto& Texture : mTextures)
+		Data.mPassMap.clear();
+		for (auto& Texture : Data.mTextures)
 			Texture = TexturePtr();
 
 		const auto& Parameters = JsonMaterial["parameters"];
@@ -109,20 +119,20 @@ namespace Elaine
 				else if (Type == "texture") Desc.Kind = MaterialParameterKind::Texture;
 				if (Value.contains("min") && Value.contains("max")) { Desc.Min = Value["min"].get<float>(); Desc.Max = Value["max"].get<float>(); Desc.HasRange = true; }
 				if (Type == "scalar" && Default.is_number())
-					mScalarDefaults[Hash] = Default.get<float>();
+					Data.mScalarDefaults[Hash] = Default.get<float>();
 				else if ((Type == "vector" || Type == "color") && Default.is_array())
-					mVectorDefaults[Hash] = Vector4(Default.size() > 0 ? Default[0].get<float>() : 0.0f,
+					Data.mVectorDefaults[Hash] = Vector4(Default.size() > 0 ? Default[0].get<float>() : 0.0f,
 						Default.size() > 1 ? Default[1].get<float>() : 0.0f,
 						Default.size() > 2 ? Default[2].get<float>() : 0.0f,
 						Default.size() > 3 ? Default[3].get<float>() : 0.0f);
 				else if (Type == "int" && Default.is_number_integer())
-					mIntDefaults[Hash] = Default.get<int32_t>();
+					Data.mIntDefaults[Hash] = Default.get<int32_t>();
 				else if (Type == "bool" && Default.is_boolean())
-					mBoolDefaults[Hash] = Default.get<bool>();
+					Data.mBoolDefaults[Hash] = Default.get<bool>();
 				if (Default.is_number()) Desc.DefaultValue = Vector4(Default.get<float>(), 0, 0, 0);
 				else if (Default.is_array()) Desc.DefaultValue = Vector4(Default.size() > 0 ? Default[0].get<float>() : 0.0f, Default.size() > 1 ? Default[1].get<float>() : 0.0f, Default.size() > 2 ? Default[2].get<float>() : 0.0f, Default.size() > 3 ? Default[3].get<float>() : 0.0f);
 				Desc.HasDefault = !Default.is_null();
-				mParameterLayout.push_back(std::move(Desc));
+				Data.mParameterLayout.push_back(std::move(Desc));
 			}
 		}
 
@@ -136,9 +146,8 @@ namespace Elaine
 				std::string TexPath = tex.value();
 				
 				TextureSemantics TS = SemanticsRegister::GetSemantics(tex.key().c_str());
-				mTextures[TS] = TextureManager::instance()->GetResource(TexPath);
-				ResourceBasePtr BasePtr = mTextures[TS];
-				//AddResourceEvent(ResourceEvent(TexPath.c_str(), RT_Texture, BasePtr->GetLoadTask()));
+				Data.mTextures[TS] = TextureManager::instance()->RequestResource(TexPath).GetResult().Resource;
+				ResourceBasePtr BasePtr = Data.mTextures[TS];
 			}
 		}
 
@@ -148,11 +157,32 @@ namespace Elaine
 		{
 			for (auto&& passJson : ShaderPassJson)
 			{
-				ShaderPass* NewShaderPass = ShaderPassManager::instance()->CreateShaderPass(passJson);
-				if (NewShaderPass != nullptr)
-				{
-					mPassMap.emplace(NewShaderPass->GetPassName(), NewShaderPass);
-					for (const auto& Reflected : NewShaderPass->GetMaterialParameters())
+				std::unique_ptr<ShaderPass> NewShaderPass(ShaderPassManager::instance()->CreateShaderPass(passJson));
+                if (!NewShaderPass) throw std::runtime_error("Invalid material shader pass");
+                if (!Data.mPassMap.emplace(NewShaderPass->GetPassName(), NewShaderPass.get()).second)
+                    throw std::runtime_error("Duplicate material shader pass name");
+                NewShaderPass.release();
+			}
+		}
+
+		for (const auto& Texture : Data.mTextures) if (Texture) Data.Dependencies.push_back(Texture);
+        for (const auto& Pair : Data.mPassMap) Pair.second->GetDependentResources(Data.Dependencies);
+        return Pending;
+	}
+
+    void Material::PrepareDependencies(ResourceLoadData& InData)
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        for (auto& Pair : Data.mPassMap) Pair.second->PrepareDependencies();
+    }
+    bool Material::InitializeGPU(ResourceLoadData& InData)
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        for (auto& Pair : Data.mPassMap)
+        {
+            auto* Pass = Pair.second;
+            Pass->CompilePipeline();
+					for (const auto& Reflected : Pass->GetMaterialParameters())
 					{
 						uint64 ReflectedHash = Reflected.NameHash;
 						std::string ParameterName = Reflected.Name;
@@ -161,14 +191,14 @@ namespace Elaine
 							ParameterName = ParameterName.substr(2);
 							ReflectedHash = Name(ParameterName.c_str()).GetHashValue();
 						}
-						auto It = std::find_if(mParameterLayout.begin(), mParameterLayout.end(), [ReflectedHash](const MaterialParameterDesc& Item) { return Item.Hash == ReflectedHash; });
-						if (It == mParameterLayout.end())
+						auto It = std::find_if(Data.mParameterLayout.begin(), Data.mParameterLayout.end(), [ReflectedHash](const MaterialParameterDesc& Item) { return Item.Hash == ReflectedHash; });
+						if (It == Data.mParameterLayout.end())
 						{
 							MaterialParameterDesc Desc;
 							Desc.Name = ParameterName;
 							Desc.Hash = ReflectedHash;
-							mParameterLayout.push_back(std::move(Desc));
-							It = std::prev(mParameterLayout.end());
+							Data.mParameterLayout.push_back(std::move(Desc));
+							It = std::prev(Data.mParameterLayout.end());
 						}
 						It->Offset = Reflected.Offset;
 						It->Size = Reflected.Size;
@@ -185,13 +215,9 @@ namespace Elaine
 						default: break;
 						}
 					}
-				}
-				//AddResourceEvent(NewShaderPass->GetResourceEvents());
-			}
-		}
-		mLayoutRevision.fetch_add(1, std::memory_order_acq_rel);
-		return true;
-	}
+        }
+        return true;
+    }
 
 	void Material::UnloadImpl()
 	{
@@ -213,70 +239,25 @@ namespace Elaine
 
 	}
 
-	void Material::ResourceArrivedImpl()
-	{
-		//Load Texture
-		//for (auto Tex : mTextureRegisters)
-		//{
-			//TaskGraph::GraphTaskDesc taskDesc;
-			//struct ResourceHolder
-			//{
-			//	ResourceHolder(TexturePtr InPtr)
-			//	{
-			//		mPtr = InPtr;
-			//	}
-			//	TexturePtr mPtr;
-			//};
-			//std::shared_ptr<ResourceHolder> resourceHolder = std::make_shared<ResourceHolder>(mTextures[Tex]);
-			//taskDesc.mTaskFunction = [resourceHolder] { resourceHolder->mPtr->LoadResource(); };
-			//taskDesc.SubsequentTask([resourceHolder] { resourceHolder->mPtr->ResourceArrived(); });
-			//TaskGraph::GraphTaskCreateDesc createDesc;
-			//createDesc.mDirectTasks.push_back(taskDesc);
-			//TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady(createDesc);
 
-			//TextureManager::instance()->GetResource(mTextures[Tex]->GetPath());
-		//}
 
-		//Load Shader
-
-		//auto LoadShaderFunction = [](ShaderPtr InShader)
-		//	{
-		//		TaskGraph::GraphTaskDesc taskDesc;
-		//		struct ResourceHolder
-		//		{
-		//			ResourceHolder(ShaderPtr InPtr)
-		//			{
-		//				mPtr = InPtr;
-		//			}
-		//			ShaderPtr mPtr;
-		//		};
-		//		std::shared_ptr<ResourceHolder> resourceHolder = std::make_shared<ResourceHolder>(InShader);
-		//		taskDesc.mTaskFunction = [resourceHolder] { resourceHolder->mPtr->LoadResource(); };
-		//		taskDesc.SubsequentTask([resourceHolder] { resourceHolder->mPtr->ResourceArrived(); });
-		//		TaskGraph::GraphTaskCreateDesc createDesc;
-		//		createDesc.mDirectTasks.push_back(taskDesc);
-		//	};
-		//LoadShaderFunction(mVertexShader);
-		//LoadShaderFunction(mFragmentShader);
-
-		//ShaderManager::instance()->GetResource(mVertexShader->GetPath());
-		//ShaderManager::instance()->GetResource(mFragmentShader->GetPath());
-	}
+    ShaderPass* Material::GetShaderPass()
+    {
+        return mPassMap.empty() ? nullptr : mPassMap.begin()->second;
+    }
 
 	ShaderPass* Material::GetPass(const Name& InPassType)
-	{
-		auto It = mPassMap.find(InPassType);
+	{ auto It = mPassMap.find(InPassType);
 		return It == mPassMap.end() ? nullptr : It->second;
 	}
 
 	bool Material::IsRegisterPass(const Name& InPassType)
-	{
-		return mPassMap.find(InPassType) != mPassMap.end();
+	{ return mPassMap.find(InPassType) != mPassMap.end();
 	}
 
 	void Material::GetDirectDependencies(std::vector<ResourceBasePtr>& OutDependencies) const
 	{
-		std::lock_guard<std::mutex> Lock(mDataMutex);
+        std::lock_guard<std::mutex> Lock(mDataMutex);
 		// 纹理依赖
 		for (int i = 0; i < Tex_Count; ++i)
 		{
@@ -295,4 +276,18 @@ namespace Elaine
 			}
 		}
 	}
+    void Material::ApplyLoadedData(ResourceLoadData& InData) noexcept
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        std::swap(mVersion, Data.mVersion);
+        for (size_t i = 0; i < Tex_Count; ++i) mTextures[i].swap(Data.mTextures[i]);
+        std::swap(mPassMap, Data.mPassMap);
+        std::swap(mScalarDefaults, Data.mScalarDefaults);
+        std::swap(mVectorDefaults, Data.mVectorDefaults);
+        std::swap(mIntDefaults, Data.mIntDefaults);
+        std::swap(mBoolDefaults, Data.mBoolDefaults);
+        std::swap(mParameterLayout, Data.mParameterLayout);
+        ++mLayoutRevision;
+    }
+
 }

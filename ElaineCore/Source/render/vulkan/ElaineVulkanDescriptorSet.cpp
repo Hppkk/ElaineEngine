@@ -35,7 +35,9 @@ namespace VulkanRHI
     {
         VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = InDescriptorSetAllocateInfo;
         DescriptorSetAllocateInfo.descriptorPool = mHandle;
-        return VK_SUCCESS == vkAllocateDescriptorSets(mDevice->GetDevice(), &DescriptorSetAllocateInfo, OutSets);
+        const bool Success = VK_SUCCESS == vkAllocateDescriptorSets(mDevice->GetDevice(), &DescriptorSetAllocateInfo, OutSets);
+        if (Success) mNumAllocatedSets += DescriptorSetAllocateInfo.descriptorSetCount;
+        return Success;
 
     }
 
@@ -120,12 +122,6 @@ namespace VulkanRHI
     {
         VkImageView ImageView = InImage->GetTextureView().mView;
         
-        // 检查绑定是否变化，避免重复更新导致验证错误 (VUID-vkUpdateDescriptorSets-None-03047)
-        if (InDescriptorSet->IsSameImageBinding(ImageView, InSampler))
-        {
-            return;  // 绑定未变化，跳过更新
-        }
-        
         VkDescriptorImageInfo ImageInfo{};
         ImageInfo.imageLayout = InImage->GetImageLayout();
         ImageInfo.imageView = ImageView;
@@ -146,8 +142,11 @@ namespace VulkanRHI
         InDescriptorSet->SetBoundImage(ImageView, InSampler);
     }
 
+    VulkanDescriptorPool::~VulkanDescriptorPool()
+    { if (mHandle) vkDestroyDescriptorPool(mDevice->GetDevice(), mHandle, VULKAN_CPU_ALLOCATOR); }
     VulkanDescriptorSetManager::~VulkanDescriptorSetManager()
     {
+        delete mFreePool; mFreePool = nullptr;
         for (auto Pool : mPools)
         {
             SAFE_DELETE(Pool);

@@ -4,6 +4,7 @@
 
 namespace Elaine
 {
+    struct RHIShaderCompileResult;
 	class ElaineCoreExport Shader : public ResourceBase
 	{
 	public:
@@ -11,14 +12,18 @@ namespace Elaine
 		virtual ~Shader();
 		uint64_t GetHash() const;
 		std::string GetShaderCode() const;
+        std::vector<std::string> GetSourceFiles() const override;
+        std::shared_ptr<const RHIShaderCompileResult> GetPreparedShader() const;
 	protected:
-		virtual bool LoadImpl() override;
+		void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
+        std::unique_ptr<ResourceLoadData> LoadImpl() override;
 		virtual	void UnloadImpl() override;
 		virtual void SaveResourceImpl() override;
-		virtual void ResourceArrivedImpl() override;
-		void ReloadResource() override;
 	private:
+        struct LoadData;
+
 		std::string mShaderCode;
+        std::shared_ptr<const RHIShaderCompileResult> mPrepared;
 		uint64_t mHashKey = 0;
 		mutable std::mutex mShaderMutex;
 	};

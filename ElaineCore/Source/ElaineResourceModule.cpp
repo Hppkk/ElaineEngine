@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineResourceModule.h"
+#include "Resource/ElaineResourceLoader.h"
 #include "ElaineTextureManager.h"
 #include "ElaineShaderManager.h"
 #include "ElaineMeshManager.h"
@@ -10,28 +11,29 @@ namespace Elaine
 {
 	ResourceModule::~ResourceModule()
 	{
-
 	}
 
 	void ResourceModule::Initialize()
 	{
+		new ResourceLoader();
 		RegisterResourceLoader(RT_Texture, new TextureManager());
 		RegisterResourceLoader(RT_Mesh, new MeshManager());
 		RegisterResourceLoader(RT_Material, new MaterialManager());
 		RegisterResourceLoader(RT_MaterialInstance, new MaterialInstanceStaticManager());
 		RegisterResourceLoader(RT_Shader, new ShaderManager());
-
 	}
 
 	void ResourceModule::Terminate()
 	{
-		UnregisterResourceLoader(RT_Texture);
-		UnregisterResourceLoader(RT_Actor);
+		delete ResourceLoader::instance();
+		for (uint8_t Type = 0; Type < RT_Count; ++Type)
+			UnregisterResourceLoader(static_cast<ResourceType>(Type));
 	}
 
 	void ResourceModule::RegisterResourceLoader(ResourceType InType, ResourceManager* InManager)
 	{
 		mResourceManagers[InType] = InManager;
+		ResourceLoader::instance()->RegisterManager(InType, InManager);
 	}
 
 	void ResourceModule::UnregisterResourceLoader(ResourceType InType)

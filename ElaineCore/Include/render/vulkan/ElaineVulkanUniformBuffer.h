@@ -18,14 +18,11 @@ namespace VulkanRHI
 			return mBufferHandle;
 		}
 
-		inline size_t GetOffset() const
-		{
-			return mBufferOffset;
-		}
+        size_t GetOffset() const;
 
 		inline size_t GetBufferSize() const
 		{
-			return mBufferSize;
+			return mDataSize;
 		}
 
 		inline bool IsEffective() const
@@ -44,6 +41,7 @@ namespace VulkanRHI
 		VkBuffer			mBufferHandle = VK_NULL_HANDLE;
 		VulkanAllocation	mBuffer;
 		size_t				mBufferSize = 0;
+        size_t mDataSize = 0;
 		size_t				mBufferOffset = 0;
 		VulkanDevice*		mDevice = nullptr;
 	};

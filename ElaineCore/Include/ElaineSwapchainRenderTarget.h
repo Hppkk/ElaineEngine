@@ -35,12 +35,12 @@ namespace Elaine
 		// 交换链特定接口
 		//=========================================================================
 		virtual bool IsSwapchainTarget() const override { return true; }
-		virtual RHISwapchain* GetSwapchain() const override { return mSwapchain; }
+		virtual RHISwapchain* GetSwapchain() const override { return mSwapchain.get(); }
 		virtual void SetCurrentImageIndex(uint32 Index) override { mCurrentImageIndex = Index; }
 		virtual uint32 GetCurrentImageIndex() const override { return mCurrentImageIndex; }
 
 	protected:
-		RHISwapchain* mSwapchain = nullptr;
+		RHISwapchainHandle mSwapchain = nullptr;
 		uint32 mCurrentImageIndex = 0;
 	};
 }

@@ -1,11 +1,13 @@
 ﻿
 #include "ElainePrecompiledHeader.h"
 #include "RenderProxy/ElaineRenderMaterialProxy.h"
+#include "RenderProxy/ElaineRenderProxy.h"
 #include "ElainePass.h"
 #include "Resource/ElaineTextureResource.h"
 #include "Resource/ElaineMaterial.h"
 #include "ElaineRenderContext.h"
 #include <cstring>
+#include "render/common/ElaineRHICommandContext.h"
 
 namespace Elaine
 {
@@ -22,14 +24,16 @@ namespace Elaine
 
     void RenderMaterialProxy::UpdateFromSnapshot(const MaterialParamSnapshot& InSnapshot)
     {
-        // 缓存源材质引用（ResourcePtr，引用计数安全）
+        // The render thread only reads its own captured data.
+        mSnapshot = InSnapshot;
         mCachedSource = InSnapshot.Source;
+        mPasses = InSnapshot.Passes;
 
         // 复制参数
-        mScalars = InSnapshot.OverridedScalars;
-        mVectors = InSnapshot.OverridedVectors;
-        mInts = InSnapshot.OverridedInts;
-        mBools = InSnapshot.OverridedBools;
+        mScalars = InSnapshot.Scalars;
+        mVectors = InSnapshot.Vectors;
+        mInts = InSnapshot.Ints;
+        mBools = InSnapshot.Bools;
         // 解析纹理资源 -> RHI 句柄
         ResolveTextures(InSnapshot);
         BuildUniformData();
@@ -44,15 +48,14 @@ namespace Elaine
         if (InContext.mCommandCtxRHI == nullptr)
             return;
 
-        if (mMaterialUniformBuffer == nullptr || mAllocatedUniformSize != mUniformDataSize)
+        if (mMaterialUniformBuffer == nullptr || mAllocatedUniformSize != mUniformDataSize || mUploadedRevision != InSnapshot.Revision)
         {
-            mMaterialUniformBuffer = InContext.mCommandCtxRHI->RHICreateUniformBuffer(mUniformDataSize, mPackedUniformData.data());
+            RHIUniformBufferDesc Desc; Desc.Size = mUniformDataSize; Desc.InitialData = mPackedUniformData.data(); Desc.Slot = RHIUniformSlot::PerMaterial;
+            mMaterialUniformBuffer = GetDynamicRHI()->GetDefaultCommandContext()->RHICreateUniformBufferWithSlot(Desc);
             mAllocatedUniformSize = mUniformDataSize;
-            if (mBoundResourceBinding != nullptr)
-                mBoundResourceBinding->SetPSUniformBuffer(0, mMaterialUniformBuffer);
+
         }
-        else if (mUploadedRevision != InSnapshot.Revision)
-            InContext.mCommandCtxRHI->RHIUpdateUniformBuffer(mMaterialUniformBuffer, mPackedUniformData.data(), mUniformDataSize);
+
 
         if (mMaterialUniformBuffer != nullptr)
             mUploadedRevision = InSnapshot.Revision;
@@ -60,27 +63,20 @@ namespace Elaine
 
     ShaderPass* RenderMaterialProxy::GetShaderPass() const
     {
-        if (mCachedSource.isNull())
-            return nullptr;
-        if (!mCachedSource->IsLoaded())
-            return nullptr;
-        return mCachedSource->GetShaderPass();
+        return mReady && !mPasses.empty() ? &mPasses.front() : nullptr;
     }
 
     ShaderPass* RenderMaterialProxy::GetPass(const Name& InPassType) const
     {
-        if (mCachedSource.isNull())
-            return nullptr;
-        if (!mCachedSource->IsLoaded())
-            return nullptr;
-        return mCachedSource->GetPass(InPassType);
+        if (mReady) for (auto& Pass : mPasses) if (Pass.GetPassName() == InPassType) return &Pass;
+        return nullptr;
     }
 
     RHITexture* RenderMaterialProxy::GetResolvedTexture(TextureSemantics InSem) const
     {
         if (InSem < 0 || InSem >= Tex_Count)
             return nullptr;
-        return mResolvedTextures[InSem];
+        return mResolvedTextures[InSem].get();
     }
 
     float RenderMaterialProxy::GetScalar(uint64_t InParamHash, float InDefault) const
@@ -88,8 +84,6 @@ namespace Elaine
         auto It = mScalars.find(InParamHash);
         if (It != mScalars.end())
             return It->second;
-        if (!mCachedSource.isNull())
-            return mCachedSource->GetScalar(InParamHash, InDefault);
         return InDefault;
     }
 
@@ -98,8 +92,6 @@ namespace Elaine
         auto It = mVectors.find(InParamHash);
         if (It != mVectors.end())
             return It->second;
-        if (!mCachedSource.isNull())
-            return mCachedSource->GetVector(InParamHash, InDefault);
         return InDefault;
     }
 
@@ -107,14 +99,14 @@ namespace Elaine
     {
         auto It = mInts.find(InParamHash);
         if (It != mInts.end()) return It->second;
-        return mCachedSource.isNull() ? InDefault : mCachedSource->GetInt(InParamHash, InDefault);
+        return InDefault;
     }
 
     bool RenderMaterialProxy::GetBool(uint64_t InParamHash, bool InDefault) const
     {
         auto It = mBools.find(InParamHash);
         if (It != mBools.end()) return It->second;
-        return mCachedSource.isNull() ? InDefault : mCachedSource->GetBool(InParamHash, InDefault);
+        return InDefault;
     }
 
     void RenderMaterialProxy::BuildUniformData()
@@ -131,6 +123,7 @@ namespace Elaine
         const uint64_t XAxisHash = Name("XAxisColor").GetHashValue();
         const uint64_t ZAxisHash = Name("ZAxisColor").GetHashValue();
 
+        mUniformData = MaterialUniformData{};
         mUniformData.BaseColorFactor = GetVector(BaseColorHash, mUniformData.BaseColorFactor);
         mUniformData.EmissiveFactor = GetVector(EmissiveHash, mUniformData.EmissiveFactor);
         mUniformData.PBRParams.x = GetScalar(MetallicHash, mUniformData.PBRParams.x);
@@ -148,18 +141,17 @@ namespace Elaine
         mUniformData.MaterialFlags.w = mResolvedTextures[Ambient] != nullptr ? 1.0f : 0.0f;
 
         mUniformDataSize = sizeof(MaterialUniformData);
-        const MaterialPtr OriginMaterial = mCachedSource.isNull() ? MaterialPtr() : mCachedSource->GetOriginMaterial();
-        if (!OriginMaterial.isNull())
+        if (!mSnapshot.ParameterLayout.empty())
         {
-            for (const auto& Parameter : OriginMaterial->GetParameterLayoutSnapshot())
+            for (const auto& Parameter : mSnapshot.ParameterLayout)
                 if (Parameter.Reflected)
                     mUniformDataSize = std::max(mUniformDataSize, static_cast<size_t>(Parameter.Offset + Parameter.Size));
         }
         mPackedUniformData.assign(mUniformDataSize, 0);
         std::memcpy(mPackedUniformData.data(), &mUniformData, std::min(mUniformDataSize, sizeof(MaterialUniformData)));
-        if (!OriginMaterial.isNull())
+        if (!mSnapshot.ParameterLayout.empty())
         {
-            for (const auto& Parameter : OriginMaterial->GetParameterLayoutSnapshot())
+            for (const auto& Parameter : mSnapshot.ParameterLayout)
             {
                 if (!Parameter.Reflected || !Parameter.HasDefault || Parameter.Offset + Parameter.Size > mPackedUniformData.size()) continue;
                 if (Parameter.Kind == MaterialParameterKind::Scalar)
@@ -186,40 +178,45 @@ namespace Elaine
         }
     }
 
+    void RenderMaterialProxy::BindToResourceBinding(RHI_DRAW_RESOURCE_BINDING& OutBinding)
+    {
+        OutBinding.SetPSUniformBuffer(0, mMaterialUniformBuffer.get());
+        for (int i = 0; i < Tex_Count; ++i) OutBinding.SetTexture(i, mResolvedTextures[i].get());
+        OutBinding.ResourceLifetimes.clear();
+    }
+    void RenderMaterialProxy::ApplyResourceUpdate(const RenderResourceUpdate& Update)
+    {
+        auto Snapshot = mSnapshot;
+        bool Changed = false;
+        if (Update.IsMaterial && Snapshot.Source.get() == Update.Resource.get())
+        {
+            Snapshot = Update.Material;
+            Snapshot.OverridedScalars = mSnapshot.OverridedScalars;
+            Snapshot.OverridedVectors = mSnapshot.OverridedVectors;
+            Snapshot.OverridedInts = mSnapshot.OverridedInts;
+            Snapshot.OverridedBools = mSnapshot.OverridedBools;
+            Snapshot.OverridedTextures = mSnapshot.OverridedTextures;
+            Snapshot.OverrideTextureHandles = mSnapshot.OverrideTextureHandles;
+            Snapshot.ApplyOverrides();
+            Changed = true;
+        }
+        if (Update.IsTexture)
+        {
+            for (size_t i = 0; i < Tex_Count; ++i)
+                if (Snapshot.TextureSources[i].get() == Update.Resource.get())
+                { Snapshot.ResolvedTextures[i] = Update.Texture; Changed = true; }
+            for (const auto& Pair : Snapshot.OverridedTextures)
+                if (Pair.second.get() == Update.Resource.get())
+                { Snapshot.OverrideTextureHandles[Pair.first] = Update.Texture; Changed = true; }
+            if (Changed) Snapshot.ApplyOverrides();
+        }
+        if (!Changed) return;
+        mUploadedRevision = ~Snapshot.Revision;
+        RenderContext Context; Context.mCommandCtxRHI = GetDynamicRHI()->GetDefaultCommandContext();
+        UpdateFromSnapshot(Snapshot, Context);
+    }
     void RenderMaterialProxy::ResolveTextures(const MaterialParamSnapshot& InSnapshot)
     {
-        // 清空之前的解析结果
-        for (int i = 0; i < Tex_Count; ++i)
-            mResolvedTextures[i] = nullptr;
-
-        // 优先解析覆盖的纹理
-        for (const auto& [Sem, TexRes] : InSnapshot.OverridedTextures)
-        {
-            if (!TexRes.isNull() && TexRes->IsLoaded())
-            {
-                mResolvedTextures[Sem] = TexRes->GetTextureRHI();
-            }
-        }
-
-        // 对于未覆盖的纹理，从 MaterialInstanceStatic -> Material 的默认纹理中获取
-        if (!InSnapshot.Source.isNull() && InSnapshot.Source->IsLoaded())
-        {
-            const MaterialPtr& OriginMat = InSnapshot.Source->GetOriginMaterial();
-            if (!OriginMat.isNull() && OriginMat->IsLoaded())
-            {
-                for (int i = 0; i < Tex_Count; ++i)
-                {
-                    if (mResolvedTextures[i] != nullptr)
-                        continue; // 已被覆盖
-
-                    // 先检查 MaterialInstanceStatic 的覆盖
-                    TexturePtr MISTexture = InSnapshot.Source->GetTexture(static_cast<TextureSemantics>(i));
-                    if (!MISTexture.isNull() && MISTexture->IsLoaded())
-                    {
-                        mResolvedTextures[i] = MISTexture->GetTextureRHI();
-                    }
-                }
-            }
-        }
+        for (size_t i = 0; i < Tex_Count; ++i) mResolvedTextures[i] = InSnapshot.ResolvedTextures[i];
     }
 }

@@ -57,9 +57,9 @@ namespace Elaine
             {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f},
         };
 
-        m_RenderGeneralData.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] =
-            RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
+        auto VertexBuffer = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
             m_RenderGeneralData.mVertexDatas.data(), m_RenderGeneralData.mVertexDatas.size() * sizeof(VertexData));
+        m_RenderGeneralData.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = VertexBuffer.get();
 
         InitilizeMaterial();
     }

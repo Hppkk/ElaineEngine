@@ -20,7 +20,7 @@ namespace Elaine
 			return;
 
 		mPath = InPath;
-		mSource = MaterialInstanceStaticManager::instance()->GetResource(InPath);
+		mSource = MaterialInstanceStaticManager::instance()->RequestResource(InPath).GetResult().Resource;
 		
 		// 清空覆盖的参数，因为切换了材质
 		mOverridedTextures.clear();
@@ -127,6 +127,7 @@ namespace Elaine
 		Snapshot.OverridedBools = mOverridedBools;
 		const uint64_t LayoutRevision = mSource.isNull() ? 0 : mSource->GetLayoutRevision();
 		Snapshot.Revision = (mRevision * 0x9E3779B185EBCA87ull) ^ LayoutRevision;
+        Snapshot.CaptureResources();
 		return Snapshot;
 	}
 }

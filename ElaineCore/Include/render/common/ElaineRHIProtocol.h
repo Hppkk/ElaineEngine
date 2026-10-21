@@ -1,12 +1,19 @@
 ﻿#pragma once
+#include "render/common/ElaineRHIResourceHandle.h"
 #include "render/common/ElaineRHITypes.h"
 #include "ElaineVector2.h"
 #include "ElaineVector3.h"
+#include <future>
+#include <atomic>
+#include <memory>
+#include <functional>
+#include <stdexcept>
 
 namespace Elaine
 {
 	class RHITexture;
 	class RHIBuffer;
+    struct GRAPHICS_PIPELINE_STATE_DESC;
 
 #define MAX_RENDER_TARGET_COUNT 8
 
@@ -590,7 +597,6 @@ namespace Elaine
 			int32 InBlockSizeZ,
 			int32 InBlockBytes,
 			int32 InNumComponents,
-			uint32 InPlatformFormat,
 			bool  InSupported);
 
 		const char* Name;
@@ -600,10 +606,6 @@ namespace Elaine
 		int32						BlockSizeZ;
 		int32						BlockBytes;
 		int32						NumComponents;
-
-
-		/** Platform specific converted format (initialized by RHI module - invalid otherwise) */
-		uint32						PlatformFormat{ 0 };
 
 		/** Whether the texture format is supported on the current platform/ rendering combination */
 		uint8						Supported : 1;
@@ -717,18 +719,31 @@ namespace Elaine
 	//-----------------------------------------------
 	// RHI Resource Define
 	//-----------------------------------------------
-	class RHIResource : public RHIResourceRef<RHIResource>
-	{
-	public:
-		RHIResource(RHIResourceType InType = RRT_None) :mType(InType) {}
-		virtual ~RHIResource() = default;
-		RHIResourceType mType = RRT_None;
-	};
+    class RHIResource;
+    void ElaineCoreExport ReleaseRHIResource(RHIResource* Resource) noexcept;
+    class RHIResource : public RHIResourceRef<RHIResource>
+    {
+    public:
+        RHIResource(RHIResourceType InType = RRT_None) : mType(InType) {}
+        virtual ~RHIResource() = default;
+        void OnZeroReferences() noexcept { ReleaseRHIResource(this); }
+        RHIResourceType mType = RRT_None;
+    };
 
+    struct RHIBufferDesc
+    {
+        uint32 Size = 0, Stride = 0;
+        BufferUsageFlags Usage = BufferUsageFlags::None;
+        ERHIAccess InitialAccess = ERHIAccess::Unknown;
+    };
 	class RHIBuffer : public RHIResource
 	{
 	public:
-		RHIBuffer() :RHIResource(RRT_Buffer) {}
+        explicit RHIBuffer(RHIBufferDesc Desc = {}) : RHIResource(RRT_Buffer), mDesc(Desc) {}
+        const RHIBufferDesc& GetDesc() const { return mDesc; }
+        void SetDescription(RHIBufferDesc Desc) { mDesc = Desc; }
+    private:
+        RHIBufferDesc mDesc;
 	};
 
 	class RHITexture : public RHIResource
@@ -763,6 +778,11 @@ namespace Elaine
 	{
 	public:
 		RHIPipeline() : RHIResource(RRT_Pipeline) {}
+        void SetDescription(std::shared_ptr<const GRAPHICS_PIPELINE_STATE_DESC> Desc) { mDescription = std::move(Desc); }
+        const std::shared_ptr<const GRAPHICS_PIPELINE_STATE_DESC>& GetDesc() const { return mDescription; }
+    private:
+        std::shared_ptr<const GRAPHICS_PIPELINE_STATE_DESC> mDescription;
+    public:
 		enum class MaterialParameterType : uint8 { Unknown, Scalar, Vector, Integer, Boolean, Matrix, Array };
 		struct MaterialParameterInfo
 		{
@@ -781,6 +801,14 @@ namespace Elaine
 			return Empty;
 		}
 	};
+
+    // Immutable CPU compilation output. Backend-specific code and reflection
+    // stay in the derived implementation and are only read by that backend.
+    struct ElaineCoreExport RHIShaderCompileResult
+    {
+        virtual ~RHIShaderCompileResult() = default;
+        std::vector<std::string> SourceFiles;
+    };
 
 	class RHIShader : public RHIResource
 	{
@@ -861,11 +889,15 @@ namespace Elaine
 			: RHIResource(RRT_UniformBuffer)
 			, mSlot(InSlot) {}
 		
+        explicit RHIUniformBuffer(RHIUniformBufferDesc Desc) : RHIUniformBuffer(Desc.Slot) { SetDescription(Desc); }
+        void SetDescription(RHIUniformBufferDesc Desc) { Desc.InitialData = nullptr; mDescription = Desc; }
+        const RHIUniformBufferDesc& GetDesc() const { return mDescription; }
 		RHIUniformSlot GetSlot() const { return mSlot; }
 		void SetSlot(RHIUniformSlot InSlot) { mSlot = InSlot; }
 		
 	protected:
 		RHIUniformSlot mSlot = RHIUniformSlot::Invalid;
+        RHIUniformBufferDesc mDescription;
 	};
 
 	class RHIViewport :public RHIResource
@@ -910,14 +942,16 @@ namespace Elaine
 		};
 	};
 
-	//RHI Resource Ptr
+	// RHI Resource Handles
 
-	using RHIBufferPtr = RHISmartPtr<RHIBuffer>;
-	using RHITexturePtr = RHISmartPtr<RHITexture>;
-	using RHIPipelinePtr = RHISmartPtr<RHIPipeline>;
-	using RHIShaderPtr = RHISmartPtr<RHIShader>;
-	using RHIUniformBufferPtr = RHISmartPtr<RHIUniformBuffer>;
-	using RHIViewportPtr = RHISmartPtr<RHIViewport>;
+	using RHIHandle = RHIResourceHandle<RHIResource>;
+	using RHIBufferHandle = RHIResourceHandle<RHIBuffer>;
+	using RHITextureHandle = RHIResourceHandle<RHITexture>;
+	using RHIPipelineHandle = RHIResourceHandle<RHIPipeline>;
+	using RHIShaderHandle = RHIResourceHandle<RHIShader>;
+	using RHIUniformBufferHandle = RHIResourceHandle<RHIUniformBuffer>;
+	using RHIViewportHandle = RHIResourceHandle<RHIViewport>;
+	using RHISwapchainHandle = RHIResourceHandle<RHISwapchain>;
 
 	struct RHIRenderPassInfo
 	{
@@ -1369,7 +1403,7 @@ namespace Elaine
 
 	struct RHIVertexBufferDataDesc
 	{
-		RHIBuffer* mRHIBuffer = nullptr;
+		RHIBufferHandle mRHIBuffer = nullptr;
 		size_t mOffset[16];
 		VertexElementType mFormat[16];
 		size_t mAttributeSize = 0;
@@ -1378,15 +1412,16 @@ namespace Elaine
 
 	struct RHIIStreamDesc
 	{
-		RHIBuffer* mIStreamBuffer[STREAM_INPUT_MAX] = {nullptr};
+		RHIBufferHandle mIStreamBuffer[STREAM_INPUT_MAX] = {nullptr};
 	};
 
 	struct RHIDrawData
 	{
+        std::vector<std::shared_ptr<void>> ResourceLifetimes;
 		RHIIStreamDesc	mStreamInput;
-		RHITexture*		mPSTextures[RTR_TEXTURE_MAX] = { nullptr };
+		RHITextureHandle		mPSTextures[RTR_TEXTURE_MAX] = { nullptr };
 		//RHIBuffer*		mVsBuffers[RHI_MAX_VS_BUFFER_COUNT];
-		RHIBuffer*		mPsBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
+		RHIBufferHandle		mPsBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
 	};
 
 	/**
@@ -1396,9 +1431,10 @@ namespace Elaine
 	 */
 	struct RHI_DRAW_RESOURCE_BINDING
 	{
+        std::vector<std::shared_ptr<void>> ResourceLifetimes;
 		// ========== 顶点/索引数据 ==========
 		RHIDrawData			mDrawData;
-		RHIBuffer*			mIndexBuffer = nullptr;
+		RHIBufferHandle			mIndexBuffer = nullptr;
 		size_t				mIndexOffset = 0;
 		RHIIndexType		mIndexType = INDEX_TYPE_UINT16;
 		
@@ -1412,19 +1448,19 @@ namespace Elaine
 		int32				mVertexOffset = 0;
 
 		// ========== 纹理绑定 (按槽位设置) ==========
-		RHITexture*			mTextures[RTR_TEXTURE_MAX] = { nullptr };
+		RHITextureHandle			mTextures[RTR_TEXTURE_MAX] = { nullptr };
 		RHISamplerType		mSamplerTypes[RTR_TEXTURE_MAX] = { SAMPLER_DEFAULT };  // 上层只指定类型
 		uint32				mTextureCount = 0;  // 实际使用的纹理数量
 
 		// ========== Uniform缓冲 (按Shader阶段) ==========
-		RHIUniformBuffer*	mVSUniformBuffers[RHI_MAX_VS_BUFFER_COUNT] = { nullptr };
-		RHIUniformBuffer*	mPSUniformBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
-		RHIUniformBuffer*	mGSUniformBuffer = nullptr;
-		RHIUniformBuffer*	mCommonUniformBuffer = nullptr;
+		RHIUniformBufferHandle	mVSUniformBuffers[RHI_MAX_VS_BUFFER_COUNT] = { nullptr };
+		RHIUniformBufferHandle	mPSUniformBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
+		RHIUniformBufferHandle	mGSUniformBuffer = nullptr;
+		RHIUniformBufferHandle	mCommonUniformBuffer = nullptr;
 		
 		// ========== 渲染目标 (可选,通常在RenderPass层设置) ==========
-		RHITexture*			mRenderTargets[MAX_RENDER_TARGET_COUNT] = { nullptr };
-		RHITexture*			mDepthStencilTarget = nullptr;
+		RHITextureHandle			mRenderTargets[MAX_RENDER_TARGET_COUNT] = { nullptr };
+		RHITextureHandle			mDepthStencilTarget = nullptr;
 		uint32				mRenderTargetCount = 0;
 
 		// ========== 辅助方法 ==========
@@ -1454,6 +1490,7 @@ namespace Elaine
 		void Reset()
 		{
 			mDrawData = { };
+            ResourceLifetimes.clear();
 			mIndexBuffer = nullptr;
 			mIndexOffset = 0;
 			mIndexCount = 0;
@@ -1477,6 +1514,7 @@ namespace Elaine
 
 	struct GRAPHICS_PIPELINE_STATE_DESC
 	{
+        std::shared_ptr<const RHIShaderCompileResult> mVSPrepared, mPSPrepared;
 		std::string						mVSShaderCode;
 		std::string						mPSShaderCode;
 		std::string						mVSPath;

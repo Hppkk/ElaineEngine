@@ -1,9 +1,10 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "ElaineWorldChunk.h"
 #include "ElaineWorld.h"
 #include "GamePlay/ElaineActor.h"
 #include "GamePlay/ElaineActorManager.h"
 #include "ElaineDataStream.h"
+#include "ElaineActorInfoMgr.h"
 
 namespace Elaine
 {
@@ -32,9 +33,18 @@ namespace Elaine
                             ActorPaths.push_back(ActorPath.get<std::string>());
             }
         }
+        // A chunk is instantiated only after all actor descriptions have published.
+        bool Waiting = false;
+        for (const auto& Path : ActorPaths)
+        {
+            auto Request = ActorInfoMgr::instance()->RequestResource(Path);
+            if (!Request.IsComplete()) Waiting = true;
+            else if (!Request.GetResult().Succeeded()) { mState = WorldChunkState::Failed; return false; }
+        }
+        if (Waiting) return false;
         for (const std::string& ActorPath : ActorPaths)
         {
-            Actor* NewActor = InWorld->GetActorManager()->CreateActorByInfo(ActorPath, false);
+            Actor* NewActor = InWorld->GetActorManager()->CreateActorByInfo(ActorPath);
             if (NewActor == nullptr)
             {
                 mState = WorldChunkState::Failed;

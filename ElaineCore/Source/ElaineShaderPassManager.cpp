@@ -161,7 +161,8 @@ namespace Elaine
         if (!ParseShaderPass(InJson))
             return nullptr;
 
-        ShaderPass* NewPass = new ShaderPass(InJson.value("name", "UnnamedPass").c_str());
+        auto OwnedPass = std::make_unique<ShaderPass>(InJson.value("name", "UnnamedPass").c_str());
+        auto* NewPass = OwnedPass.get();
         NewPass->mRenderQueueName = InJson.value("renderQueue", "opaque");
 
         // ---------- Shaders ----------
@@ -170,46 +171,42 @@ namespace Elaine
         if (JsonShaders.contains("vs"))
         {
             std::string ShaderPath = JsonShaders["vs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->GetResource(ShaderPath, false);
+            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
             NewPass->mShaders.push_back({
                 EShaderStage::VertexShader,
                 ShaderPtr
                 });
 
-            //NewPass->AddResourceEvent(ResourceEvent(ShaderPath.c_str(), RT_Shader, ShaderPtr->GetLoadTask()));
         }
 
         if (JsonShaders.contains("ps"))
         {
             std::string ShaderPath = JsonShaders["ps"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->GetResource(ShaderPath, false);
+            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
             NewPass->mShaders.push_back({
                 EShaderStage::FragmentShader,
                 ShaderPtr
                 });
-            //NewPass->AddResourceEvent(ResourceEvent(ShaderPath.c_str(), RT_Shader, ShaderPtr->GetLoadTask()));
         }
 
         if (JsonShaders.contains("gs"))
         {
             std::string ShaderPath = JsonShaders["gs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->GetResource(ShaderPath);
+            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
             NewPass->mShaders.push_back({
                 EShaderStage::GeometryShader,
                 ShaderPtr
                 });
-            //NewPass->AddResourceEvent(ResourceEvent(ShaderPath.c_str(), RT_Shader, ShaderPtr->GetLoadTask()));
         }
 
         if (JsonShaders.contains("cs"))
         {
             std::string ShaderPath = JsonShaders["cs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->GetResource(ShaderPath);
+            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
             NewPass->mShaders.push_back({
                 EShaderStage::ComputeShader,
                 ShaderPtr
                 });
-            //NewPass->AddResourceEvent(ResourceEvent(ShaderPath.c_str(), RT_Shader, ShaderPtr->GetLoadTask()));
         }
 
         // ---------- Macros ----------
@@ -260,11 +257,11 @@ namespace Elaine
         }
 
         // ---------- Hash & PSO ----------
-        CalculatePassStateHash(NewPass);
+        // Dependency shader data is captured later on GameThread.
         //CompilePipeline(NewPass);
-        NewPass->CompilePipeline();
-        mShaderPasses.emplace(NewPass->mRHIDesc.mStateHash, NewPass);
-        return NewPass;
+        // GPU compilation is scheduled by the owning material.
+        // Passes are owned by the loading material data until delivery.
+        return OwnedPass.release();
 	}
 
     bool ShaderPassManager::SaveShaderPass(ShaderPass* InShaderPass)

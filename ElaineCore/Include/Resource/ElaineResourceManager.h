@@ -29,7 +29,10 @@ namespace Elaine
 		ResourceManager(ResourceType InType);
 		virtual ~ResourceManager();
 
-		virtual ResourceBasePtr	GetResource(const std::string& InPath, bool InAsync = true);
+        ResourceRequestBase RequestResource(const std::string& InPath);
+        ResourceRequestBase ReloadResource(const std::string& InPath);
+        template<class T> ResourceRequest<T> RequestResource(const std::string& Path)
+        { return ResourceRequest<T>(RequestResource(Path)); }
 		ResourceBasePtr CreateEmptyResource(const std::string& InPath);
 		ResourceMemoryStats GetMemoryStats() const;
 		bool ReloadIfFileChanged(const std::string& InFullPath);
@@ -38,16 +41,15 @@ namespace Elaine
 		void OnResourceMemoryChanged(int64_t Delta, size_t AllocatedBytes = 0);
 		void OnResourceLoaded(bool Loaded);
 
-		template<typename Ty>
-		ResourcePtr<Ty> GetResource(const std::string& InPath, bool InAsync = true)
-		{
-			return static_pointer_cast<Ty, ResourceBase>(GetResource(InPath, InAsync));
-		}
+
 		template<typename Ty>
 		ResourcePtr<Ty> CreateEmptyResource(const std::string& InPath)
 		{
 			return static_pointer_cast<Ty, ResourceBase>(CreateEmptyResource(InPath));
 		}
+	private:
+        friend class ResourceBase;
+        ResourceBasePtr FindCachedResource(const std::string& Path);
 	protected:
 		virtual	ResourceBasePtr CreateResourceImpl(const std::string& InPath) = 0;
 	protected:

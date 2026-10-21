@@ -6,6 +6,7 @@
 
 namespace VulkanRHI
 {
+	class VulkanViewport;
 	class VulkanDevice;
 	class VulkanPhysicalDevice;
 	class VulkanInstance;
@@ -18,6 +19,8 @@ namespace VulkanRHI
 	class VulkanFence;
 	class VulkanSemaphore;
 	class VulkanDescriptorSet;
+    class VulkanDescriptorPool;
+    class VulkanCommandBuffer;
 	class VulkanUniformBuffer;
 	class VulkanDescriptorSetManager;
 	class VulkanSwapChain;
@@ -32,6 +35,8 @@ namespace VulkanRHI
 	public:
 		VulkanCommandContext(VulkanDevice* InDevice, VulkanQueue* InQueue);
 		~VulkanCommandContext();
+        VulkanCommandContext(const VulkanCommandContext&) = delete;
+        VulkanCommandContext& operator=(const VulkanCommandContext&) = delete;
 		void Initialize();
 		void Deinitilize();
 		//void AllocCommand(EM_RHICommand InCmd, void* InRHIResourceHandle);
@@ -39,7 +44,10 @@ namespace VulkanRHI
 		VulkanInstance* GetInstance() { return mInstance; }
 		VulkanPhysicalDevice* GetPhyDevice() { return mPhyDevice; } 
 
-		virtual void RHIWaitIdle() override;
+        void RHISubmitUploads() override;
+		void RHIKeepResources(const std::vector<RHIHandle>& Resources) override;
+        void RHICopyBufferToTexture(RHIBuffer* Source, RHITexture* Target) override;
+        virtual void RHIWaitIdle() override;
 
 		virtual void RHIWindowResize(RHISwapchain* InSwapchain, uint32 InWidth, uint32 InHeight) override;
 
@@ -205,36 +213,37 @@ namespace VulkanRHI
 		// 资源屏障
 		virtual void RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier) override;
 
+        void RHIPrepareGfxPipeline(RHIPipeline* Pipeline, const RHIRenderPassInfo& Pass) override;
 		virtual void RHIBindGfxPipeline(RHIPipeline* InPipeline);
 		
 		// 获取当前 RenderPass 的 Key（用于 Pipeline 变体查找）
 		const RenderPassKey& GetCurrentRenderPassKey() const { return mCurrentRenderPassKey; }
 
-		virtual RHIBuffer* RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) override;
+		virtual RHIBufferHandle RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) override;
 
-		virtual RHIBuffer* RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
+		virtual RHIBufferHandle RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
 		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize) override;
 
-		virtual RHIBuffer* RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
+		virtual RHIBufferHandle RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
-		virtual RHITexture* RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) override;
+		virtual RHITextureHandle RHICreateTexture(const RHITextureDesc& InDesc, void* InContent) override;
 
-		virtual RHITexture* RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) override;
+		virtual RHITextureHandle RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) override;
 
-		virtual RHITexture* RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) override;
+		virtual RHITextureHandle RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData) override;
 		
-		virtual RHIPipeline* RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) override;
-		virtual RHIPipeline* RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) override;
-		virtual RHISwapchain* RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) override;
+		virtual RHIPipelineHandle RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState) override;
+		virtual RHIPipelineHandle RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState) override;
+		virtual RHISwapchainHandle RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat) override;
 
 		virtual void RHICreateSurface(void* InNativeHandle) override;
 
-		virtual RHIUniformBuffer* RHICreateUniformBuffer(size_t InSize, void* InContents) override;
+		virtual RHIUniformBufferHandle RHICreateUniformBuffer(size_t InSize, void* InContents) override;
 		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) override;
 
 		// 新增：带语义槽位的 UniformBuffer 创建和绑定
-		virtual RHIUniformBuffer* RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) override;
+		virtual RHIUniformBufferHandle RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) override;
 		virtual void RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer) override;
 
 		void RHIWriteGPUFence(RHIGPUFence* FenceRHI) override;
@@ -260,11 +269,18 @@ namespace VulkanRHI
 		VulkanQueue* mQueue = nullptr;
 		VulkanGfxPipeline* mCurrentGfxPipeline = nullptr;
 		VulkanComputePipeline* mCurrentComputePipeline = nullptr;
+        RHITextureHandle mDefaultMaterialTextures[RTR_TEXTURE_MAX];
+        std::vector<std::unique_ptr<VulkanDescriptorPool>> mDrawPools;
+        std::vector<std::unique_ptr<VulkanDescriptorSet>> mDrawSets;
+        struct FrameSubmission { VulkanCommandBuffer* Buffer = nullptr; uint64 Counter = 0; };
+        FrameSubmission mFrameSubmissions[MAX_FRAMES_IN_FLIGHT];
+        bool mHasAcquiredSwapchain = false;
+        uint32 mPresentFrameIndex = 0;
 		VulkanDescriptorSetManager* mDescriptorSetManager = nullptr;
 		VulkanSemaphore* mImageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
 		VulkanSemaphore* mRenderFinishedSemaphores[MAX_FRAMES_IN_FLIGHT];
 		VulkanDescriptorSet* mCommonDescriptorSet = nullptr;
-		RHIUniformBuffer* mBoundUniformBuffers[(size_t)RHIUniformSlot::Count] = { nullptr };
+		RHIUniformBufferHandle mBoundUniformBuffers[(size_t)RHIUniformSlot::Count] = { nullptr };
 		bool mIsCreateCommonDescriptorSets = false;
 		int mCurrentFrameIndex = 0;
 		uint32_t mCurrentImageIndex = 0;

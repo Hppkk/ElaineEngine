@@ -9,6 +9,7 @@ namespace Elaine
 		EBarrier();
 		~EBarrier();
 		void Wait();
+        bool WaitFor(uint32_t Milliseconds);
 		void Signal();
 	private:
 		std::mutex mMtx;

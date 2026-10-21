@@ -1,4 +1,6 @@
-﻿#include "ElainePrecompiledHeader.h"
+#include "ElainePrecompiledHeader.h"
+#include "render/vulkan/ElaineVulkanRHI.h"
+#include "render/common/ElaineRHICommandContext.h"
 #include "common/ElaineRHICommandList.h"
 #include "vulkan/ElaineVulkanQueue.h"
 #include "vulkan/ElaineVulkanDevice.h"
@@ -16,6 +18,7 @@
 #include "vulkan/ElaineVulkanUniformBuffer.h"
 #include "vulkan/ElaineVulkanCommandContext.h"
 #include "vulkan/ElaineVulkanPhysicalDevice.h"
+#include "common/ElaineRHI.h"
 #ifdef WIN32
 #include "vulkan_win32.h"
 #elif ELAINE_PLATFORM == ELAINE_PLATFORM_ANDROID 
@@ -32,10 +35,7 @@ namespace VulkanRHI
 		
 	}
 
-	VulkanCommandContext::~VulkanCommandContext()
-	{
-		
-	}
+	VulkanCommandContext::~VulkanCommandContext() { Deinitilize(); }
 
 	void VulkanCommandContext::Initialize()
 	{
@@ -60,7 +60,11 @@ namespace VulkanRHI
 
 	void VulkanCommandContext::Deinitilize()
 	{
+        for (auto& Texture : mDefaultMaterialTextures) Texture.reset();
+        for (auto& Uniform : mBoundUniformBuffers) Uniform.reset();
+        mDrawSets.clear(); mDrawPools.clear();
 		SAFE_DELETE(mCmdBufferManager);
+        Elaine::FlushRHIResourceReleases();
 		SAFE_DELETE(mDescriptorSetManager);
 		SAFE_DELETE(mDefaultViewport);
 		if (mSamplerCache)
@@ -82,7 +86,8 @@ namespace VulkanRHI
 
 	void VulkanCommandContext::RHIWaitIdle()
 	{
-		vkQueueWaitIdle(mQueue->GetHandle());
+        vkDeviceWaitIdle(mDevice->GetDevice());
+        mCmdBufferManager->RefreshCommandBufferState();
 	}
 
 	void VulkanCommandContext::RHIWindowResize(RHISwapchain* InSwapchain, uint32 InWidth, uint32 InHeight)
@@ -159,122 +164,78 @@ namespace VulkanRHI
 
 		if (AcquireSucceed)
 		{
+            mHasAcquiredSwapchain = true;
 			return VKSwapchain->AcquireNextTexture();
 		}
 
 		return nullptr;
 	}
 
-	void VulkanCommandContext::RHIBindResourceBinding(const RHI_DRAW_RESOURCE_BINDING& InResourceBinding)
-	{
-		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
-
-		// ========== 1. Bind Vertex Buffer ==========
-		for (int Index = 0; Index < STREAM_INPUT_MAX; ++Index)
-		{
-			if (InResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[Index] == nullptr)
-				continue;
-
-			VulkanBuffer* VkVertexBuffer = static_cast<VulkanBuffer*>(
-				InResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[Index]);
-			VkBuffer pVKBuffer = VkVertexBuffer->GetHandle();
-			size_t VertexOffset = VkVertexBuffer->GetOffset();
-			vkCmdBindVertexBuffers(CurrentCmdBuffer->GetHandle(), Index, 1, &pVKBuffer, &VertexOffset);
-		}
-		
-		// ========== 2. Bind Index Buffer ==========
-		if (InResourceBinding.mIndexBuffer != nullptr)
-		{
-			VulkanBuffer* VkIndexBuffer = static_cast<VulkanBuffer*>(InResourceBinding.mIndexBuffer);
-			vkCmdBindIndexBuffer(CurrentCmdBuffer->GetHandle(), VkIndexBuffer->GetHandle(),
-				InResourceBinding.mIndexOffset, EngineToVkIndexType(InResourceBinding.mIndexType));
-		}
-		// ========== 3. Update Image Descriptor Set ==========
-		for (uint32 i = 0; i < InResourceBinding.mTextureCount; ++i)
-		{
-			if (InResourceBinding.mTextures[i] != nullptr)
-			{
-				VulkanTexture* VkTexture = static_cast<VulkanTexture*>(InResourceBinding.mTextures[i]);
-				VkSampler Sampler = mSamplerCache->GetSampler(InResourceBinding.mSamplerTypes[i]);
-
-				// 获取对应纹理槽位的描述符集 (假设Set=2用于纹理)
-				auto& DescriptorSets = mCurrentGfxPipeline->GetDescriptorSets();
-				bool bFound = false;
-				for (auto* CurrentDescriptorSet : DescriptorSets)
-				{
-					if (CurrentDescriptorSet && CurrentDescriptorSet->GetSet() == 2)
-					{
-						// 如果是静态资源（IsStaticResourceBinding），则直接更新
-						// WriteImageToDescriptorSet 内部已添加去重检测，所以静态资源其实只会在第一次真写
-						mDescriptorSetManager->WriteImageToDescriptorSet(VkTexture, Sampler, CurrentDescriptorSet, i);
-						bFound = true;
-						break;
-					}
-				}
-				
-				// 如果没有预分配的 Set 或者需要完全动态分配 (预留扩展)
-				if (!bFound && mFrameDescriptorAllocator)
-				{
-					// 示例：动态分配 Set=2
-					// VkDescriptorSetLayout Layout = ...; 
-					// VulkanDescriptorSet* DynamicSet = mFrameDescriptorAllocator->AllocateForFrame(mCurrentFrameIndex, Layout, 2);
-					// mDescriptorSetManager->WriteImageToDescriptorSet(VkTexture, Sampler, DynamicSet);
-				}
-			}
-		}
-		// ========== 4. Update Uniform Buffer Descriptor Set ==========
-		// 4.1 Common Uniform (Set=0)
-		if (InResourceBinding.mCommonUniformBuffer != nullptr)
-		{
-			VulkanUniformBuffer* VkCommonUB = static_cast<VulkanUniformBuffer*>(InResourceBinding.mCommonUniformBuffer);
-			mDescriptorSetManager->WriteUniformBufferToDescriptorSet(VkCommonUB, mCommonDescriptorSet);
-		}
-
-		// 4.2 VS Uniform (Set=1)
-		for (uint32 i = 0; i < RHI_MAX_VS_BUFFER_COUNT; ++i)
-		{
-			if (InResourceBinding.mVSUniformBuffers[i] != nullptr)
-			{
-				VulkanUniformBuffer* VkVSUB = static_cast<VulkanUniformBuffer*>(InResourceBinding.mVSUniformBuffers[i]);
-				// TODO: 获取VS对应的描述符集并写入
-			}
-		}
-
-		// 4.3 PS Uniform
-		for (uint32 i = 0; i < RHI_MAX_PS_BUFFER_COUNT; ++i)
-		{
-			if (InResourceBinding.mPSUniformBuffers[i] != nullptr)
-			{
-				VulkanUniformBuffer* VkPSUB = static_cast<VulkanUniformBuffer*>(InResourceBinding.mPSUniformBuffers[i]);
-				for (auto* CurrentDescriptorSet : mCurrentGfxPipeline->GetDescriptorSets())
-				{
-					if (CurrentDescriptorSet && CurrentDescriptorSet->GetSet() == 2)
-					{
-						// MaterialParams is conventionally set=2, binding=5.
-						mDescriptorSetManager->WriteUniformBufferToDescriptorSet(VkPSUB, CurrentDescriptorSet, 5);
-						break;
-					}
-				}
-			}
-		}
-		// ========== 5. Bind Descriptor Sets ==========
-		std::vector<VkDescriptorSet> DescriptorSets;
-		size_t BindCount = 1;
-		DescriptorSets.push_back(mCommonDescriptorSet->GetHandle());
-
-		for (auto* CurrentDescriptorSet : mCurrentGfxPipeline->GetDescriptorSets())
-		{
-			if (CurrentDescriptorSet != nullptr)
-			{
-				DescriptorSets.push_back(CurrentDescriptorSet->GetHandle());
-				++BindCount;
-			}
-		}
-
-		vkCmdBindDescriptorSets(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS,
-			mCurrentGfxPipeline->GetLayout().GetPipelineLayoutHandle(), 0, BindCount,
-			DescriptorSets.data(), 0, RHI_NULL_HANDLE);
-	}
+    void VulkanCommandContext::RHIBindResourceBinding(const RHI_DRAW_RESOURCE_BINDING& Binding)
+    {
+        CheckRHIContextThread();
+        auto* Cmd = mCmdBufferManager->GetActiveCmdBuffer();
+        for (uint32 i = 0; i < STREAM_INPUT_MAX; ++i)
+            if (Binding.mDrawData.mStreamInput.mIStreamBuffer[i])
+            {
+                auto* Buffer = static_cast<VulkanBuffer*>(Binding.mDrawData.mStreamInput.mIStreamBuffer[i].get());
+                VkBuffer Handle = Buffer->GetHandle(); VkDeviceSize Offset = Buffer->GetOffset();
+                vkCmdBindVertexBuffers(Cmd->GetHandle(), i, 1, &Handle, &Offset);
+            }
+        if (Binding.mIndexBuffer)
+        {
+            auto* Buffer = static_cast<VulkanBuffer*>(Binding.mIndexBuffer.get());
+            vkCmdBindIndexBuffer(Cmd->GetHandle(), Buffer->GetHandle(), Buffer->GetOffset() + Binding.mIndexOffset, EngineToVkIndexType(Binding.mIndexType));
+        }
+        for (const auto& Resource : mBoundUniformBuffers) Cmd->Keep(Resource);
+        const auto& Layouts = mCurrentGfxPipeline->GetDescriptorSetLayouts();
+        std::vector<VkDescriptorSet> Handles;
+        for (uint32 Index = 0; Index < Layouts.size(); ++Index)
+        {
+            if (mDrawPools.empty() || !mDrawPools.back()->CanAllocate())
+                mDrawPools.push_back(std::make_unique<VulkanDescriptorPool>(mDevice, 64));
+            auto Set = std::make_unique<VulkanDescriptorSet>(Index);
+            VkDescriptorSetAllocateInfo Info{}; Info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+            Info.descriptorSetCount = 1; Info.pSetLayouts = &Layouts[Index];
+            if (!mDrawPools.back()->AllocateDescriptorSets(Info, &Set->GetHandle())) throw std::runtime_error("Draw descriptor allocation failed");
+            const auto& Bindings = mCurrentGfxPipeline->GetDescriptorBindings();
+            const auto Declarations = Bindings.find(Index);
+            if (Declarations != Bindings.end()) for (const auto& Declaration : Declarations->second)
+            {
+                if (Declaration.count != 1) throw std::runtime_error("Descriptor arrays require an explicit array binding");
+                if (Declaration.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+                {
+                    RHIUniformBuffer* Uniform = nullptr;
+                    if (Index == 0 && Declaration.binding == 0) Uniform = Binding.mCommonUniformBuffer ? Binding.mCommonUniformBuffer.get() : mBoundUniformBuffers[static_cast<size_t>(RHIUniformSlot::PerFrame)].get();
+                    else if (Index == 1 && Declaration.binding < RHI_MAX_VS_BUFFER_COUNT) Uniform = Binding.mVSUniformBuffers[Declaration.binding].get();
+                    else if (Index == 2 && Declaration.binding == 5) Uniform = Binding.mPSUniformBuffers[0].get();
+                    if (!Uniform) throw std::runtime_error("Required uniform buffer is not bound: " + Declaration.name);
+                    auto* Backend = static_cast<VulkanUniformBuffer*>(Uniform);
+                    if (Backend->GetBufferSize() < Declaration.blockSize) throw std::runtime_error("Uniform buffer is smaller than shader declaration");
+                    mDescriptorSetManager->WriteUniformBufferToDescriptorSet(Backend, Set.get(), Declaration.binding);
+                }
+                else if (Declaration.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
+                {
+                    if (Index != 2 || Declaration.binding >= RTR_TEXTURE_MAX)
+                        throw std::runtime_error("Unsupported sampled texture binding: " + Declaration.name);
+                    auto* Texture = Binding.mTextures[Declaration.binding].get();
+                    if (!Texture && Declaration.isColor2DSampler)
+                    {
+                        auto& Fallback = mDefaultMaterialTextures[Declaration.binding];
+                        Texture = Fallback.get();
+                    }
+                    if (!Texture) throw std::runtime_error("Required sampled texture is not bound: " + Declaration.name);
+                    Cmd->Keep(Texture);
+                    mDescriptorSetManager->WriteImageToDescriptorSet(static_cast<VulkanTexture*>(Texture),
+                        mSamplerCache->GetSampler(Binding.mSamplerTypes[Declaration.binding]), Set.get(), Declaration.binding);
+                }
+                else throw std::runtime_error("Unsupported draw descriptor type: " + Declaration.name);
+            }
+            Handles.push_back(Set->GetHandle()); mDrawSets.push_back(std::move(Set));
+        }
+        if (!Handles.empty()) vkCmdBindDescriptorSets(Cmd->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS,
+            mCurrentGfxPipeline->GetLayout().GetPipelineLayoutHandle(), 0, static_cast<uint32>(Handles.size()), Handles.data(), 0, nullptr);
+    }
 
 	void VulkanCommandContext::RHIPresentSwapchain(RHISwapchain* InSwapchain, bool bVsync)
 	{
@@ -284,17 +245,22 @@ namespace VulkanRHI
 		}
 
 		VulkanSwapChain* VKSwapchain = static_cast<VulkanSwapChain*>(InSwapchain);
-		VKSwapchain->Present(mQueue, mRenderFinishedSemaphores[mCurrentFrameIndex]);
-
-		mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
+		VKSwapchain->Present(mQueue, mRenderFinishedSemaphores[mPresentFrameIndex]);
 		mCmdBufferManager->RefreshCommandBufferState();
 	}
 
 	void VulkanCommandContext::RHIBeginFrame()
 	{
-		mFrameDescriptorAllocator->ResetFrame(mCurrentFrameIndex);
-		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
-		mCmdBufferManager->WaitForCmdBuffer(CurrentCmdBuffer, UINT64_MAX);
+        CheckRHIContextThread();
+        auto& Previous = mFrameSubmissions[mCurrentFrameIndex];
+        if (Previous.Buffer)
+        {
+            Previous.Buffer->RefreshFenceStatus();
+            if (Previous.Buffer->GetCompletedFenceCounter() <= Previous.Counter)
+                mCmdBufferManager->WaitForCmdBuffer(Previous.Buffer, UINT64_MAX);
+        }
+        mHasAcquiredSwapchain = false;
+        mDrawPools.clear(); mDrawSets.clear();
 
 		//bool AcquireSucceed = mSwapchain->AcquireImage(mImageAvailableSemaphores[mCurrentFrameIndex], mCurrentImageIndex);
 		//if (!AcquireSucceed)
@@ -326,9 +292,17 @@ namespace VulkanRHI
 	{
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
 		//vkCmdEndRenderPass(CurrentCmdBuffer->GetHandle());
-		CurrentCmdBuffer->End();
-		CurrentCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, mImageAvailableSemaphores[mCurrentFrameIndex]);
-		mCmdBufferManager->SubmitActiveCmdBuffer(std::vector<VulkanSemaphore*>{mRenderFinishedSemaphores[mCurrentFrameIndex]});
+		if (mCurrentRenderPass) RHIEndRenderPass();
+        if (CurrentCmdBuffer->IsInsideRenderPass()) CurrentCmdBuffer->EndRenderPass();
+        CurrentCmdBuffer->End();
+        if (mHasAcquiredSwapchain) CurrentCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, mImageAvailableSemaphores[mCurrentFrameIndex]);
+        for (auto& Set : mDrawSets) CurrentCmdBuffer->KeepDescriptorSet(std::move(Set));
+        for (auto& Pool : mDrawPools) CurrentCmdBuffer->KeepDescriptorPool(std::move(Pool));
+        mFrameSubmissions[mCurrentFrameIndex] = {CurrentCmdBuffer, CurrentCmdBuffer->GetCompletedFenceCounter()};
+        mCmdBufferManager->SubmitActiveCmdBuffer(mHasAcquiredSwapchain ? std::vector<VulkanSemaphore*>{mRenderFinishedSemaphores[mCurrentFrameIndex]} : std::vector<VulkanSemaphore*>{});
+        mDrawPools.clear(); mDrawSets.clear();
+        mPresentFrameIndex = mCurrentFrameIndex;
+        mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
 		//VulkanSwapChain* VKSwapChain = mDefaultViewport->GetSwapChain();
 		//VkPresentInfoKHR PresentInfo;
 		//Memory::MemoryZero(PresentInfo);
@@ -587,6 +561,10 @@ namespace VulkanRHI
 
 		VkImageLayout OldSrcLayout = VkSource->GetImageLayout();
 		VkImageLayout OldDstLayout = VkDest->GetImageLayout();
+        if (OldSrcLayout == VK_IMAGE_LAYOUT_UNDEFINED || OldSrcLayout == VK_IMAGE_LAYOUT_PREINITIALIZED)
+            throw std::logic_error("Cannot copy an uninitialized texture");
+        if (OldDstLayout == VK_IMAGE_LAYOUT_UNDEFINED || OldDstLayout == VK_IMAGE_LAYOUT_PREINITIALIZED)
+            OldDstLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 		bool IsSrcChange = false;
 		bool IsDstChange = false;
 
@@ -622,10 +600,6 @@ namespace VulkanRHI
 		}
 
 		//mCmdBufferManager->SubmitUploadCmdBuffer();
-	}
-
-	void VulkanCommandContext::RHICopyBufferRegion(RHIBuffer* DestBuffer, uint64 DstOffset, RHIBuffer* SourceBuffer, uint64 SrcOffset, uint64 NumBytes)
-	{
 	}
 
 	void VulkanCommandContext::RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier)
@@ -731,6 +705,15 @@ namespace VulkanRHI
 		}
 	}
 
+    void VulkanCommandContext::RHIPrepareGfxPipeline(RHIPipeline* Pipeline, const RHIRenderPassInfo& Pass)
+    {
+        CheckRHICreationThread();
+        auto* Base = static_cast<VulkanGfxPipeline*>(Pipeline);
+        auto Key = VulkanRenderPassCache::BuildRenderPassKey(Pass);
+        if (!mDevice->GetPiplineManager()->GetOrCreateGfxPipelineForRenderPass(Base->GetPipelineState(), Key, Base))
+            throw std::runtime_error("Failed to prepare pass-compatible pipeline");
+    }
+
 	void VulkanCommandContext::RHIBindGfxPipeline(RHIPipeline* InPipeline)
 	{
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
@@ -740,8 +723,9 @@ namespace VulkanRHI
 		if (mCurrentRenderPassKey.NumColorTargets > 0 || mCurrentRenderPassKey.DepthFormat != VK_FORMAT_UNDEFINED)
 		{
 			// 从 Pipeline State 获取或创建与当前 RenderPass 兼容的变体
-			VulkanGfxPipeline* CompatiblePipeline = mDevice->GetPiplineManager()->GetOrCreateGfxPipelineForRenderPass(
-				VkGfxPipeline->GetPipelineState(), mCurrentRenderPassKey);
+			auto Variant = VkGfxPipeline->mVariants.find(mCurrentRenderPassKey);
+            if (Variant == VkGfxPipeline->mVariants.end()) throw std::logic_error("Pipeline variant was not prepared on RenderThread");
+            VulkanGfxPipeline* CompatiblePipeline = Variant->second.get();
 			
 			if (CompatiblePipeline)
 			{
@@ -753,15 +737,20 @@ namespace VulkanRHI
 		vkCmdBindPipeline(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, VkGfxPipeline->GetHandle());
 	}
 
-	RHIBuffer* VulkanCommandContext::RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData)
-	{
-		VulkanBuffer* NewBuffer = new VulkanBuffer(mDevice, InSize, Usage, ResourceState, Stride);
-		NewBuffer->MapMemoryDataToBuffer(InData, InSize);
-		return NewBuffer;
-	}
+    RHIBufferHandle VulkanCommandContext::RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData)
+    {
+        CheckRHICreationThread();
+        if (!InSize) throw std::invalid_argument("Buffer size must be positive");
+        if (InData && !EnumHasAnyFlags(Usage, BufferUsageFlags::KeepCPUAccessible))
+            throw std::logic_error("GPU buffer data must use UploadBuffer and the RHI command list");
+        RHIBufferHandle Buffer = new VulkanBuffer(mDevice, InSize, Usage, ResourceState, Stride);
+        if (InData) static_cast<VulkanBuffer*>(Buffer.get())->MapMemoryDataToBuffer(InData, InSize);
+        return Buffer;
+    }
 
-	RHIBuffer* VulkanCommandContext::RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
+	RHIBufferHandle VulkanCommandContext::RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
 	{
+        CheckRHICreationThread();
 		return RHICreateBuffer(Size, Usage, Stride, ResourceState, InData);
 	}
 
@@ -775,187 +764,59 @@ namespace VulkanRHI
 		VkUniformBuffer->UpdateBuffer(InContents, 0, InSize);
 	}
 
-	RHIBuffer* VulkanCommandContext::RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
+	RHIBufferHandle VulkanCommandContext::RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
 	{
+        CheckRHICreationThread();
 		return RHICreateBuffer(Size, Usage, 0, ResourceState, InData);
 	}
 
-	RHITexture* VulkanCommandContext::RHICreateTexture(const RHITextureDesc& InDesc, void* InContent)
-	{
-		//todo managing the life cycle
-		VulkanTexture* Result = new VulkanTexture(mDevice, InDesc);
-		size_t ImageLayerCount = 1;
-		if (InDesc.mDimension == TextureDimension::Texture2DArray)
-		{
-			ImageLayerCount = InDesc.mArraySize;
-		}
-		else if (InDesc.mDimension == TextureDimension::TextureCube)
-		{
-			ImageLayerCount = 6;
-		}
-		else if (InDesc.mDimension == TextureDimension::TextureCubeArray)
-		{
-			ImageLayerCount = InDesc.mArraySize * 6;
-		}
-		size_t LayerSize = InDesc.mExtent.x * InDesc.mExtent.y * GPixelFormats[InDesc.mFormat].BlockBytes;
-		size_t AllocSize = LayerSize * ImageLayerCount;
-		VulkanStagingBuffer* VkStagingBuffer = mDevice->GetStagingManager()->AcquireBuffer(AllocSize);
-		Memory::MemoryCopy(VkStagingBuffer->GetMappingPointer(), InContent, AllocSize);
-		VulkanCommandBuffer* PUploadCommandBuffer = mCmdBufferManager->GetUploadCmdBuffer();
-		
-		//todo
-		//VkBufferImageCopy Regions[6] = { };
-		//for (uint32_t i = 0; i < 6; ++i)
-		{
-			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 6);
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, SubRange);
-			VkBufferImageCopy Region;
-			Memory::MemoryZero(Region);
-			Region.bufferOffset = VkStagingBuffer->GetBufferOffset();// +i * LayerSize;
-			Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			Region.imageSubresource.mipLevel = 0;
-			Region.imageSubresource.baseArrayLayer = 0;  // 当前面索引
-			Region.imageSubresource.layerCount = ImageLayerCount;
-			//Region.imageOffset = {}
-			Region.imageExtent = { static_cast<uint32_t>(InDesc.mExtent.x), static_cast<uint32_t>(InDesc.mExtent.y), 1 };
-			vkCmdCopyBufferToImage(PUploadCommandBuffer->GetHandle(), VkStagingBuffer->GetHandle(), Result->getHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &Region);
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, SubRange);
-			Result->SetAccess(ERHIAccess::SRVGraphics);
-		}
-		
-		
-		mDevice->GetStagingManager()->ReleaseBuffer(PUploadCommandBuffer, VkStagingBuffer);
-		mCmdBufferManager->SubmitUploadCmdBuffer();
-		VkSamplerCreateInfo samplerInfo = {};
-		samplerInfo.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-		samplerInfo.magFilter = VK_FILTER_LINEAR;
-		samplerInfo.minFilter = VK_FILTER_LINEAR;
-		samplerInfo.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE; 
-		samplerInfo.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerInfo.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-		samplerInfo.anisotropyEnable = VK_FALSE;
-		samplerInfo.maxAnisotropy = 1.0f;
-		samplerInfo.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-		samplerInfo.unnormalizedCoordinates = VK_FALSE;
-		samplerInfo.compareEnable = VK_FALSE;
-		samplerInfo.compareOp = VK_COMPARE_OP_ALWAYS;
-		samplerInfo.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+    RHITextureHandle VulkanCommandContext::RHICreateTexture(const RHITextureDesc& Desc, void* Data)
+    {
+        CheckRHICreationThread();
+        if (Data) throw std::logic_error("Texture data must use UploadTexture and the RHI command list");
+        if (Desc.mExtent.x <= 0 || Desc.mExtent.y <= 0 || !Desc.mNumMips || !Desc.mNumSamples || !Desc.mArraySize)
+            throw std::invalid_argument("Invalid texture dimensions");
+        if (Desc.mDimension == TextureDimension::Texture3D || Desc.mDimension == TextureDimension::TextureCubeArray)
+            throw std::invalid_argument("Unsupported texture dimension");
+        return new VulkanTexture(mDevice, Desc);
+    }
+    RHITextureHandle VulkanCommandContext::RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData)
+    {
+        RHITextureDesc Desc; Desc.mExtent = Vector2(SizeX, SizeY); Desc.mFormat = static_cast<PixelFormat>(Format);
+        Desc.mNumMips = NumMips; Desc.mNumSamples = NumSamples; Desc.mFlags = Flags;
+        return RHICreateTexture(Desc, InData);
+    }
+    RHITextureHandle VulkanCommandContext::RHICreateTexture3D(uint32, uint32, uint32, uint8, uint32, TextureCreateFlags, ERHIAccess, void*)
+    { CheckRHICreationThread(); throw std::invalid_argument("3D textures are not supported by this upload path"); }
 
-		return Result;
+	RHIPipelineHandle VulkanCommandContext::RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState)
+	{
+        CheckRHICreationThread();
+        for (size_t Slot = 0; Slot < RTR_TEXTURE_MAX; ++Slot)
+        {
+            if (mDefaultMaterialTextures[Slot]) continue;
+            RHITextureDesc Desc; Desc.mExtent = Vector2(1, 1); Desc.mFormat = PF_R8G8B8A8;
+            Desc.mFlags = TextureCreateFlags::ShaderResource;
+            auto Texture = RHICreateTexture(Desc, nullptr);
+            uint8_t Pixel[4] = {255,255,255,255};
+            if (Slot == 1) { Pixel[0] = Pixel[1] = 128; }
+            UploadTexture(Texture.get(), Pixel, sizeof(Pixel));
+            mDefaultMaterialTextures[Slot] = std::move(Texture);
+        }
+        auto Pipeline = RHIPipelineHandle(mDevice->GetPiplineManager()->GetOrCreateGfxPipeline(InPipelineState));
+        if (Pipeline) Pipeline->SetDescription(std::make_shared<const GRAPHICS_PIPELINE_STATE_DESC>(InPipelineState));
+        return Pipeline;
 	}
 
-	RHITexture* VulkanCommandContext::RHICreateTexture2D(uint32 SizeX, uint32 SizeY, uint8 Format, uint32 NumMips, uint32 NumSamples, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData)
+	RHIPipelineHandle VulkanCommandContext::RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState)
 	{
-		RHITextureDesc TexDescRHI;
-		TexDescRHI.mExtent.x = SizeX;
-		TexDescRHI.mExtent.y = SizeY;
-		TexDescRHI.mFormat = (PixelFormat)Format;
-		TexDescRHI.mNumMips = NumMips;
-		TexDescRHI.mNumSamples = NumSamples;
-		TexDescRHI.mFlags = Flags;
-		TexDescRHI.mDimension = TextureDimension::Texture2D;
-		TexDescRHI.mArraySize = 1;
-
-		VulkanTexture* Result = new VulkanTexture(mDevice, TexDescRHI);
-
-		// 如果有初始数据，使用 staging buffer 上传
-		if (InData != nullptr)
-		{
-			size_t AllocSize = SizeX * SizeY * GPixelFormats[(PixelFormat)Format].BlockBytes;
-			VulkanStagingBuffer* VkStagingBuffer = mDevice->GetStagingManager()->AcquireBuffer(AllocSize);
-			Memory::MemoryCopy(VkStagingBuffer->GetMappingPointer(), InData, AllocSize);
-
-			VulkanCommandBuffer* PUploadCommandBuffer = mCmdBufferManager->GetUploadCmdBuffer();
-
-			// 转换到传输目标布局
-			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, NumMips, 0, 1);
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, SubRange);
-
-			// 拷贝 buffer 到 image
-			VkBufferImageCopy Region;
-			Memory::MemoryZero(Region);
-			Region.bufferOffset = VkStagingBuffer->GetBufferOffset();
-			Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			Region.imageSubresource.mipLevel = 0;
-			Region.imageSubresource.baseArrayLayer = 0;
-			Region.imageSubresource.layerCount = 1;
-			Region.imageExtent = { SizeX, SizeY, 1 };
-
-			vkCmdCopyBufferToImage(PUploadCommandBuffer->GetHandle(), VkStagingBuffer->GetHandle(), 
-				Result->getHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &Region);
-
-			// 转换到 shader 读取布局
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, SubRange);
-
-			mDevice->GetStagingManager()->ReleaseBuffer(PUploadCommandBuffer, VkStagingBuffer);
-			mCmdBufferManager->SubmitUploadCmdBuffer();
-		}
-
-		return Result;
-	}
-
-	RHITexture* VulkanCommandContext::RHICreateTexture3D(uint32 SizeX, uint32 SizeY, uint32 SizeZ, uint8 Format, uint32 NumMips, TextureCreateFlags Flags, ERHIAccess ResourceState, void* InData)
-	{
-		RHITextureDesc TexDescRHI;
-		TexDescRHI.mExtent.x = SizeX;
-		TexDescRHI.mExtent.y = SizeY;
-		TexDescRHI.mFormat = (PixelFormat)Format;
-		TexDescRHI.mNumMips = NumMips;
-		TexDescRHI.mNumSamples = 1;
-		TexDescRHI.mFlags = Flags;
-		TexDescRHI.mDimension = TextureDimension::Texture3D;
-		TexDescRHI.mArraySize = 1;
-
-		VulkanTexture* Result = new VulkanTexture(mDevice, TexDescRHI);
-
-		// 如果有初始数据，使用 staging buffer 上传
-		if (InData != nullptr)
-		{
-			size_t AllocSize = SizeX * SizeY * SizeZ * GPixelFormats[(PixelFormat)Format].BlockBytes;
-			VulkanStagingBuffer* VkStagingBuffer = mDevice->GetStagingManager()->AcquireBuffer(AllocSize);
-			Memory::MemoryCopy(VkStagingBuffer->GetMappingPointer(), InData, AllocSize);
-
-			VulkanCommandBuffer* PUploadCommandBuffer = mCmdBufferManager->GetUploadCmdBuffer();
-
-			// 转换到传输目标布局
-			VkImageSubresourceRange SubRange = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, NumMips, 0, 1);
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, SubRange);
-
-			// 拷贝 buffer 到 3D image
-			VkBufferImageCopy Region;
-			Memory::MemoryZero(Region);
-			Region.bufferOffset = VkStagingBuffer->GetBufferOffset();
-			Region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-			Region.imageSubresource.mipLevel = 0;
-			Region.imageSubresource.baseArrayLayer = 0;
-			Region.imageSubresource.layerCount = 1;
-			Region.imageExtent = { SizeX, SizeY, SizeZ };
-
-			vkCmdCopyBufferToImage(PUploadCommandBuffer->GetHandle(), VkStagingBuffer->GetHandle(),
-				Result->getHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &Region);
-
-			// 转换到 shader 读取布局
-			VulkanSetImageLayout(PUploadCommandBuffer->GetHandle(), Result, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, SubRange);
-
-			mDevice->GetStagingManager()->ReleaseBuffer(PUploadCommandBuffer, VkStagingBuffer);
-			mCmdBufferManager->SubmitUploadCmdBuffer();
-		}
-
-		return Result;
-	}
-
-	RHIPipeline* VulkanCommandContext::RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState)
-	{
-		return mDevice->GetPiplineManager()->GetOrCreateGfxPipeline(InPipelineState);
-	}
-
-	RHIPipeline* VulkanCommandContext::RHICreateComputePipeline(const ComputePipelineStateDesc& InPipelineState)
-	{
+        CheckRHICreationThread();
 		return nullptr;
 	}
 
-	RHISwapchain* VulkanCommandContext::RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat)
+	RHISwapchainHandle VulkanCommandContext::RHICreateSwapchain(uint32 InWidth, uint32 InHeight, bool InbIsFullscreen, PixelFormat InFormat)
 	{
+        CheckRHICreationThread();
 		return new VulkanSwapChain(mDevice, InWidth, InHeight, InbIsFullscreen, nullptr, InFormat);
 	}
 
@@ -974,8 +835,9 @@ namespace VulkanRHI
 #endif
 	}
 
-	RHIUniformBuffer* VulkanCommandContext::RHICreateUniformBuffer(size_t InSize, void* InContents)
+	RHIUniformBufferHandle VulkanCommandContext::RHICreateUniformBuffer(size_t InSize, void* InContents)
 	{
+        CheckRHICreationThread();
 		RHIUniformBuffer* NewUniformBuffer = new  VulkanUniformBuffer(mDevice, InSize, WritableMask, InContents);
 		return NewUniformBuffer;
 	}
@@ -989,18 +851,19 @@ namespace VulkanRHI
 		
 			//mCommonUniformBuffer[mCurrentFrameIndex] = (VulkanUniformBuffer*)RHICreateUniformBuffer(InSize, InContents);
 			VulkanUniformBuffer* VKUniformBuf = static_cast<VulkanUniformBuffer*>(InUniformBufferRHI);
-			mDescriptorSetManager->WriteUniformBufferToDescriptorSet(VKUniformBuf, mCommonDescriptorSet);
+            mBoundUniformBuffers[static_cast<size_t>(RHIUniformSlot::PerFrame)] = InUniformBufferRHI;
 		
 
-		VKUniformBuf->UpdateBuffer(InContents);
+		VKUniformBuf->UpdateBuffer(InContents, 0, InSize);
 	}
 
 	//==========================================================================
 	// Slot-based UniformBuffer API
 	//==========================================================================
 
-	RHIUniformBuffer* VulkanCommandContext::RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc)
+	RHIUniformBufferHandle VulkanCommandContext::RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc)
 	{
+        CheckRHICreationThread();
 		VulkanUniformBuffer* buffer = new VulkanUniformBuffer(
 			mDevice,
 			InDesc.Slot,
@@ -1008,6 +871,7 @@ namespace VulkanRHI
 			ERHIAccess::VertexOrIndexBuffer,
 			const_cast<void*>(InDesc.InitialData));
 		
+        buffer->SetDescription(InDesc);
 		return buffer;
 	}
 
@@ -1201,7 +1065,7 @@ namespace VulkanRHI
 		{
 			// 绑定 Index Buffer
 			VulkanBuffer* VkIndexBuffer = static_cast<VulkanBuffer*>(IndexBuffer);
-			vkCmdBindIndexBuffer(CurrentCmdBuffer->GetHandle(), VkIndexBuffer->GetHandle(), 0, VK_INDEX_TYPE_UINT32);
+			vkCmdBindIndexBuffer(CurrentCmdBuffer->GetHandle(), VkIndexBuffer->GetHandle(), VkIndexBuffer->GetOffset(), VkIndexBuffer->GetStride() == 2 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
 			
 			// 绘制
 			uint32 IndexCount = NumPrimitives * 3; // 假设三角形
@@ -1220,4 +1084,44 @@ namespace VulkanRHI
 	void VulkanCommandContext::RHIDispatchIndirectMeshShader(RHIBuffer* ArgumentBuffer, uint32 ArgumentOffset)
 	{
 	}
+    void VulkanCommandContext::RHIKeepResources(const std::vector<RHIHandle>& Resources)
+    {
+        CheckRHIContextThread();
+        for (const auto& Resource : Resources) mCmdBufferManager->GetActiveCmdBuffer()->Keep(Resource);
+    }
+    void VulkanCommandContext::RHICopyBufferRegion(RHIBuffer* Dest, uint64 DstOffset, RHIBuffer* Source, uint64 SrcOffset, uint64 Size)
+    {
+        CheckRHIContextThread();
+        auto* Target = static_cast<VulkanBuffer*>(Dest); auto* Staging = static_cast<VulkanBuffer*>(Source);
+        if (!Size || DstOffset > Target->GetBufferSize() || Size > Target->GetBufferSize() - DstOffset || SrcOffset > Staging->GetBufferSize() || Size > Staging->GetBufferSize() - SrcOffset)
+            throw std::out_of_range("Buffer copy exceeds allocation");
+        auto* Cmd = mCmdBufferManager->GetActiveCmdBuffer();
+        Cmd->Keep(Dest); Cmd->Keep(Source);
+        Cmd->CopyBuffer(Staging->GetHandle(), Target->GetHandle(), Size, Staging->GetOffset() + SrcOffset, Target->GetOffset() + DstOffset);
+    }
+    void VulkanCommandContext::RHICopyBufferToTexture(RHIBuffer* Source, RHITexture* Target)
+    {
+        CheckRHIContextThread();
+        auto* Texture = static_cast<VulkanTexture*>(Target); auto* Staging = static_cast<VulkanBuffer*>(Source);
+        const auto& Desc = Texture->GetDesc();
+        const uint32 Layers = Desc.mDimension == TextureDimension::TextureCube ? 6 : Desc.mDimension == TextureDimension::Texture2DArray ? Desc.mArraySize : 1;
+        const uint64 Expected = uint64(Desc.mExtent.x) * uint64(Desc.mExtent.y) * Layers * GPixelFormats[Desc.mFormat].BlockBytes;
+        if (Desc.mNumMips != 1 || Expected != Staging->GetBufferSize()) throw std::invalid_argument("Invalid buffer-to-texture copy layout");
+        auto* Cmd = mCmdBufferManager->GetActiveCmdBuffer(); Cmd->Keep(Source); Cmd->Keep(Target);
+        auto Range = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, Layers);
+        VulkanSetImageLayout(Cmd->GetHandle(), Texture, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Range);
+        VkBufferImageCopy Region{}; Region.bufferOffset = Staging->GetOffset();
+        Region.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, Layers};
+        Region.imageExtent = {static_cast<uint32>(Desc.mExtent.x), static_cast<uint32>(Desc.mExtent.y), 1};
+        vkCmdCopyBufferToImage(Cmd->GetHandle(), Staging->GetHandle(), Texture->getHandle(), VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &Region);
+        VulkanSetImageLayout(Cmd->GetHandle(), Texture, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, Range);
+        Texture->SetAccess(ERHIAccess::SRVGraphics);
+    }
+
+    void VulkanCommandContext::RHISubmitUploads()
+    {
+        CheckRHIContextThread();
+        mCmdBufferManager->SubmitActiveCmdBuffer({});
+    }
+
 }

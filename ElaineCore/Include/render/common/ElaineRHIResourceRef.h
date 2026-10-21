@@ -1,33 +1,26 @@
 #pragma once
 #include <atomic>
+#include <cstdint>
 
 namespace Elaine
 {
-	template<class Ty>
-	struct RHIDefaultDeleter
-	{
-		RHIDefaultDeleter() noexcept = default;
+    template<class T> class RHIResourceHandle;
 
-		void operator()(Ty* InPtr) const noexcept
-		{
-			delete InPtr;
-		}
-	};
-
-	template<class Ty>
-	class SmartPtr;
-
-	template<class Ty>
-	class RHIResourceRef
-	{
-	public:
-		RHIResourceRef() = default;
-	private:
-		void IncreaseRef() noexcept { ++mRefCount; }
-		void DecreaseRef() noexcept { --mRefCount; }
-		std::atomic_uint32_t UseCount() const { return mRefCount; }
-	private:
-		std::atomic_uint32_t mRefCount = 0;
-		friend class SmartPtr<Ty>;
-	};
+    template<class Ty> class RHIResourceRef
+    {
+    public:
+        uint32_t UseCount() const noexcept { return mRefCount.load(std::memory_order_acquire); }
+    protected:
+        RHIResourceRef() = default;
+        ~RHIResourceRef() = default;
+    private:
+        void IncreaseRef() noexcept { mRefCount.fetch_add(1, std::memory_order_relaxed); }
+        void DecreaseRef() noexcept
+        {
+            if (mRefCount.fetch_sub(1, std::memory_order_acq_rel) == 1)
+                static_cast<Ty*>(this)->OnZeroReferences();
+        }
+        std::atomic_uint32_t mRefCount{0};
+        template<class T> friend class RHIResourceHandle;
+    };
 }

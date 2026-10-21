@@ -2,14 +2,32 @@
 #include "ElaineMesh.h"
 #include "ElaineDataStream.h"
 #include "ElaineUniformGPUManager.h"
+#ifdef _HAS_EDITOR_
 #include "assimp/Importer.hpp"
 #include "assimp/scene.h"
 #include "assimp/postprocess.h"
+#endif
 #include "ElaineMeshManager.h"
 #include "ElaineMaterialInstanceStatic.h"
+#include "render/common/ElaineRHICommandContext.h"
 
 namespace Elaine
 {
+    struct Mesh::LoadData : ResourceLoadData
+    {
+        VertexLayoutDesc mVertexLayout;
+        std::vector<SubMesh*> mSubMeshes;
+        std::vector<std::vector<uint8_t>> mCPUVertexBuffers;
+        std::vector<uint32_t> mCPUIndexBuffer;
+        std::vector<RHIBufferHandle> mGPUVertexBuffers;
+        std::vector<uint8_t> mIndexBytes;
+        uint32 mIndexStride = 4;
+        std::vector<MaterialSlot> mMaterialSlots;
+        RHIBufferHandle mIndexBuffer;
+        ~LoadData() override { for (auto* Sub : mSubMeshes) delete Sub; }
+    };
+
+
 	namespace fs = std::filesystem;
 
 	void CheckAndCreateFile(const std::string& filePath)
@@ -207,6 +225,8 @@ namespace Elaine
 		float UV[2]; //todo if other uv use UV[2][2]
 	};
 
+
+#ifdef _HAS_EDITOR_
 	class MeshConverter
 	{
 		friend void ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath);
@@ -642,6 +662,8 @@ namespace Elaine
 	std::unordered_map<uint64, uint32> MeshConverter::SlotMap;
 
 
+#endif
+
 	Mesh::Mesh(ResourceManager* pManager, const std::string& res_name)
 		: ResourceBase(pManager, res_name)
 	{
@@ -656,223 +678,143 @@ namespace Elaine
 		}
 	}
 
-	uint32 Mesh::GetSubMeshCount() const
-	{
-		return mSubMeshes.size();
-	}
+	uint32 Mesh::GetSubMeshCount() const { return static_cast<uint32>(mSubMeshes.size()); }
 
-	bool Mesh::LoadImpl()
-	{
-		DataStream MeshDataStream(Root::instance()->GetResourcePath() + mResourceName);
+    std::unique_ptr<ResourceLoadData> Mesh::LoadImpl()
+    {
+        auto Pending = std::make_unique<LoadData>();
+        auto& Data = *Pending;
+        DataStream File(Root::instance()->GetResourcePath() + mResourceName, DataStream::In | DataStream::Binary);
+        File.ReadAll();
+        if (!File.GetDataStream() || File.GetSize() <= 1) return {};
+        const auto* Bytes = reinterpret_cast<const uint8_t*>(File.GetDataStream());
+        // DataStream includes its extra null terminator in GetSize().
+        const size_t ByteCount = File.GetSize() - 1;
+        size_t Offset = 0;
+        auto Read = [&](void* Dest, size_t Size) {
+            if (Size > ByteCount - Offset) throw std::runtime_error("Truncated mesh data");
+            memcpy(Dest, Bytes + Offset, Size); Offset += Size;
+        };
+        MeshFileHeader Header{}; Read(&Header, sizeof(Header));
+        if (Header.Magic != 'EMSH' || Header.Version != 1 || (Header.IndexStride != 2 && Header.IndexStride != 4)) return {};
+        if (!Header.VertexBufferCount || !Header.IndexCount || Header.VertexBufferCount > 16 || Header.VertexBufferCount > ByteCount / sizeof(VertexBufferLayoutBinary) || Header.SubMeshCount > ByteCount / sizeof(SubMeshBinary) || Header.MaterialSlotCount > ByteCount / 12) return {};
+        for (uint32 i = 0; i < Header.MaterialSlotCount; ++i)
+        {
+            MaterialSlot Slot{}; uint32 Size = 0;
+            Read(&Slot.SlotHash, sizeof(Slot.SlotHash)); Read(&Size, sizeof(Size));
+            if (Size > ByteCount - Offset) return {};
+            Slot.SlotName.resize(Size); Read(Slot.SlotName.data(), Size);
+            Data.mMaterialSlots.push_back(std::move(Slot));
+        }
+        for (uint32 i = 0; i < Header.VertexBufferCount; ++i)
+        {
+            VertexBufferLayoutBinary Layout{}; Read(&Layout, sizeof(Layout));
+            if (!Layout.Stride || !Layout.ElementCount || Layout.ElementCount > (ByteCount - Offset) / sizeof(VertexElementBinary)) return {};
+            VertexBufferDesc Desc{}; Desc.Stride = Layout.Stride; Desc.Rate = PerVertex;
+            for (uint32 e = 0; e < Layout.ElementCount; ++e)
+            {
+                VertexElementBinary Element{}; Read(&Element, sizeof(Element));
+                if (Element.Type == VET_None || Element.Type >= VET_MAX || Element.Offset > Layout.Stride || GetRHIFormatSize(static_cast<VertexElementType>(Element.Type)) > Layout.Stride - Element.Offset) return {};
+                Desc.Attributes.push_back({static_cast<VertexSemantic>(Element.Semantic), Element.Index, static_cast<VertexElementType>(Element.Type), Element.Offset});
+            }
+            Data.mVertexLayout.Buffers.push_back(std::move(Desc));
+        }
+        for (uint32 i = 0; i < Header.SubMeshCount; ++i)
+        {
+            SubMeshBinary Source{}; Read(&Source, sizeof(Source));
+            if (Source.MaterialSlotIndex >= Header.MaterialSlotCount || Source.StartIndex > Header.IndexCount || Source.IndexCount > Header.IndexCount - Source.StartIndex) return {};
+            auto Sub = std::make_unique<SubMesh>(); Sub->StartIndex = Source.StartIndex; Sub->IndexCount = Source.IndexCount; Sub->MaterialSlot = Source.MaterialSlotIndex;
+            Data.mSubMeshes.push_back(Sub.get());
+            Sub.release();
+        }
+        Data.mCPUVertexBuffers.resize(Header.VertexBufferCount);
+        for (uint32 i = 0; i < Header.VertexBufferCount; ++i)
+        {
+            uint32 Size = 0; Read(&Size, sizeof(Size));
+            if (!Size || Size > ByteCount - Offset || Size % Data.mVertexLayout.Buffers[i].Stride || (i && Size / Data.mVertexLayout.Buffers[i].Stride != Data.mCPUVertexBuffers[0].size() / Data.mVertexLayout.Buffers[0].Stride)) return {};
+            Data.mCPUVertexBuffers[i].resize(Size); Read(Data.mCPUVertexBuffers[i].data(), Size);
+        }
+        uint32 IndexBytes = 0; Read(&IndexBytes, sizeof(IndexBytes));
+        if (uint64_t(Header.IndexCount) * Header.IndexStride != IndexBytes || IndexBytes > ByteCount - Offset) return {};
+        Data.mIndexStride = Header.IndexStride;
+        Data.mIndexBytes.resize(IndexBytes); Read(Data.mIndexBytes.data(), IndexBytes);
+        Data.mCPUIndexBuffer.resize(Header.IndexCount);
+        for (uint32 i = 0; i < Header.IndexCount; ++i)
+        {
+            uint32 Index = 0; memcpy(&Index, Data.mIndexBytes.data() + size_t(i) * Data.mIndexStride, Data.mIndexStride);
+            Data.mCPUIndexBuffer[i] = Index;
+            if (!Data.mCPUVertexBuffers.empty() && Index >= Data.mCPUVertexBuffers.front().size() / Data.mVertexLayout.Buffers.front().Stride) return {};
+        }
+        if (Offset != ByteCount) return {};
+        Data.MemoryUsage = ByteCount;
+        return Pending;
+    }
 
-		const uint8* DataBegin = (const uint8*)MeshDataStream.GetDataStream();
-		const uint8* DataEnd = DataBegin + MeshDataStream.GetSize();
-
-		// =============================
-		// 1. Header
-		// =============================
-		MeshFileHeader FileHeader;
-		MeshDataStream.Read(FileHeader);
-
-		if (FileHeader.Magic != 'EMSH')
-		{
-			//ELAINE_LOG_ERROR("Invalid mesh magic");
-			return false;
-		}
-
-		if (FileHeader.Version != 1)
-		{
-			//ELAINE_LOG_ERROR("Unsupported mesh version");
-			return false;
-		}
-
-		// =============================
-		// 2. Material Slots
-		// =============================
-		for (uint32 i = 0; i < FileHeader.MaterialSlotCount; ++i)
-		{
-			MaterialSlot slot;
-			MeshDataStream.Read(slot.SlotHash);
-			uint32 slotSize = 0;
-			MeshDataStream.Read(slotSize);
-			slot.SlotName.resize(slotSize);
-			MeshDataStream.Read(slot.SlotName.data(), slotSize);
-		}
-
-		// =============================
-		// 3. Vertex Layout
-		// =============================
-		mVertexLayout.Buffers.clear();
-
-		for (uint32 vb = 0; vb < FileHeader.VertexBufferCount; ++vb)
-		{
-			VertexBufferLayoutBinary VBLayout;
-			MeshDataStream.Read(VBLayout);
-
-			VertexBufferDesc desc{};
-			desc.Stride = VBLayout.Stride;
-			desc.Rate = VertexRate::PerVertex;
-
-			for (uint32 e = 0; e < VBLayout.ElementCount; ++e)
-			{
-				VertexElementBinary elem;
-				MeshDataStream.Read(elem);
-
-				VertexAttributeDesc attr{};
-				attr.Semantic = (VertexSemantic)elem.Semantic;
-				attr.Index = elem.Index;
-				attr.Format = (VertexElementType)elem.Type;
-				attr.Offset = elem.Offset;
-
-				desc.Attributes.push_back(attr);
-			}
-
-			mVertexLayout.Buffers.push_back(desc);
-		}
-
-		// =============================
-		// 4. SubMeshes
-		// =============================
-		mSubMeshes.clear();
-		mSubMeshes.reserve(FileHeader.SubMeshCount);
-
-		for (uint32 i = 0; i < FileHeader.SubMeshCount; ++i)
-		{
-			SubMeshBinary sm;
-			MeshDataStream.Read(sm);
-
-			SubMesh* sub = new SubMesh();
-			sub->StartIndex = sm.StartIndex;
-			sub->IndexCount = sm.IndexCount;
-			sub->MaterialSlot = sm.MaterialSlotIndex;
-			//sub->MaterialInstance =
-			//	MaterialManager::instance()->GetResource(
-			//		Name(sm.MaterialNameHash)
-			//	);
-
-			mSubMeshes.push_back(sub);
-		}
-
-		// =============================
-		// 5. Vertex Buffers
-		// =============================
-		mCPUVertexBuffers.clear();
-		mGPUVertexBuffers.clear();
-		mCPUVertexBuffers.resize(FileHeader.VertexBufferCount);
-		for (uint32 vb = 0; vb < FileHeader.VertexBufferCount; ++vb)
-		{
-			uint32 vbSize;
-			MeshDataStream.Read(vbSize);
-			void* vbData = nullptr;
-			MeshDataStream.Read(vbData, vbSize);
-			mCPUVertexBuffers[vb].resize(vbSize);
-			Memory::MemoryCopy(mCPUVertexBuffers[vb].data(), vbData, vbSize);
-
-			RHIBuffer* VertexBuf = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer, vbData, vbSize);
-			mGPUVertexBuffers.push_back(VertexBuf);
-
-			DataBegin += vbSize;
-		}
-
-		// =============================
-		// 6. Index Buffer
-		// =============================
-		uint32 ibSize;
-		MeshDataStream.Read(ibSize);
-		mCPUIndexBuffer.resize(ibSize);
-		void* ibData = nullptr;
-		MeshDataStream.Read(ibData, ibSize);
-		Memory::MemoryCopy(mCPUIndexBuffer.data(), ibData, ibSize);
-
-		mIndexBuffer = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::IndexBuffer, ERHIAccess::VertexOrIndexBuffer, ibData, ibSize);
-		DataBegin += ibSize;
-
-		// =============================
-		// 7. Sanity Check
-		// =============================
-		if (DataBegin != DataEnd)
-		{
-			LOG_WARN("Mesh binary not fully consumed.");
-		}
-
-		return true;
-	}
+    bool Mesh::InitializeGPU(ResourceLoadData& InData)
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        CheckRHICreationThread();
+        auto* Context = GetDynamicRHI()->GetDefaultCommandContext();
+        for (size_t i = 0; i < Data.mCPUVertexBuffers.size(); ++i)
+        {
+            auto& Bytes = Data.mCPUVertexBuffers[i];
+            auto Buffer = Context->RHICreateBuffer(static_cast<uint32>(Bytes.size()), BufferUsageFlags::VertexBuffer | BufferUsageFlags::Static,
+                Data.mVertexLayout.Buffers[i].Stride, ERHIAccess::Unknown, nullptr);
+            if (Buffer) Context->UploadBuffer(Buffer.get(), Bytes.data(), static_cast<uint32>(Bytes.size()), ERHIAccess::VertexOrIndexBuffer);
+            if (!Buffer) return false;
+            Data.mGPUVertexBuffers.push_back(std::move(Buffer));
+        }
+        Data.mIndexBuffer = Context->RHICreateBuffer(static_cast<uint32>(Data.mIndexBytes.size()), BufferUsageFlags::IndexBuffer | BufferUsageFlags::Static,
+            Data.mIndexStride, ERHIAccess::Unknown, nullptr);
+        if (Data.mIndexBuffer) Context->UploadBuffer(Data.mIndexBuffer.get(), Data.mIndexBytes.data(), static_cast<uint32>(Data.mIndexBytes.size()), ERHIAccess::VertexOrIndexBuffer);
+        return Data.mIndexBuffer != nullptr;
+    }
 
 	void Mesh::UnloadImpl()
-	{
+    {
+        for (auto* Sub : mSubMeshes) delete Sub;
+        mSubMeshes.clear(); mCPUVertexBuffers.clear(); mCPUIndexBuffer.clear();
+        mGPUVertexBuffers.clear(); mIndexBuffer.reset(); mIndexBytes.clear();
+        mVertexLayout.Buffers.clear(); mMaterialSlots.clear();
+    }
 
-	}
+    void Mesh::SaveResourceImpl()
+    {
+        if (mVertexLayout.Buffers.size() != mCPUVertexBuffers.size() || mVertexLayout.Buffers.empty()) return;
+        DataStream File(Root::instance()->GetResourcePath() + mResourceName, DataStream::Out | DataStream::Binary);
+        auto Write = [&](const void* Data, size_t Size) { File.Write(static_cast<const char*>(Data), Size); };
+        MeshFileHeader Header{}; Header.Magic = 'EMSH'; Header.Version = 1;
+        Header.VertexBufferCount = static_cast<uint32>(mCPUVertexBuffers.size());
+        Header.SubMeshCount = static_cast<uint32>(mSubMeshes.size()); Header.MaterialSlotCount = static_cast<uint32>(mMaterialSlots.size());
+        Header.IndexCount = static_cast<uint32>(mCPUIndexBuffer.size()); Header.IndexStride = mIndexBytes.empty() ? 4 : mIndexStride;
+        Write(&Header, sizeof(Header));
+        for (const auto& Slot : mMaterialSlots)
+        {
+            uint32 Size = static_cast<uint32>(Slot.SlotName.size());
+            Write(&Slot.SlotHash, sizeof(Slot.SlotHash)); Write(&Size, sizeof(Size)); Write(Slot.SlotName.data(), Size);
+        }
+        for (const auto& Buffer : mVertexLayout.Buffers)
+        {
+            VertexBufferLayoutBinary Layout{}; Layout.Stride = Buffer.Stride; Layout.ElementCount = static_cast<uint32>(Buffer.Attributes.size());
+            Write(&Layout, sizeof(Layout));
+            for (const auto& Attr : Buffer.Attributes)
+            {
+                VertexElementBinary Element{}; Element.Semantic = Attr.Semantic; Element.Index = Attr.Index; Element.Type = Attr.Format; Element.Offset = Attr.Offset;
+                Write(&Element, sizeof(Element));
+            }
+        }
+        for (const auto* Sub : mSubMeshes)
+        {
+            SubMeshBinary Binary{}; Binary.StartIndex = Sub->StartIndex; Binary.IndexCount = Sub->IndexCount; Binary.MaterialSlotIndex = Sub->MaterialSlot;
+            Write(&Binary, sizeof(Binary));
+        }
+        for (const auto& Buffer : mCPUVertexBuffers)
+        { uint32 Size = static_cast<uint32>(Buffer.size()); Write(&Size, sizeof(Size)); Write(Buffer.data(), Size); }
+        uint32 Size = Header.IndexCount * Header.IndexStride; Write(&Size, sizeof(Size));
+        Write(mIndexBytes.empty() ? static_cast<const void*>(mCPUIndexBuffer.data()) : mIndexBytes.data(), Size);
+    }
 
-	void Mesh::SaveResourceImpl()
-	{
-		if (mVertexLayout.Buffers.size() <= 0)
-			return;
 
-		DataStream MeshDataStream(Root::instance()->GetResourcePath() + mResourceName, DataStream::Out | DataStream::Binary);
-		MeshFileHeader FileHeader{};
-		FileHeader.Magic = 'EMSH';
-		FileHeader.Version = 1;
-		FileHeader.VertexBufferCount = 1;
-		FileHeader.SubMeshCount = (uint32)mSubMeshes.size();
-		FileHeader.IndexCount = (uint32)mCPUIndexBuffer.size();
-		FileHeader.IndexStride = 4;
-		FileHeader.MaterialSlotCount = (uint32)mMaterialSlots.size();
-
-		VertexBufferLayoutBinary VBLayout{};
-		std::vector<VertexElementBinary> VexElems;
-		uint32 ElemOffset = 0;
-		for (auto&& Att : mVertexLayout.Buffers[0].Attributes)
-		{
-			VBLayout.Stride += GetRHIFormatSize(Att.Format);
-			VertexElementBinary VexElem{};
-			VexElem.Index = 0;
-			VexElem.Semantic = Att.Semantic;
-			VexElem.Offset = ElemOffset;
-			VexElem.Type = Att.Format;
-			ElemOffset += GetRHIFormatSize(Att.Format);
-		}
-		VBLayout.ElementCount = mVertexLayout.Buffers[0].Attributes.size();
-
-		// File Header
-		MeshDataStream.Write((char*)&FileHeader, sizeof(FileHeader));
-
-		for (uint32 i = 0; i < mMaterialSlots.size(); ++i)
-		{
-			uint32 NameSize = mMaterialSlots[i].SlotName.size();
-			MeshDataStream.Write((char*)(&(mMaterialSlots[i].SlotHash)), sizeof(MaterialSlot::SlotHash));
-			MeshDataStream.Write((char*)(&(NameSize)), sizeof(uint32));
-			MeshDataStream.Write(mMaterialSlots[i].SlotName.c_str(), NameSize);
-		}
-
-		// Vertex layout
-		MeshDataStream.Write((char*)&VBLayout, sizeof(VBLayout));
-		MeshDataStream.Write((char*)VexElems.data(), sizeof(VertexElementBinary) * VexElems.size());
-
-		// SubMeshes
-		for (uint32 i = 0; i < FileHeader.SubMeshCount; ++i)
-		{
-			SubMeshBinary SubMeshBin{};
-			SubMeshBin.StartIndex = mSubMeshes[i]->StartIndex;
-			SubMeshBin.IndexCount = mSubMeshes[i]->IndexCount;
-			SubMeshBin.MaterialSlotIndex = mSubMeshes[i]->MaterialSlot;
-			MeshDataStream.Write((char*)(&(SubMeshBin)), sizeof(SubMeshBinary));
-		}
-
-		// Vertex buffer
-		uint32 vbSize = mCPUVertexBuffers[0].size();
-		MeshDataStream.Write((char*)&vbSize, sizeof(uint32));
-		MeshDataStream.Write((char*)mCPUVertexBuffers[0].data(), vbSize);
-
-		// Index buffer
-		uint32 ibSize = mCPUIndexBuffer.size() * sizeof(uint32);
-		MeshDataStream.Write((char*)&ibSize, sizeof(uint32));
-		MeshDataStream.Write((char*)mCPUIndexBuffer.data(), ibSize);
-	}
-
-	void Mesh::ResourceArrivedImpl()
-	{
-
-	}
 
 #ifdef _HAS_EDITOR_
 	void ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath)
@@ -882,5 +824,29 @@ namespace Elaine
 		LOG_INFO("Mesh imported successfully: ", destRelPath);
 	}
 #endif
+
+    void Mesh::ApplyLoadedData(ResourceLoadData& InData) noexcept
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        std::swap(mVertexLayout, Data.mVertexLayout);
+        std::swap(mSubMeshes, Data.mSubMeshes);
+        std::swap(mCPUVertexBuffers, Data.mCPUVertexBuffers);
+        std::swap(mCPUIndexBuffer, Data.mCPUIndexBuffer);
+        std::swap(mGPUVertexBuffers, Data.mGPUVertexBuffers);
+        std::swap(mIndexBytes, Data.mIndexBytes);
+        std::swap(mIndexStride, Data.mIndexStride);
+        std::swap(mMaterialSlots, Data.mMaterialSlots);
+        std::swap(mIndexBuffer, Data.mIndexBuffer);
+    }
+
+    MeshRenderData Mesh::CreateRenderData() const
+    {
+        MeshRenderData Data;
+        Data.Layout = mVertexLayout; Data.VertexBuffers = mGPUVertexBuffers;
+        Data.IndexBuffer = mIndexBuffer; Data.IndexStride = mIndexStride;
+        for (const auto* Sub : mSubMeshes)
+            Data.SubMeshes.push_back({Sub->StartIndex, Sub->IndexCount, Sub->MaterialSlot, Sub->BaseVertex});
+        return Data;
+    }
 
 }

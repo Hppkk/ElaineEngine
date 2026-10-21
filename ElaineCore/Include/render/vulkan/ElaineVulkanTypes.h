@@ -26,8 +26,13 @@ namespace VulkanRHI
         std::vector<VkPresentModeKHR>   presentModes;
     };
 
+    class VulkanStagingBuffer;
+    class VulkanCommandBuffer;
     struct VulkanCpuReadbackBuffer
     {
+        VulkanStagingBuffer* Staging = nullptr;
+        VulkanCommandBuffer* Submission = nullptr;
+        uint64 Counter = 0;
         VkBuffer Buffer = VK_NULL_HANDLE;
         uint32 MipOffsets[MAX_TEXTURE_MIP_COUNT] = {};
         uint32 MipSize[MAX_TEXTURE_MIP_COUNT] = {};
@@ -190,9 +195,70 @@ namespace VulkanRHI
         }
     }
 
+    // Native format mapping belongs to the Vulkan backend.
+    inline VkFormat GetVulkanTextureFormat(PixelFormat Format)
+    {
+        switch (Format)
+        {
+        case PF_A32B32G32R32F: return VK_FORMAT_R32G32B32A32_SFLOAT;
+        case PF_B8G8R8A8: return VK_FORMAT_B8G8R8A8_UNORM;
+        case PF_G8: return VK_FORMAT_R8_UNORM;
+        case PF_G16: return VK_FORMAT_R16_UNORM;
+        case PF_DXT1: return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
+        case PF_DXT3: return VK_FORMAT_BC2_UNORM_BLOCK;
+        case PF_DXT5: return VK_FORMAT_BC3_UNORM_BLOCK;
+        case PF_FloatRGB: return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+        case PF_FloatRGBA: return VK_FORMAT_R16G16B16A16_SFLOAT;
+        case PF_DepthStencil: return VK_FORMAT_D24_UNORM_S8_UINT;
+        case PF_ShadowDepth: return VK_FORMAT_D16_UNORM;
+        case PF_R32_FLOAT: return VK_FORMAT_R32_SFLOAT;
+        case PF_G16R16: return VK_FORMAT_R16G16_UNORM;
+        case PF_G16R16F: return VK_FORMAT_R16G16_SFLOAT;
+        case PF_G16R16F_FILTER: return VK_FORMAT_R16G16_SFLOAT;
+        case PF_G32R32F: return VK_FORMAT_R32G32_SFLOAT;
+        case PF_A2B10G10R10: return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+        case PF_A16B16G16R16: return VK_FORMAT_R16G16B16A16_UNORM;
+        case PF_D24: return VK_FORMAT_X8_D24_UNORM_PACK32;
+        case PF_R16F: return VK_FORMAT_R16_SFLOAT;
+        case PF_R16F_FILTER: return VK_FORMAT_R16_SFLOAT;
+        case PF_BC5: return VK_FORMAT_BC5_UNORM_BLOCK;
+        case PF_V8U8: return VK_FORMAT_R8G8_UNORM;
+        case PF_FloatR11G11B10: return VK_FORMAT_B10G11R11_UFLOAT_PACK32;
+        case PF_A8: return VK_FORMAT_R8_UNORM;
+        case PF_R32_UINT: return VK_FORMAT_R32_UINT;
+        case PF_R32_SINT: return VK_FORMAT_R32_SINT;
+        case PF_R16_UINT: return VK_FORMAT_R16_UINT;
+        case PF_R16_SINT: return VK_FORMAT_R16_SINT;
+        case PF_R16G16B16A16_UINT: return VK_FORMAT_R16G16B16A16_UINT;
+        case PF_R16G16B16A16_SINT: return VK_FORMAT_R16G16B16A16_SINT;
+        case PF_R5G6B5_UNORM: return VK_FORMAT_R5G6B5_UNORM_PACK16;
+        case PF_R8G8B8A8: return VK_FORMAT_R8G8B8A8_UNORM;
+        case PF_BC4: return VK_FORMAT_BC4_UNORM_BLOCK;
+        case PF_R8G8: return VK_FORMAT_R8G8_UNORM;
+        case PF_R32G32B32A32_UINT: return VK_FORMAT_R32G32B32A32_UINT;
+        case PF_R16G16_UINT: return VK_FORMAT_R16G16_UINT;
+        case PF_BC6H: return VK_FORMAT_BC6H_UFLOAT_BLOCK;
+        case PF_BC7: return VK_FORMAT_BC7_UNORM_BLOCK;
+        case PF_R8_UINT: return VK_FORMAT_R8_UINT;
+        case PF_R8G8B8A8_UINT: return VK_FORMAT_R8G8B8A8_UINT;
+        case PF_R8G8B8A8_SNORM: return VK_FORMAT_R8G8B8A8_SNORM;
+        case PF_R16G16B16A16_UNORM: return VK_FORMAT_R16G16B16A16_UNORM;
+        case PF_R16G16B16A16_SNORM: return VK_FORMAT_R16G16B16A16_SNORM;
+        case PF_R32G32_UINT: return VK_FORMAT_R32G32_UINT;
+        case PF_R8: return VK_FORMAT_R8_UNORM;
+        case PF_G16R16_SNORM: return VK_FORMAT_R16G16_SNORM;
+        case PF_R8G8_UINT: return VK_FORMAT_R8G8_UINT;
+        case PF_R32G32B32_UINT: return VK_FORMAT_R32G32B32_UINT;
+        case PF_R32G32B32_SINT: return VK_FORMAT_R32G32B32_SINT;
+        case PF_R32G32B32F: return VK_FORMAT_R32G32B32_SFLOAT;
+        case PF_R8_SINT: return VK_FORMAT_R8_SINT;
+        default: return VK_FORMAT_UNDEFINED;
+        }
+    }
+
     inline VkFormat EngineToVkTextureFormat(PixelFormat InFormat, const bool bIsSRGB)
     {
-        VkFormat Format = (VkFormat)GPixelFormats[InFormat].PlatformFormat;
+        VkFormat Format = GetVulkanTextureFormat(InFormat);
         if (bIsSRGB)
         {
             switch (Format)

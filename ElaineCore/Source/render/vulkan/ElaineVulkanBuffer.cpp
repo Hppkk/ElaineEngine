@@ -45,7 +45,8 @@ namespace VulkanRHI
 		return OutVkUsage;
 	}
 	VulkanBuffer::VulkanBuffer(VulkanDevice* InDevice, size_t InSize, BufferUsageFlags InUsage, ERHIAccess InResourceState, size_t InStride)
-		: mBufferSize(InSize)
+		: RHIBuffer({static_cast<uint32>(InSize), static_cast<uint32>(InStride), InUsage, InResourceState})
+        , mBufferSize(InSize)
 		, mBufferStride(InStride)
 		, mDevice(InDevice)
 	{
@@ -53,9 +54,9 @@ namespace VulkanRHI
 
 		if (InSize != 0)
 		{
-			const bool BufferAlignment = VulkanMemoryManager::CalculateBufferAlignment(*InDevice, InUsage, InSize == 0);
-			VkMemoryPropertyFlags BufferMemFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
-			BufferMemFlags |= (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+			const uint32 BufferAlignment = VulkanMemoryManager::CalculateBufferAlignment(*InDevice, InUsage, InSize == 0);
+			VkMemoryPropertyFlags BufferMemFlags = EnumHasAnyFlags(InUsage, BufferUsageFlags::KeepCPUAccessible)
+                ? VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT : VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 			if (EnumHasAnyFlags(InUsage , BufferUsageFlags::UniformBuffer))
 			{
 				if (!InDevice->GetMemoryManager()->AllocUniformBuffer(mBuffer, InSize, nullptr))
@@ -82,21 +83,12 @@ namespace VulkanRHI
 		mDevice->GetMemoryManager()->FreeVulkanAllocation(mBuffer);
 	}
 
-	void VulkanBuffer::MapMemoryDataToBuffer(void* InData, size_t InSize)
-	{
-		VulkanStagingBuffer* StageBuffer = mDevice->GetStagingManager()->AcquireBuffer(InSize, VK_BUFFER_USAGE_TRANSFER_SRC_BIT);
-		if (StageBuffer)
-		{
-			Memory::MemoryCopy(StageBuffer->GetMappingPointer(), InData, InSize);
-			StageBuffer->UnMap();
-			VulkanCommandBufferManager* CmdBufferManager = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultTransferContext())->GetCommandBufferManager();
-			VulkanCommandBuffer* CmdBuffer = CmdBufferManager->GetUploadCmdBuffer();
-			if (CmdBuffer)
-			{
-				CmdBuffer->CopyBuffer(StageBuffer->GetHandle(), mBufferHandle, InSize, StageBuffer->GetBufferOffset(), mBufferOffset);
-				CmdBuffer->End();
-				CmdBufferManager->SubmitUploadCmdBuffer();
-			}
-		}
-	}
+    void VulkanBuffer::MapMemoryDataToBuffer(void* Data, size_t Size)
+    {
+        if (!Data || !Size) return;
+        if (Size > mBufferSize) throw std::out_of_range("Staging write exceeds buffer size");
+        Memory::MemoryCopy(mBuffer.GetMappedPointer(mDevice), Data, Size);
+        mBuffer.FlushMappedMemory(mDevice);
+    }
+
 }

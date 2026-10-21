@@ -1,4 +1,5 @@
 #pragma once
+#include "render/vulkan/ElaineVulkanTypes.h"
 #include "ElaineCorePrerequirements.h"
 
 namespace VulkanRHI

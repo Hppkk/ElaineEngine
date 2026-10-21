@@ -1,7 +1,7 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineResourceManager.h"
 #include "ElaineResourceBase.h"
-#include "TaskGraph/ElaineTaskGraph.h"
+#include "Resource/ElaineResourcePipeline.h"
 #include "ElaineRoot.h"
 #include <filesystem>
 #include <array>
@@ -23,80 +23,46 @@ namespace Elaine
 
 	}
 
-	ResourceBasePtr ResourceManager::GetResource(const std::string& InPath, bool InAsync)
-	{
-		MemoryScope Scope({0, static_cast<uint16_t>(mResourceType), 0});
-		ResourceBasePtr RB = nullptr;
-
-		{
-			std::lock_guard<std::mutex> Lock_Guard(mMtx);
-			auto Iter = mResources.find(InPath);
-			if (Iter != mResources.end())
-			{
-				RB = Iter->second;
-
-				if (!RB.isNull() && (RB->IsLoaded() || RB->GetLoadState() == ResourceBase::Pending 
-					|| RB->GetLoadState() == ResourceBase::Loading))
-				{
-					return RB;
-				}
-			}
-		}
-
-		RB = CreateResourceImpl(InPath);
-		bool ShouldStartLoad = false;
-		{
-			std::lock_guard<std::mutex> Lock_Guard(mMtx);
-			auto [It, Inserted] = mResources.emplace(InPath, RB);
-			if (!Inserted)
-			{
-				RB = It->second;
-				if (!RB.isNull() && (RB->IsLoaded() || RB->GetLoadState() == ResourceBase::Pending || RB->GetLoadState() == ResourceBase::Loading))
-					return RB;
-			}
-			if (!RB.isNull())
-			{
-				RB->mLoadState = ResourceBase::Pending;
-				ShouldStartLoad = true;
-			}
-		}
-		if (!ShouldStartLoad) return RB;
-
-		if (InAsync)
-		{
-			struct ResourceHolder
-			{
-				ResourceHolder(ResourceBasePtr InPtr) : mPtr(InPtr) {}
-				ResourceBasePtr mPtr;
-			};
-			TaskGraph::GraphTaskDesc taskDesc;
-			std::shared_ptr<ResourceHolder> resourceHolder = std::make_shared<ResourceHolder>(RB);
-			taskDesc.mTaskFunction = [resourceHolder, Type = mResourceType] { MemoryScope Scope({0, static_cast<uint16_t>(Type), 0}); resourceHolder->mPtr->LoadResource(); };
-			taskDesc.SubsequentTask([resourceHolder] { resourceHolder->mPtr->ResourceArrived(); });
-			TaskGraph::GraphTaskCreateDesc createDesc;
-			createDesc.mDirectTasks.push_back(taskDesc);
-			TaskGraph::GraphTaskPtr LoadTaskPtr = TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady(createDesc);
-			//RB->SetLoadTask(LoadTaskPtr);
-		}
-		else
-		{
-			RB->LoadResource();
-			RB->ResourceArrived();
-		}
-		
-		return RB;
-	}
+    ResourceBasePtr ResourceManager::FindCachedResource(const std::string& Path)
+    {
+        std::lock_guard<std::mutex> Lock(mMtx);
+        auto It = mResources.find(std::filesystem::path(Path).lexically_normal().generic_string());
+        return It == mResources.end() ? ResourceBasePtr() : It->second;
+    }
+    ResourceRequestBase ResourceManager::RequestResource(const std::string& Path)
+    {
+        ResourceBasePtr Resource;
+        const std::string Key = std::filesystem::path(Path).lexically_normal().generic_string();
+        {
+            std::lock_guard<std::mutex> Lock(mMtx);
+            auto It = mResources.find(Key);
+            if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
+            Resource = It->second;
+        }
+        return ResourcePipeline::Get().Request(Resource);
+    }
+    ResourceRequestBase ResourceManager::ReloadResource(const std::string& Path)
+    {
+        ResourceBasePtr Resource;
+        const std::string Key = std::filesystem::path(Path).lexically_normal().generic_string();
+        {
+            std::lock_guard<std::mutex> Lock(mMtx);
+            auto It = mResources.find(Key);
+            if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
+            Resource = It->second;
+        }
+        return ResourcePipeline::Get().Request(Resource, true);
+    }
 
 	ResourceBasePtr ResourceManager::CreateEmptyResource(const std::string& InPath)
-	{
-		MemoryScope Scope({0, static_cast<uint16_t>(mResourceType), 0});
-		ResourceBasePtr RB = CreateResourceImpl(InPath);
-		{
-			std::lock_guard<std::mutex> Lock_Guard(mMtx);
-			mResources.emplace(InPath, RB);
-		}
-		return RB;
-	}
+    {
+        MemoryScope Scope({0, static_cast<uint16_t>(mResourceType), 0});
+        const auto Key = std::filesystem::path(InPath).lexically_normal().generic_string();
+        std::lock_guard<std::mutex> Lock(mMtx);
+        auto It = mResources.find(Key);
+        if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
+        return It->second;
+    }
 
 	ResourceMemoryStats ResourceManager::GetMemoryStats() const
 	{
@@ -117,29 +83,26 @@ namespace Elaine
 		return std::filesystem::path(A).lexically_normal() == std::filesystem::path(B).lexically_normal();
 	}
 
-	bool ResourceManager::ReloadIfFileChanged(const std::string& InFullPath)
-	{
-		ResourceBasePtr Target;
-		std::string RootPath;
-		RootPath = Root::instance()->GetResourcePath();
-		{
-			std::lock_guard<std::mutex> Lock(mMtx);
-			for (const auto& Pair : mResources)
-			{
-				if (Pair.second.isNull() || !Pair.second->IsLoaded()) continue;
-				std::vector<std::string> Candidates;
-				Candidates.push_back(RootPath + Pair.second->GetPath());
-				Candidates.push_back(RootPath + "shader/vulkan/" + Pair.second->GetPath());
-				Candidates.push_back(RootPath + "shader/" + Pair.second->GetPath());
-				for (const auto& Candidate : Candidates)
-					if (SameResourcePath(Candidate, InFullPath)) { Target = Pair.second; break; }
-				if (!Target.isNull()) break;
-			}
-		}
-		if (Target.isNull()) return false;
-		Target->ReloadResource();
-		return true;
-	}
+    bool ResourceManager::ReloadIfFileChanged(const std::string& InFullPath)
+    {
+        std::vector<ResourceBasePtr> Targets;
+        const auto RootPath = Root::instance()->GetResourcePath();
+        {
+            std::lock_guard<std::mutex> Lock(mMtx);
+            for (const auto& Pair : mResources)
+            {
+                if (!Pair.second || !Pair.second->IsReady()) continue;
+                for (const auto& Source : Pair.second->GetSourceFiles())
+                {
+                    const auto Path = std::filesystem::path(Source);
+                    if (SameResourcePath(Path.is_absolute() ? Source : RootPath + Source, InFullPath))
+                    { Targets.push_back(Pair.second); break; }
+                }
+            }
+        }
+        for (auto& Target : Targets) Target->ReloadResource();
+        return !Targets.empty();
+    }
 
 	uint32_t ResourceManager::ReloadResourcesDependingOn(const std::string& InFullPath)
 	{

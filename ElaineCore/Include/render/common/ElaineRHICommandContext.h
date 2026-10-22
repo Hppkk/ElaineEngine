@@ -218,13 +218,14 @@ namespace Elaine
 		// 资源屏障 - 用于 RenderGraph 状态转换
 		virtual void RHIResourceBarrier(const RHIResourceBarrierDesc& Barrier) = 0;
 
+        virtual RHIUniformBufferView RHIAllocateUniformData(const void* Data, size_t Size) { throw std::logic_error("Uniform arena is not implemented"); }
+        virtual void RHIReleaseUniformPool() {}
         virtual void RHIPrepareGfxPipeline(RHIPipeline* Pipeline, const RHIRenderPassInfo& Pass) {}
 		virtual void RHIBindGfxPipeline(RHIPipeline* InPipeline) = 0;
 		virtual RHIBufferHandle RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData) = 0;
 
 		virtual RHIBufferHandle RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
-		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize)  = 0;
 		
 		virtual RHIBufferHandle RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) = 0;
 
@@ -244,7 +245,6 @@ namespace Elaine
 		virtual void RHIWriteGPUFence(RHIGPUFence* FenceRHI) { }
 
 		virtual RHIUniformBufferHandle RHICreateUniformBuffer(size_t InSize, void* InContents) = 0;
-		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) = 0;
 
 		/**
 		 * 创建带语义槽位的 UniformBuffer
@@ -252,14 +252,6 @@ namespace Elaine
 		 * @return 创建的 UniformBuffer，带有槽位信息
 		 */
 		virtual RHIUniformBufferHandle RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) = 0;
-
-		/**
-		 * 按语义槽位绑定 UniformBuffer
-		 * @param InSlot - 语义槽位
-		 * @param InBuffer - 要绑定的 UniformBuffer
-		 */
-		virtual void RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer) = 0;
-
 
 		//virtual void RHIBeginUpdateMultiFrameResource(RHIUnorderedAccessView* UAV)
 		//{

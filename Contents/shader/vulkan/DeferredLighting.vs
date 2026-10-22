@@ -5,6 +5,7 @@
 // Uses VertexID to generate positions and UVs.
 //=============================================================================
 
+#include "LightingResources.inl"
 layout(location = 0) out vec2 vUV;
 
 void main()

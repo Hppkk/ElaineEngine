@@ -1,5 +1,6 @@
 ﻿#include "ElainePrecompiledHeader.h"
 #include "Resource/ElaineResourcePipeline.h"
+#include "render/ElaineShaderParameters.h"
 #include "Resource/ElaineResourceBase.h"
 #include "Resource/ElaineResourceManager.h"
 #include "TaskGraph/ElaineTaskGraph.h"
@@ -28,7 +29,7 @@ namespace Elaine
     };
 
     ResourcePipeline& ResourcePipeline::Get() { static ResourcePipeline Pipeline; return Pipeline; }
-    void ResourcePipeline::Start(RHICommandContext* UploadContext) { mUploadContext = UploadContext; mStopping = false; mInFrame = false; std::lock_guard<std::mutex> Lock(mCallbackMutex); mAcceptCallbacks = true; }
+    void ResourcePipeline::Start(RHICommandContext* UploadContext) { InitializeShaderParameterRegistry(); mUploadContext = UploadContext; mStopping = false; mInFrame = false; std::lock_guard<std::mutex> Lock(mCallbackMutex); mAcceptCallbacks = true; }
     void QueueResourceCallback(std::function<void()> Callback) { ResourcePipeline::Get().EnqueueCallback(std::move(Callback)); }
     void ResourcePipeline::EnqueueCallback(std::function<void()> Callback)
     { std::lock_guard<std::mutex> Lock(mCallbackMutex); if (mAcceptCallbacks) mCallbacks.push_back(std::move(Callback)); }

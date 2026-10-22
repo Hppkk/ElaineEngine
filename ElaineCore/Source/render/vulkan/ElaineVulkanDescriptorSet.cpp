@@ -37,6 +37,7 @@ namespace VulkanRHI
         DescriptorSetAllocateInfo.descriptorPool = mHandle;
         const bool Success = VK_SUCCESS == vkAllocateDescriptorSets(mDevice->GetDevice(), &DescriptorSetAllocateInfo, OutSets);
         if (Success) mNumAllocatedSets += DescriptorSetAllocateInfo.descriptorSetCount;
+        else mNumAllocatedSets = mMaxSetsAllocations;
         return Success;
 
     }

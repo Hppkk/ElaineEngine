@@ -40,8 +40,6 @@ namespace Elaine
         MeshPtr mMesh;
         std::string mMeshPath;
         MeshRenderData mMeshData;
-        RHIUniformBufferHandle mObjectUniformBuffer;
-        Matrix4x4 mUploadedWorldMatrix;
         std::vector<RenderMaterialProxy> mMaterialProxies;  // 渲染线程材质代理数组（值语义）
     };
 }

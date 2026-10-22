@@ -16,21 +16,7 @@
 
 #include "PBRLighting.inl"
 
-// Material textures
-layout(set = 2, binding = 0) uniform sampler2D texBaseColor;
-layout(set = 2, binding = 1) uniform sampler2D texNormal;
-layout(set = 2, binding = 2) uniform sampler2D texMetallicRoughness;  // G=Roughness, B=Metallic (glTF convention)
-layout(set = 2, binding = 3) uniform sampler2D texEmissive;
-layout(set = 2, binding = 4) uniform sampler2D texAO;
-
-// Material parameters
-layout(set = 2, binding = 5) uniform MaterialParams
-{
-    vec4 U_BaseColorFactor;    // Tint + alpha cutoff in .a
-    vec4 U_EmissiveFactor;     // Emissive color multiplier (rgb), emissive strength (a)
-    vec4 U_PBRParams;          // x=metallic, y=roughness, z=ao, w=alphaCutoff
-    vec4 U_MaterialFlags;      // x=hasNormalMap, y=hasMetallicRoughnessMap, z=hasEmissiveMap, w=hasAOMap
-};
+#include "GBufferResources.inl"
 
 // Inputs from vertex shader
 layout(location = 0) in vec3 vWorldPosition;
@@ -49,10 +35,10 @@ void main()
     //=========================================================================
     // Base Color
     //=========================================================================
-    vec4 baseColor = texture(texBaseColor, vUV) * U_BaseColorFactor;
+    vec4 baseColor = texture(BaseColor, vUV) * BaseColorFactor;
 
     // Alpha test (discard transparent fragments)
-    float alphaCutoff = U_PBRParams.w;
+    float alphaCutoff = AlphaCutoff;
     if (alphaCutoff > 0.0 && baseColor.a < alphaCutoff)
     {
         discard;
@@ -66,14 +52,14 @@ void main()
     //=========================================================================
     vec3 N = normalize(vWorldNormal);
 
-    if (U_MaterialFlags.x > 0.5) // hasNormalMap
+    if (HasNormal != 0) // hasNormalMap
     {
         vec3 T = normalize(vWorldTangent);
         vec3 B = normalize(vWorldBitangent);
         mat3 TBN = mat3(T, B, N);
 
         // Sample tangent-space normal map
-        vec3 tangentNormal = texture(texNormal, vUV).rgb;
+        vec3 tangentNormal = texture(Normal, vUV).rgb;
         tangentNormal = tangentNormal * 2.0 - 1.0;
         
         N = normalize(TBN * tangentNormal);
@@ -82,15 +68,15 @@ void main()
     //=========================================================================
     // Metallic & Roughness
     //=========================================================================
-    float metallic = U_PBRParams.x;
-    float roughness = U_PBRParams.y;
+    float metallic = Metallic;
+    float roughness = Roughness;
 
-    if (U_MaterialFlags.y > 0.5) // hasMetallicRoughnessMap
+    if (HasMetallicRoughness != 0) // hasMetallicRoughnessMap
     {
         // glTF convention: Green = Roughness, Blue = Metallic
-        vec4 mrSample = texture(texMetallicRoughness, vUV);
-        roughness = mrSample.g * U_PBRParams.y;
-        metallic = mrSample.b * U_PBRParams.x;
+        vec4 mrSample = texture(MetallicRoughness, vUV);
+        roughness = mrSample.g * Roughness;
+        metallic = mrSample.b * Metallic;
     }
 
     // Clamp roughness to avoid singularities in BRDF
@@ -101,22 +87,22 @@ void main()
     // Emissive
     //=========================================================================
     vec3 emissive = vec3(0.0);
-    if (U_MaterialFlags.z > 0.5) // hasEmissiveMap
+    if (HasEmissive != 0) // hasEmissiveMap
     {
-        emissive = PBR_SRGBToLinear(texture(texEmissive, vUV).rgb) * U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+        emissive = PBR_SRGBToLinear(texture(Emissive, vUV).rgb) * EmissiveFactor.rgb * EmissiveFactor.a;
     }
     else
     {
-        emissive = U_EmissiveFactor.rgb * U_EmissiveFactor.a;
+        emissive = EmissiveFactor.rgb * EmissiveFactor.a;
     }
 
     //=========================================================================
     // Ambient Occlusion
     //=========================================================================
-    float ao = U_PBRParams.z;
-    if (U_MaterialFlags.w > 0.5) // hasAOMap
+    float ao = Occlusion;
+    if (HasAO != 0) // hasAOMap
     {
-        ao *= texture(texAO, vUV).r;
+        ao *= texture(AO, vUV).r;
     }
 
     //=========================================================================

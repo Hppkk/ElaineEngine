@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "ElaineQuadTree.h"
 #include "render/common/ElaineRHICommandList.h"
 #include "RenderProxy/ElaineRenderProxy.h"
@@ -30,7 +30,6 @@ namespace Elaine
 		void RenderScene();
 		void RenderThreadMain();
 		void UpdateCommonUniformBuffer(RenderFrameData& FrameData, Camera* InCamera);
-		RHIUniformBuffer* GetCommonUniformBufferRHI() const { return mCommonUniformBufferRHI.get(); }
 		
 		void PrepareRenderData(Camera* InCamera);
 		RenderFrameData& GetRenderFrameData();
@@ -68,7 +67,6 @@ namespace Elaine
 		std::array<RenderFrameData, 2> mFrameData;
 		std::atomic<uint32_t> mCurrentWriteFrame{ 0 };
 		std::atomic<bool> mFrameReady{ false };
-		RHIUniformBufferHandle mCommonUniformBufferRHI;
 		//=========================================================================
 		// Camera 管理（渲染线程）
 		//=========================================================================

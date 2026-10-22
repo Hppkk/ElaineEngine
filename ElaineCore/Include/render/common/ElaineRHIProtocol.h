@@ -8,6 +8,9 @@
 #include <memory>
 #include <functional>
 #include <stdexcept>
+#include <vector>
+#include <unordered_map>
+#include <string>
 
 namespace Elaine
 {
@@ -772,10 +775,61 @@ namespace Elaine
 		ERHIAccess GetAccess() const { return mAccess; }
 	};
 
+	enum RHISamplerType : uint8
+	{
+		// ===== 基础组合 =====
+		SAMPLER_LINEAR_CLAMP,        // 线性过滤 + Clamp边界 (默认)
+		SAMPLER_LINEAR_REPEAT,       // 线性过滤 + Repeat边界
+		SAMPLER_LINEAR_MIRROR,       // 线性过滤 + Mirror边界
+		SAMPLER_NEAREST_CLAMP,       // 最近邻 + Clamp
+		SAMPLER_NEAREST_REPEAT,      // 最近邻 + Repeat
+
+		// ===== 各向异性过滤 =====
+		SAMPLER_ANISO_CLAMP,         // 各向异性 + Clamp (高质量)
+		SAMPLER_ANISO_REPEAT,        // 各向异性 + Repeat
+
+		// ===== 特殊用途 =====
+		SAMPLER_SHADOW,              // 阴影贴图 (深度比较)
+		SAMPLER_CUBEMAP,             // 立方体贴图 (三线性 + Clamp)
+		SAMPLER_UI,                  // UI纹理 (点采样 + Clamp)
+		SAMPLER_DEPTH,               // 深度纹理采样
+
+		SAMPLER_TYPE_COUNT,
+		SAMPLER_DEFAULT = SAMPLER_LINEAR_CLAMP
+	};
+    enum class RHIShaderValueType : uint8 { Float, Integer, Boolean, Matrix, Raw, UnsignedInteger };
+    enum class RHIShaderResourceType : uint8 { Uniform, Texture, ReadOnlyBuffer };
+    enum class RHIDefaultTexture : uint8 { None, White, Black, FlatNormal, Count };
+    struct RHIShaderMember
+    {
+        std::string Name;
+        RHIShaderValueType Type = RHIShaderValueType::Float;
+        uint32 Offset = 0, Size = 0, Rows = 1, Columns = 1, ArrayCount = 1, ArrayStride = 0, MatrixStride = 0;
+        bool RowMajor = false;
+        bool operator==(const RHIShaderMember& B) const
+        { return Name == B.Name && Type == B.Type && Offset == B.Offset && Size == B.Size && Rows == B.Rows && Columns == B.Columns && ArrayCount == B.ArrayCount && ArrayStride == B.ArrayStride && MatrixStride == B.MatrixStride && RowMajor == B.RowMajor; }
+    };
+    struct RHIShaderResourceLayout
+    {
+        std::string Name;
+        uint32 Group = 0, Binding = 0, Size = 0, ElementStride = 0;
+        RHIShaderResourceType Type = RHIShaderResourceType::Uniform;
+        TextureDimension Dimension = TextureDimension::Texture2D;
+        bool IntegerSample = false, SignedSample = false, DepthSample = false, Multisampled = false;
+        std::vector<RHIShaderMember> Members;
+        bool operator==(const RHIShaderResourceLayout& B) const
+        { return Name == B.Name && Group == B.Group && Binding == B.Binding && Size == B.Size && ElementStride == B.ElementStride && Type == B.Type && Dimension == B.Dimension && IntegerSample == B.IntegerSample && SignedSample == B.SignedSample && DepthSample == B.DepthSample && Multisampled == B.Multisampled && Members == B.Members; }
+    };
+
 	class RHISampler : public RHIResource {};
 
 	class RHIPipeline : public RHIResource
 	{
+    public:
+        const std::vector<RHIShaderResourceLayout>& GetResourceLayout() const { return mResourceLayout; }
+        void SetResourceLayout(std::vector<RHIShaderResourceLayout> Layout) { mResourceLayout = std::move(Layout); }
+    private:
+        std::vector<RHIShaderResourceLayout> mResourceLayout;
 	public:
 		RHIPipeline() : RHIResource(RRT_Pipeline) {}
         void SetDescription(std::shared_ptr<const GRAPHICS_PIPELINE_STATE_DESC> Desc) { mDescription = std::move(Desc); }
@@ -808,6 +862,9 @@ namespace Elaine
     {
         virtual ~RHIShaderCompileResult() = default;
         std::vector<std::string> SourceFiles;
+        std::vector<std::string> GeneratedIncludes;
+        uint64_t DeclarationSignature = 0;
+        std::vector<RHIShaderResourceLayout> ResourceLayout;
     };
 
 	class RHIShader : public RHIResource
@@ -843,21 +900,13 @@ namespace Elaine
 	/**
 	 * Uniform Buffer Semantics
 	 */
-	enum class RHIUniformSlot : uint8
+	enum class RHIResourceGroup : uint8
 	{
-		// set=0: 每帧常量（View/Projection/Light等）
-		PerFrame = 0,
-		// set=1: 材质参数
-		PerMaterial = 1,
-		// set=2: 物体参数（World矩阵等）
-		PerObject = 2,
-		// 自定义槽位
-		Custom0 = 3,
-		Custom1 = 4,
-		Custom2 = 5,
-		Custom3 = 6,
-
-		Count,
+        PerFrame = 0,
+        PerMaterial = 1,
+        PerObject = 2,
+        PerPass = 3,
+        Count = 4,
 		Invalid = 0xFF
 	};
 
@@ -866,7 +915,7 @@ namespace Elaine
 	 */
 	struct RHIUniformBufferDesc
 	{
-		RHIUniformSlot Slot = RHIUniformSlot::PerObject;
+		RHIResourceGroup Slot = RHIResourceGroup::PerObject;
 		size_t Size = 0;
 		const void* InitialData = nullptr;
 		bool Dynamic = true;  // 是否频繁更新
@@ -882,23 +931,24 @@ namespace Elaine
 		// 向后兼容：无槽位的构造
 		RHIUniformBuffer() 
 			: RHIResource(RRT_UniformBuffer)
-			, mSlot(RHIUniformSlot::Invalid) {}
+			, mSlot(RHIResourceGroup::Invalid) {}
 		
 		// 带槽位的构造
-		explicit RHIUniformBuffer(RHIUniformSlot InSlot) 
+		explicit RHIUniformBuffer(RHIResourceGroup InSlot)
 			: RHIResource(RRT_UniformBuffer)
 			, mSlot(InSlot) {}
 		
         explicit RHIUniformBuffer(RHIUniformBufferDesc Desc) : RHIUniformBuffer(Desc.Slot) { SetDescription(Desc); }
         void SetDescription(RHIUniformBufferDesc Desc) { Desc.InitialData = nullptr; mDescription = Desc; }
         const RHIUniformBufferDesc& GetDesc() const { return mDescription; }
-		RHIUniformSlot GetSlot() const { return mSlot; }
-		void SetSlot(RHIUniformSlot InSlot) { mSlot = InSlot; }
+		RHIResourceGroup GetSlot() const { return mSlot; }
+		void SetSlot(RHIResourceGroup InSlot) { mSlot = InSlot; }
 		
 	protected:
-		RHIUniformSlot mSlot = RHIUniformSlot::Invalid;
+		RHIResourceGroup mSlot = RHIResourceGroup::Invalid;
         RHIUniformBufferDesc mDescription;
 	};
+
 
 	class RHIViewport :public RHIResource
 	{
@@ -952,6 +1002,52 @@ namespace Elaine
 	using RHIUniformBufferHandle = RHIResourceHandle<RHIUniformBuffer>;
 	using RHIViewportHandle = RHIResourceHandle<RHIViewport>;
 	using RHISwapchainHandle = RHIResourceHandle<RHISwapchain>;
+
+    // Views own the page. Offsets are immutable and never follow a global frame index.
+    struct RHIUniformBufferView
+    {
+        RHIUniformBufferHandle Buffer;
+        size_t Offset = 0, Size = 0;
+        explicit operator bool() const { return Buffer && Size; }
+    };
+    struct RHIBufferView
+    {
+        RHIBufferHandle Buffer;
+        uint64 Offset = 0, Size = 0;
+        uint32 Stride = 0;
+    };
+    struct RHIShaderValue
+    {
+        RHIShaderValueType Type = RHIShaderValueType::Raw;
+        std::vector<uint8> Bytes;
+    };
+    struct RHISampledTexture
+    {
+        RHITextureHandle Texture;
+        RHISamplerType Sampler = SAMPLER_DEFAULT;
+    };
+    struct RHIShaderParameterSet
+    {
+        std::unordered_map<std::string, RHIShaderValue> Values;
+        // Fixed parameter structs are scoped by uniform block; dynamic material
+        // parameters retain their public, unqualified names in Values.
+        std::unordered_map<std::string, std::unordered_map<std::string, RHIShaderValue>> BlockValues;
+        std::unordered_map<std::string, RHISampledTexture> Textures;
+        std::unordered_map<std::string, RHIBufferView> Buffers;
+        std::unordered_map<std::string, RHIUniformBufferView> Uniforms;
+        std::unordered_map<std::string, RHIDefaultTexture> TextureDefaults;
+        void SetValue(const std::string& Name, const void* Data, size_t Size, RHIShaderValueType Type)
+        {
+            if (!Data || !Size) throw std::invalid_argument("Empty shader parameter: " + Name);
+            auto& Value = Values[Name]; Value.Type = Type;
+            Value.Bytes.assign(static_cast<const uint8*>(Data), static_cast<const uint8*>(Data) + Size);
+        }
+        void SetFloat(const std::string& Name, float Value) { SetValue(Name, &Value, sizeof(Value), RHIShaderValueType::Float); }
+        void SetInt(const std::string& Name, int32 Value) { SetValue(Name, &Value, sizeof(Value), RHIShaderValueType::Integer); }
+        void SetBool(const std::string& Name, bool Value) { int32 V = Value ? 1 : 0; SetValue(Name, &V, sizeof(V), RHIShaderValueType::Boolean); }
+        void SetTexture(const std::string& Name, RHITexture* Texture, RHISamplerType Sampler = SAMPLER_DEFAULT) { Textures[Name] = {Texture, Sampler}; }
+    };
+
 
 	struct RHIRenderPassInfo
 	{
@@ -1283,28 +1379,7 @@ namespace Elaine
 	 * - 上层只需指定类型，RHI层内部管理实际的Sampler对象
 	 * - 预定义常用采样模式，覆盖99%使用场景
 	 */
-	enum RHISamplerType : uint8
-	{
-		// ===== 基础组合 =====
-		SAMPLER_LINEAR_CLAMP,        // 线性过滤 + Clamp边界 (默认)
-		SAMPLER_LINEAR_REPEAT,       // 线性过滤 + Repeat边界
-		SAMPLER_LINEAR_MIRROR,       // 线性过滤 + Mirror边界
-		SAMPLER_NEAREST_CLAMP,       // 最近邻 + Clamp
-		SAMPLER_NEAREST_REPEAT,      // 最近邻 + Repeat
 
-		// ===== 各向异性过滤 =====
-		SAMPLER_ANISO_CLAMP,         // 各向异性 + Clamp (高质量)
-		SAMPLER_ANISO_REPEAT,        // 各向异性 + Repeat
-
-		// ===== 特殊用途 =====
-		SAMPLER_SHADOW,              // 阴影贴图 (深度比较)
-		SAMPLER_CUBEMAP,             // 立方体贴图 (三线性 + Clamp)
-		SAMPLER_UI,                  // UI纹理 (点采样 + Clamp)
-		SAMPLER_DEPTH,               // 深度纹理采样
-
-		SAMPLER_TYPE_COUNT,
-		SAMPLER_DEFAULT = SAMPLER_LINEAR_CLAMP
-	};
 
 	enum RHI_TEXTURE_REG
 	{
@@ -1419,9 +1494,9 @@ namespace Elaine
 	{
         std::vector<std::shared_ptr<void>> ResourceLifetimes;
 		RHIIStreamDesc	mStreamInput;
-		RHITextureHandle		mPSTextures[RTR_TEXTURE_MAX] = { nullptr };
+
 		//RHIBuffer*		mVsBuffers[RHI_MAX_VS_BUFFER_COUNT];
-		RHIBufferHandle		mPsBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
+
 	};
 
 	/**
@@ -1431,6 +1506,8 @@ namespace Elaine
 	 */
 	struct RHI_DRAW_RESOURCE_BINDING
 	{
+        RHIShaderParameterSet Parameters[static_cast<size_t>(RHIResourceGroup::Count)];
+        RHIShaderParameterSet& GetParameters(RHIResourceGroup Group) { return Parameters[static_cast<size_t>(Group)]; }
         std::vector<std::shared_ptr<void>> ResourceLifetimes;
 		// ========== 顶点/索引数据 ==========
 		RHIDrawData			mDrawData;
@@ -1447,49 +1524,16 @@ namespace Elaine
 		uint32				mFirstIndex = 0;
 		int32				mVertexOffset = 0;
 
-		// ========== 纹理绑定 (按槽位设置) ==========
-		RHITextureHandle			mTextures[RTR_TEXTURE_MAX] = { nullptr };
-		RHISamplerType		mSamplerTypes[RTR_TEXTURE_MAX] = { SAMPLER_DEFAULT };  // 上层只指定类型
-		uint32				mTextureCount = 0;  // 实际使用的纹理数量
-
-		// ========== Uniform缓冲 (按Shader阶段) ==========
-		RHIUniformBufferHandle	mVSUniformBuffers[RHI_MAX_VS_BUFFER_COUNT] = { nullptr };
-		RHIUniformBufferHandle	mPSUniformBuffers[RHI_MAX_PS_BUFFER_COUNT] = { nullptr };
-		RHIUniformBufferHandle	mGSUniformBuffer = nullptr;
-		RHIUniformBufferHandle	mCommonUniformBuffer = nullptr;
-		
 		// ========== 渲染目标 (可选,通常在RenderPass层设置) ==========
 		RHITextureHandle			mRenderTargets[MAX_RENDER_TARGET_COUNT] = { nullptr };
 		RHITextureHandle			mDepthStencilTarget = nullptr;
 		uint32				mRenderTargetCount = 0;
 
 		// ========== 辅助方法 ==========
-		void SetTexture(uint32 InSlot, RHITexture* InTexture, RHISamplerType InSamplerType = SAMPLER_DEFAULT)
-		{
-			if (InSlot < RTR_TEXTURE_MAX)
-			{
-				mTextures[InSlot] = InTexture;
-				mSamplerTypes[InSlot] = InSamplerType;
-				if (InSlot >= mTextureCount)
-					mTextureCount = InSlot + 1;
-			}
-		}
-
-		void SetVSUniformBuffer(uint32 InSlot, RHIUniformBuffer* InBuffer)
-		{
-			if (InSlot < RHI_MAX_VS_BUFFER_COUNT)
-				mVSUniformBuffers[InSlot] = InBuffer;
-		}
-
-		void SetPSUniformBuffer(uint32 InSlot, RHIUniformBuffer* InBuffer)
-		{
-			if (InSlot < RHI_MAX_PS_BUFFER_COUNT)
-				mPSUniformBuffers[InSlot] = InBuffer;
-		}
-
 		void Reset()
 		{
 			mDrawData = { };
+            for (auto& Group : Parameters) Group = {};
             ResourceLifetimes.clear();
 			mIndexBuffer = nullptr;
 			mIndexOffset = 0;
@@ -1500,13 +1544,7 @@ namespace Elaine
 			mFirstInstance = 0;
 			mFirstIndex = 0;
 			mVertexOffset = 0;
-			mTextureCount = 0;
 			mRenderTargetCount = 0;
-			mGSUniformBuffer = nullptr;
-			mCommonUniformBuffer = nullptr;
-			for (int i = 0; i < RTR_TEXTURE_MAX; ++i) { mTextures[i] = nullptr; mSamplerTypes[i] = SAMPLER_DEFAULT; }
-			for (int i = 0; i < RHI_MAX_VS_BUFFER_COUNT; ++i) mVSUniformBuffers[i] = nullptr;
-			for (int i = 0; i < RHI_MAX_PS_BUFFER_COUNT; ++i) mPSUniformBuffers[i] = nullptr;
 			for (int i = 0; i < MAX_RENDER_TARGET_COUNT; ++i) mRenderTargets[i] = nullptr;
 			mDepthStencilTarget = nullptr;
 		}

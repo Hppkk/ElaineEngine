@@ -18,7 +18,7 @@ namespace VulkanRHI
 	}
 
 	// 带槽位的构造
-	VulkanUniformBuffer::VulkanUniformBuffer(VulkanDevice* InDevice, Elaine::RHIUniformSlot InSlot, size_t InSize, ERHIAccess InResourceState, void* InContent)
+	VulkanUniformBuffer::VulkanUniformBuffer(VulkanDevice* InDevice, Elaine::RHIResourceGroup InSlot, size_t InSize, ERHIAccess InResourceState, void* InContent)
 		: RHIUniformBuffer(InSlot)
 		, mBufferSize(InSize)
 		, mDevice(InDevice)
@@ -34,15 +34,13 @@ namespace VulkanRHI
 		{
 			const size_t Alignment = mDevice->GetPhyDevice()->GetDeviceProperties().limits.minUniformBufferOffsetAlignment;
             mBufferSize = ((InSize + Alignment - 1) / Alignment) * Alignment;
-            if (!mDevice->GetMemoryManager()->AllocUniformBuffer(mBuffer, mBufferSize * MAX_FRAMES_IN_FLIGHT, nullptr))
+            if (!mDevice->GetMemoryManager()->AllocUniformBuffer(mBuffer, mBufferSize, nullptr))
 			{
 				LOG_FATAL("VulkanRHI: Allocate Uniform Buffer Failed.");
 			}
 			mBufferHandle = (VkBuffer)mBuffer.mVulkanHandle;
 			mBufferOffset = mBuffer.mOffset;
-            if (InContent)
-                for (size_t Frame = 0; Frame < MAX_FRAMES_IN_FLIGHT; ++Frame)
-                    Memory::MemoryCopy(static_cast<uint8_t*>(mBuffer.GetMappedPointer(mDevice)) + Frame * mBufferSize, InContent, InSize);
+            if (InContent) UpdateBuffer(InContent, 0, InSize);
 		}
 	}
 
@@ -56,8 +54,7 @@ namespace VulkanRHI
 
     size_t VulkanUniformBuffer::GetOffset() const
     {
-        auto* Context = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
-        return mBufferOffset + mBufferSize * Context->GetCurrentFrameIndex();
+        return mBufferOffset;
     }
 	void VulkanUniformBuffer::UpdateBuffer(const void* InContent, size_t InOffset, size_t InSize)
 	{
@@ -67,9 +64,8 @@ namespace VulkanRHI
 		if (InContent == nullptr)
 			return;
 
-		VulkanCommandContext* VkCommandCtx = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
-		void* StartPrt = (uint8_t*)mBuffer.GetMappedPointer(mDevice) + mBufferSize * VkCommandCtx->GetCurrentFrameIndex();
-
-		Memory::MemoryCopy(static_cast<uint8_t*>(StartPrt) + InOffset, InContent, InSize);
+        void* StartPtr = mBuffer.GetMappedPointer(mDevice);
+        Memory::MemoryCopy(static_cast<uint8_t*>(StartPtr) + InOffset, InContent, InSize);
+        mBuffer.FlushMappedMemory(mDevice);
 	}
 }

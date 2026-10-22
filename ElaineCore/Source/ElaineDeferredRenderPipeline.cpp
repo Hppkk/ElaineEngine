@@ -1,4 +1,5 @@
 #include "ElainePrecompiledHeader.h"
+#include "render/ElaineEngineShaderParameters.h"
 #include "ElaineDeferredRenderPipeline.h"
 #include "PostProcess/ElainePostProcessManager.h"
 #include "RenderGraph/ElaineRenderGraph.h"
@@ -84,8 +85,16 @@ namespace Elaine
 		uint32 Height = 1080;
 		InRenderView->GetViewportSize(Width, Height);
 
-		CmdList->UpdateCommonUniformBuffer(SceneMgr->GetCommonUniformBufferRHI(),
-			sizeof(CommonUniformBufferCPU), &FrameData.mCommonUniformBuffer);
+        const auto& Common = FrameData.mCommonUniformBuffer;
+        ViewShaderParameters ViewParameters{};
+        CopyMatrixRows(ViewParameters.U_ViewMatrix, Common.U_ViewMatrix);
+        CopyMatrixRows(ViewParameters.U_ProjectionMatrix, Common.U_ProjectionMatrix);
+        CopyMatrixRows(ViewParameters.U_ViewProjectionMatrix, Common.U_ViewProjectionMatrix);
+        ViewParameters.U_CameraPosition = Common.U_CameraPosition;
+        ViewParameters.U_CameraDirection = Common.U_CameraDirection;
+        ViewParameters.U_LightDirection = Common.U_LightDirection;
+        ViewParameters.U_LightColor = Common.U_LightColor;
+        SetShaderParameters(*CmdList, ViewParameters);
 
 		// Detect viewport resize
 		bool bNeedRebuild = (mLastViewportWidth != Width || mLastViewportHeight != Height);

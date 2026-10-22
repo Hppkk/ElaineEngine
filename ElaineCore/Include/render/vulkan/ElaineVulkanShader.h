@@ -40,6 +40,7 @@ namespace VulkanRHI
 		bool isArray;
         bool isColor2DSampler = false;
 		std::string name;
+        RHIShaderResourceLayout ResourceLayout;
 		RHIResourceVisibility mVisibility;
 	};
 

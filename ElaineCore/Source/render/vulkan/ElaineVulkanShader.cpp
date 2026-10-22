@@ -1,7 +1,8 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanShader.h"
 #include "render/vulkan/ElaineVulkanDevice.h"
 #include "shaderc/shaderc.hpp"
+#include "render/ElaineShaderParameters.h"
 #include "spirv_cross/spirv_reflect.hpp"
 #include "ElaineFileManager.h"
 #include "ElaineMD5.h"
@@ -30,13 +31,27 @@ namespace VulkanRHI
 	{
         struct Include { std::string Name, Content; };
 	public:
-        explicit ShaderIncludeResolver(std::vector<std::string>& Files) : mFiles(Files) {}
+        explicit ShaderIncludeResolver(std::vector<std::string>& Files, std::vector<std::string>& Generated, uint64_t& Signature)
+            : mFiles(Files), mGenerated(Generated), mSignature(Signature) {}
 		shaderc_include_result* GetInclude(const char* InRequestedSource,
 			shaderc_include_type InType,
 			const char* InRequestingSource,
 			size_t InIncludeDepth) override
 		{
             auto* Data = new Include;
+            const std::string Requested(InRequestedSource);
+            if (Requested.find("Generated/") == 0)
+            {
+                Data->Name = Requested;
+                uint64_t Signature = 0;
+                if (!GetGeneratedShaderInclude(Requested, Data->Content, Signature)) Data->Content = "#error Unknown generated shader include";
+                else if (std::find(mGenerated.begin(), mGenerated.end(), Requested) == mGenerated.end())
+                { mGenerated.push_back(Requested); mSignature ^= Signature + 0x9e3779b97f4a7c15ull + (mSignature << 6) + (mSignature >> 2); }
+                auto* Result = new shaderc_include_result;
+                Result->source_name = Data->Name.c_str(); Result->source_name_length = Data->Name.size();
+                Result->content = Data->Content.c_str(); Result->content_length = Data->Content.size(); Result->user_data = Data;
+                return Result;
+            }
             const auto RootPath = std::filesystem::path(Root::instance()->GetResourcePath()) / "shader/vulkan";
             auto Path = RootPath / InRequestedSource;
             if (InType == shaderc_include_type_relative)
@@ -77,6 +92,8 @@ namespace VulkanRHI
 	private:
 		char* mContent = nullptr;
         std::vector<std::string>& mFiles;
+        std::vector<std::string>& mGenerated;
+        uint64_t& mSignature;
 	};
 
 	class VulkanShaderCompileManager::Private
@@ -92,12 +109,15 @@ namespace VulkanRHI
 				shaderc_optimization_level optimization_level = shaderc_optimization_level_performance;
 #endif
 				mOptions.SetOptimizationLevel(optimization_level);
-				mOptions.SetIncluder(std::make_unique<ShaderIncludeResolver>(SourceFiles));
+                // Names are part of the binding contract, including optimized builds.
+                mOptions.SetGenerateDebugInfo();
+				mOptions.SetIncluder(std::make_unique<ShaderIncludeResolver>(SourceFiles, GeneratedIncludes, DeclarationSignature));
 				mInitilizeOnce = true;
 			}
 		}
 
-        std::vector<std::string> SourceFiles;
+        std::vector<std::string> SourceFiles, GeneratedIncludes;
+        uint64_t DeclarationSignature = 0;
 		bool CompileGLSLToSPV(EShaderStage InShaderStage, const std::string& InShaderString, const std::string& InExportPath, const std::string& InEntry, shaderc::SpvCompilationResult& InOutResult)
 		{
 			shaderc_shader_kind shaderstate = shaderc_glsl_vertex_shader;
@@ -385,12 +405,44 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 					const auto& type = reflection.get_type(resource.base_type_id);
 					bindingInfo.blockSize = reflection.get_declared_struct_size(type);
 					bindingInfo.count = 1;
+                    if (!reflection.get_type(resource.type_id).array.empty()) throw std::runtime_error("Uniform descriptor arrays are not supported: " + bindingInfo.name);
+                    auto& Layout = bindingInfo.ResourceLayout;
+                    Layout.Name = bindingInfo.name; Layout.Group = bindingInfo.set; Layout.Binding = bindingInfo.binding;
+                    Layout.Size = static_cast<uint32>(bindingInfo.blockSize); Layout.Type = RHIShaderResourceType::Uniform;
+                    for (uint32 Member = 0; Member < type.member_types.size(); ++Member)
+                    {
+                        const auto& T = reflection.get_type(type.member_types[Member]);
+                        if (T.width != 32 && T.basetype != spirv_cross::SPIRType::Boolean)
+                            throw std::runtime_error("Only 32-bit uniform components are supported: " + reflection.get_member_name(resource.base_type_id, Member));
+                        RHIShaderMember M; M.Name = reflection.get_member_name(resource.base_type_id, Member);
+                        M.Offset = reflection.type_struct_member_offset(type, Member);
+                        M.Size = static_cast<uint32>(reflection.get_declared_struct_member_size(type, Member));
+                        M.Rows = T.vecsize; M.Columns = T.columns;
+                        if (T.basetype == spirv_cross::SPIRType::Float && T.columns > 1) M.Type = RHIShaderValueType::Matrix;
+                        else if (T.basetype == spirv_cross::SPIRType::Float) M.Type = RHIShaderValueType::Float;
+                        else if (T.basetype == spirv_cross::SPIRType::Boolean) M.Type = RHIShaderValueType::Boolean;
+                        else if (T.basetype == spirv_cross::SPIRType::Int) M.Type = RHIShaderValueType::Integer;
+                        else if (T.basetype == spirv_cross::SPIRType::UInt) M.Type = RHIShaderValueType::UnsignedInteger;
+                        else throw std::runtime_error("Unsupported uniform member type: " + M.Name);
+                        if (!T.array.empty())
+                        {
+                            if (T.array.size() != 1 || !T.array_size_literal[0] || !T.array[0]) throw std::runtime_error("Unsupported uniform array: " + M.Name);
+                            M.ArrayCount = T.array[0]; M.ArrayStride = reflection.type_struct_member_array_stride(type, Member);
+                        }
+                        if (T.columns > 1)
+                        {
+                            M.MatrixStride = reflection.type_struct_member_matrix_stride(type, Member);
+                            M.RowMajor = reflection.has_member_decoration(resource.base_type_id, Member, spv::DecorationRowMajor);
+                        }
+                        Layout.Members.push_back(std::move(M));
+                    }
 					PipelineRefData.descriptorSets[bindingInfo.set].push_back(bindingInfo);
-					if (bindingInfo.set == 2)
+					if (bindingInfo.set == static_cast<uint32>(RHIResourceGroup::PerMaterial))
 					{
 						for (uint32_t MemberIndex = 0; MemberIndex < type.member_types.size(); ++MemberIndex)
 						{
@@ -409,7 +461,7 @@ namespace VulkanRHI
 								Parameter.Type = RHIPipeline::MaterialParameterType::Boolean;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Int || MemberType.basetype == spirv_cross::SPIRType::UInt)
 								Parameter.Type = RHIPipeline::MaterialParameterType::Integer;
-							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.vecsize == 1)
+							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.vecsize == 1 && MemberType.columns == 1)
 								Parameter.Type = RHIPipeline::MaterialParameterType::Scalar;
 							else if (MemberType.basetype == spirv_cross::SPIRType::Float && MemberType.columns > 1)
 								Parameter.Type = RHIPipeline::MaterialParameterType::Matrix;
@@ -430,10 +482,52 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER;
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 					const auto& type = reflection.get_type(resource.base_type_id);
 					bindingInfo.blockSize = reflection.get_declared_struct_size(type);
 					bindingInfo.count = 1;
+                    if (!reflection.get_buffer_block_flags(resource.id).get(spv::DecorationNonWritable))
+                        throw std::runtime_error("Writable storage buffers are not supported: " + bindingInfo.name);
+                    if (!reflection.get_type(resource.type_id).array.empty()) throw std::runtime_error("Buffer descriptor arrays are not supported: " + bindingInfo.name);
+                    auto& Layout = bindingInfo.ResourceLayout;
+                    Layout.Name = bindingInfo.name; Layout.Group = bindingInfo.set; Layout.Binding = bindingInfo.binding;
+                    Layout.Size = static_cast<uint32>(bindingInfo.blockSize); Layout.Type = RHIShaderResourceType::ReadOnlyBuffer;
+                    if (!type.member_types.empty() && !reflection.get_type(type.member_types.back()).array.empty())
+                        Layout.ElementStride = reflection.type_struct_member_array_stride(type, static_cast<uint32>(type.member_types.size() - 1));
+                    // Fixed parameter buffers declare a single array of plain value structs.
+                    // Preserve its element layout so hot reload validates more than the descriptor kind.
+                    if (type.member_types.size() == 1 && reflection.type_struct_member_offset(type, 0) == 0)
+                    {
+                        const auto& Element = reflection.get_type(type.member_types.front());
+                        if (Element.basetype == spirv_cross::SPIRType::Struct && Element.array.size() == 1)
+                            for (uint32 I = 0; I < Element.member_types.size(); ++I)
+                            {
+                                const auto& T = reflection.get_type(Element.member_types[I]);
+                                if (T.width != 32 || T.basetype == spirv_cross::SPIRType::Struct) continue;
+                                RHIShaderMember M;
+                                M.Name = reflection.get_member_name(Element.self, I);
+                                M.Offset = reflection.type_struct_member_offset(Element, I);
+                                M.Size = static_cast<uint32>(reflection.get_declared_struct_member_size(Element, I));
+                                M.Rows = T.vecsize; M.Columns = T.columns;
+                                if (T.basetype == spirv_cross::SPIRType::Float) M.Type = T.columns > 1 ? RHIShaderValueType::Matrix : RHIShaderValueType::Float;
+                                else if (T.basetype == spirv_cross::SPIRType::Int) M.Type = RHIShaderValueType::Integer;
+                                else if (T.basetype == spirv_cross::SPIRType::UInt) M.Type = RHIShaderValueType::UnsignedInteger;
+                                else if (T.basetype == spirv_cross::SPIRType::Boolean) M.Type = RHIShaderValueType::Boolean;
+                                else continue;
+                                if (!T.array.empty())
+                                {
+                                    if (T.array.size() != 1 || !T.array_size_literal[0] || !T.array[0]) continue;
+                                    M.ArrayCount = T.array[0]; M.ArrayStride = reflection.type_struct_member_array_stride(Element, I);
+                                }
+                                if (T.columns > 1)
+                                {
+                                    M.MatrixStride = reflection.type_struct_member_matrix_stride(Element, I);
+                                    M.RowMajor = reflection.has_member_decoration(Element.self, I, spv::DecorationRowMajor);
+                                }
+                                Layout.Members.push_back(std::move(M));
+                            }
+                    }
 					PipelineRefData.descriptorSets[bindingInfo.set].push_back(bindingInfo);
 				}
 
@@ -447,11 +541,22 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER; // �� VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 
 					const auto& type = reflection.get_type(resource.type_id);
 					bindingInfo.count = type.array.empty() ? 1 : type.array[0];
 
+                    auto& Layout = bindingInfo.ResourceLayout;
+                    Layout.Name = bindingInfo.name; Layout.Group = bindingInfo.set; Layout.Binding = bindingInfo.binding;
+                    Layout.Type = RHIShaderResourceType::Texture;
+                    Layout.IntegerSample = reflection.get_type(Image.type).basetype != spirv_cross::SPIRType::Float;
+                    Layout.SignedSample = reflection.get_type(Image.type).basetype == spirv_cross::SPIRType::Int;
+                    Layout.DepthSample = Image.depth; Layout.Multisampled = Image.ms;
+                    if (Image.dim == spv::Dim2D && !Image.arrayed) Layout.Dimension = TextureDimension::Texture2D;
+                    else if (Image.dim == spv::Dim2D && Image.arrayed) Layout.Dimension = TextureDimension::Texture2DArray;
+                    else if (Image.dim == spv::DimCube && !Image.arrayed) Layout.Dimension = TextureDimension::TextureCube;
+                    else throw std::runtime_error("Unsupported sampled image dimension: " + bindingInfo.name);
 					PipelineRefData.descriptorSets[bindingInfo.set].push_back(bindingInfo);
 				}
 
@@ -462,6 +567,7 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE;
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 
 					const auto& type = reflection.get_type(resource.type_id);
@@ -477,6 +583,7 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_SAMPLER;
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 					bindingInfo.count = 1;
 
@@ -490,6 +597,7 @@ namespace VulkanRHI
 					bindingInfo.binding = reflection.get_decoration(resource.id, spv::DecorationBinding);
 					bindingInfo.type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT;
 					bindingInfo.name = reflection.get_name(resource.id);
+                    if (bindingInfo.name.empty()) bindingInfo.name = resource.name;
 					bindingInfo.stageFlags = InShader->GetVkShaderStageFlag();
 					bindingInfo.count = 1;
 
@@ -609,9 +717,13 @@ namespace VulkanRHI
         auto Prepared = std::make_shared<PreparedShader>();
         Prepared->Spirv.assign(Result.begin(), Result.end());
         Prepared->SourceFiles = std::move(Compiler.SourceFiles);
+        Prepared->GeneratedIncludes = std::move(Compiler.GeneratedIncludes);
+        Prepared->DeclarationSignature = Compiler.DeclarationSignature;
         VulkanShader Shader(nullptr, Code, Stage);
         Shader.mSPVCodeDesc.SetCode(Prepared->Spirv.data(), Prepared->Spirv.size());
         ReflectCPU(&Shader, Prepared->Reflection);
+        for (const auto& Set : Prepared->Reflection.descriptorSets) for (const auto& B : Set.second) Prepared->ResourceLayout.push_back(B.ResourceLayout);
+        ValidateShaderParameterLayouts(Prepared->ResourceLayout, Prepared->GeneratedIncludes);
         Prepared->InputBindings = Shader.mVertexInputBindingDescs;
         return Prepared;
     }
@@ -628,8 +740,8 @@ namespace VulkanRHI
                 if (It == Bindings.end()) Bindings.push_back(Binding);
                 else
                 {
-                    if (It->type != Binding.type || It->count != Binding.count || It->blockSize != Binding.blockSize)
-                        throw std::runtime_error("Shader descriptor declarations disagree between stages");
+                    if (It->type != Binding.type || It->count != Binding.count || !(It->ResourceLayout == Binding.ResourceLayout))
+                        throw std::runtime_error("Shader descriptor declarations disagree between stages: " + Binding.name);
                     It->stageFlags |= Binding.stageFlags;
                 }
             }
@@ -638,6 +750,10 @@ namespace VulkanRHI
             auto It = std::find_if(Data.materialParameters.begin(), Data.materialParameters.end(), [&](const RHIPipeline::MaterialParameterInfo& P) { return P.Set == Parameter.Set && P.Binding == Parameter.Binding && P.Offset == Parameter.Offset; });
             if (It == Data.materialParameters.end()) Data.materialParameters.push_back(Parameter);
         }
+        std::vector<RHIShaderResourceLayout> MergedLayout;
+        for (const auto& Set : Data.descriptorSets) for (const auto& Binding : Set.second) MergedLayout.push_back(Binding.ResourceLayout);
+        ValidateShaderParameterLayouts(MergedLayout, VS->mPrepared->GeneratedIncludes);
+        ValidateShaderParameterLayouts(MergedLayout, PS->mPrepared->GeneratedIncludes);
         VS->mInputAttributeDescriptions = Data.inputAttributes;
         VS->mVertexInputBindingDescs = VS->mPrepared->InputBindings;
         if (!GeneratePipelineDescriptors(Data)) return false;
@@ -648,6 +764,23 @@ namespace VulkanRHI
 
     bool VulkanShaderCompileManager::GeneratePipelineDescriptors(PipelineReflectionData& Data)
     {
+        std::vector<RHIShaderResourceLayout> ResourceLayout;
+        std::unordered_map<std::string, bool> Names;
+        for (const auto& Set : Data.descriptorSets) for (const auto& Binding : Set.second)
+        {
+            if (Binding.name.empty()) throw std::runtime_error("Shader resource names must be retained for automatic binding");
+            if (Set.first >= static_cast<uint32>(RHIResourceGroup::Count) || Binding.count != 1)
+                throw std::runtime_error("Unsupported descriptor group or array: " + Binding.name);
+            if (Binding.type != VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER && Binding.type != VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER && Binding.type != VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                throw std::runtime_error("Unsupported graphics descriptor type: " + Binding.name);
+            if (!Names.emplace(std::to_string(Set.first) + ":" + Binding.name, true).second)
+                throw std::runtime_error("Duplicate shader resource name: " + Binding.name);
+            ResourceLayout.push_back(Binding.ResourceLayout);
+        }
+        std::sort(ResourceLayout.begin(), ResourceLayout.end(), [](const RHIShaderResourceLayout& A, const RHIShaderResourceLayout& B) {
+            return A.Group != B.Group ? A.Group < B.Group : A.Binding < B.Binding;
+        });
+        Data.mPipeline->SetResourceLayout(std::move(ResourceLayout));
         Data.mPipeline->mDescriptorBindings = Data.descriptorSets;
         uint32 MaxSet = 0;
         for (const auto& Set : Data.descriptorSets) MaxSet = std::max(MaxSet, Set.first);

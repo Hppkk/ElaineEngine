@@ -156,6 +156,7 @@ namespace Elaine
             if (mStopping) break;
             // The original RHI frame barrier also protects immediate resource creation.
             WaitForRenderThread_Gfx();
+            if (!mShutdownRender) RenderSystem::instance()->InitializeRenderResources();
             if (HasFrame) RenderSystem::instance()->GetRenderCommandQueue()->Execute();
             TaskGraph::TaskGraph::instance()->ExecuteInThread(NamedThread::RenderThread);
             if (mShutdownRender)
@@ -165,6 +166,7 @@ namespace Elaine
                     for (auto* Scene : mSceneMgrs) delete Scene;
                     mSceneMgrs.clear(); mRenderViews.clear();
                     for (auto*& Pipeline : mRenderPipeline) { delete Pipeline; Pipeline = nullptr; }
+                    RenderSystem::instance()->ReleaseRenderResources();
                     mRenderStopped = true;
                 }
             }

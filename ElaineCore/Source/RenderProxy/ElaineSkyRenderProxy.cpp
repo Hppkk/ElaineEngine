@@ -77,12 +77,7 @@ namespace Elaine
         mResourceBinding.mInstanceCount = 1;
         mMaterialProxy.BindToResourceBinding(mResourceBinding);
 
-        // 从 RenderMaterialProxy 获取已解析的 RHI 纹理
-        RHITexture* CubeRHI = mMaterialProxy.GetResolvedTexture(BaseColor);
-        if (!CubeRHI) CubeRHI = mCubeTextureRHI.get();
 
-        if (CubeRHI)
-            mResourceBinding.SetTexture(0, CubeRHI, SAMPLER_CUBEMAP);
     }
 
     void SkyRenderProxy::UpdateRenderQueue(RenderQueueSet* InRenderQueue)
@@ -94,6 +89,7 @@ namespace Elaine
         if (!mMaterialProxy.IsReady())
             return;
 
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
         ShaderPass* SkyPass = mMaterialProxy.GetPass(Name("Sky"));
         if (SkyPass == nullptr)
             return;
@@ -106,9 +102,7 @@ namespace Elaine
     {
         mMaterialProxy.ApplyResourceUpdate(Update);
         mMaterialProxy.BindToResourceBinding(mResourceBinding);
-        if (Update.IsTexture && mCubeTexture.get() == Update.Resource.get()) mCubeTextureRHI = Update.Texture;
-        RHITexture* Cube = mMaterialProxy.GetResolvedTexture(BaseColor);
-        mResourceBinding.SetTexture(0, Cube ? Cube : mCubeTextureRHI.get(), SAMPLER_CUBEMAP);
+
     }
     void SkyRenderProxy::PrepareResourceBinding()
     {

@@ -59,6 +59,7 @@ namespace Elaine
         VT_PhysicalAtlas_RMA,          // sampler2D - physical atlas for Roughness/Metallic/AO layer
         VT_PhysicalAtlas_Emissive,     // sampler2D - physical atlas for Emissive layer
 
+        MetallicRoughness, Emissive, AO,
         Tex_Count,
     };
 
@@ -83,6 +84,7 @@ namespace Elaine
     public:
         static void Initialize();
         static void RegisterTextureSemantics();
+        static std::string CanonicalTextureName(const std::string& Name);
         static void RegisterVertexSemantics();
         static const Name& GetName(TextureSemantics InTextureSemantice);
         static TextureSemantics GetSemantics(const Name& InTextureSemantice);

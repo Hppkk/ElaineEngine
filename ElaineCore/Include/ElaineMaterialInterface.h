@@ -7,6 +7,12 @@ namespace Elaine
     class ShaderPass;
     struct MaterialParamSnapshot;
 
+    namespace MaterialParameterNames
+    {
+        ElaineCoreExport const Name& SkyTexture();
+        ElaineCoreExport const Name& SkyExposure();
+    }
+
     enum MaterialType
     {
         MaterialResource,
@@ -25,7 +31,7 @@ namespace Elaine
         /**
          * 创建材质参数快照，用于通过 ENQUEUE_RENDER_COMMAND 传递到渲染线程。
          * 仅 MaterialInstanceDynamic 需要实现此接口。
-         * 快照中不包含任何 RHI 资源，只包含 ResourcePtr 和 POD 参数。
+         * 快照包含独立参数副本以及保持资源存活的 RHI 句柄。
          * @return 材质参数快照
          */
         virtual MaterialParamSnapshot CreateSnapshot() const;

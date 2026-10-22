@@ -5,14 +5,7 @@
 // Outputs: world position, world normal, UV, tangent basis for normal mapping.
 //=============================================================================
 
-#include "Uniform_CommonVS.inl"
-
-// Per-object uniform
-layout(set = 1, binding = 0) uniform ObjectUniformBuffer
-{
-    vec4 U_ModelMatrix[4];
-    vec4 U_NormalMatrix[4]; // inverse-transpose of model matrix (3x3 + padding)
-};
+#include "GBufferResources.inl"
 
 // Vertex inputs
 layout(location = 0) in vec3 inPosition;

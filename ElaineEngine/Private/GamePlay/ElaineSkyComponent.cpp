@@ -17,23 +17,20 @@ namespace Elaine
     {
         // 创建默认的材质实例（逻辑线程）
         mMaterial = new MaterialInstanceDynamic();
+        mMaterialSubscription = mMaterial->ObserveParameterChanges([this] { UpdateMaterialSnapshot(); });
         mMaterial->ChangeMaterial("material_instance/SkyBox.mi");
 
-        // 在逻辑线程生成材质参数快照（不含 RHI 资源）
-        MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
-        TexturePtr CubeCopy = mCubeTexture;
-        float ExposureCopy = mExposure;
+        SetExposure(mExposure);
 
-        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this, Snapshot = std::move(Snapshot), CubeCopy, ExposureCopy](RenderContext& InContext)
+        // 在逻辑线程捕获独立的材质参数与 RHI 句柄。
+        MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
+
+        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this, Snapshot = std::move(Snapshot)](RenderContext& InContext)
             {
                 RenderProxy* NewProxy = self->GetActor()->GetSceneManager()->CreateRenderProxy(EProxyType::Sky);
                 SkyRenderProxy* SkyProxy = static_cast<SkyRenderProxy*>(NewProxy);
                 if (SkyProxy)
                 {
-                    SkyProxy->SetExposure(ExposureCopy);
-                    if (!CubeCopy.isNull())
-                        SkyProxy->SetCubeTexture(CubeCopy);
-
                     // 用快照更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
                     SkyProxy->UpdateMaterial(Snapshot, InContext);
                     self->mProxy = SkyProxy;
@@ -44,11 +41,6 @@ namespace Elaine
                     {
                         SkyProxy->TrackResource(Snapshot.Source);
                     }
-                    // 追踪 CubeTexture
-                    if (!CubeCopy.isNull())
-                    {
-                        SkyProxy->TrackResource(CubeCopy);
-                    }
                     // 开始初始化流程（在所有资源加载完成后自动调用 InitializeResourceBinding）
                     SkyProxy->BeginInitialization();
                 }
@@ -58,6 +50,7 @@ namespace Elaine
 
     SkyComponent::~SkyComponent()
     {
+        mMaterialSubscription.Reset();
         SkyRenderProxy* ProxyCopy = mProxy;
         SceneManager* SceneMgr = GetActor()->GetSceneManager();
         ENQUEUE_RENDER_COMMAND(DestroySkyRenderProxy)([ProxyCopy, SceneMgr](RenderContext& InContext)
@@ -74,61 +67,43 @@ namespace Elaine
         mMaterial = nullptr;
     }
 
+    void SkyComponent::UpdateMaterialSnapshot()
+    {
+        if (!mProxy || !mMaterial) return;
+        auto Snapshot = mMaterial->CreateSnapshot();
+        SkyRenderProxy* Proxy = mProxy;
+        ENQUEUE_RENDER_COMMAND(UpdateSkyMaterial)([Proxy, Snapshot = std::move(Snapshot)](RenderContext& Context) {
+            Proxy->UpdateMaterial(Snapshot, Context);
+        });
+    }
+
     void SkyComponent::SetCubeTexture(const TexturePtr& InCube)
     {
         mCubeTexture = InCube;
-        SkyRenderProxy* ProxyCopy = mProxy;
-        TexturePtr CubeCopy = mCubeTexture;
-        ENQUEUE_RENDER_COMMAND(UpdateSkyCube)([ProxyCopy, CubeCopy](RenderContext& InContext)
-            {
-                if (ProxyCopy)
-                    ProxyCopy->SetCubeTexture(CubeCopy);
-            });
+        mMaterial->SetTexture(MaterialParameterNames::SkyTexture(), InCube);
     }
 
     void SkyComponent::SetCubeTexture(const std::string& InPath)
     {
-        mCubeTexture = TextureManager::instance()->RequestResource(InPath).GetResult().Resource;
-        SkyRenderProxy* ProxyCopy = mProxy;
-        TexturePtr CubeCopy = mCubeTexture;
-        ENQUEUE_RENDER_COMMAND(UpdateSkyCube)([ProxyCopy, CubeCopy](RenderContext& InContext)
-            {
-                if (ProxyCopy)
-                    ProxyCopy->SetCubeTexture(CubeCopy);
-            });
+        SetCubeTexture(TextureManager::instance()->RequestResource(InPath).GetResult().Resource);
     }
 
     void SkyComponent::SetExposure(float InExposure)
     {
         mExposure = InExposure;
-        SkyRenderProxy* ProxyCopy = mProxy;
-        ENQUEUE_RENDER_COMMAND(UpdateSkyExposure)([ProxyCopy, InExposure](RenderContext& InContext)
-            {
-                if (ProxyCopy)
-                    ProxyCopy->SetExposure(InExposure);
-            });
+        mMaterial->SetScalar(MaterialParameterNames::SkyExposure(), InExposure);
     }
 
     void SkyComponent::SetMaterial(const std::string& InMaterialPath)
     {
-        if (mMaterial)
-        {
-            mMaterial->ChangeMaterial(InMaterialPath);
-        }
-        else
+        if (!mMaterial)
         {
             mMaterial = new MaterialInstanceDynamic();
-            mMaterial->ChangeMaterial(InMaterialPath);
+            mMaterialSubscription = mMaterial->ObserveParameterChanges([this] { UpdateMaterialSnapshot(); });
         }
-
-        // 在逻辑线程生成快照，传递给渲染线程
-        MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
-        SkyRenderProxy* ProxyCopy = mProxy;
-        ENQUEUE_RENDER_COMMAND(UpdateSkyMaterial)([ProxyCopy, Snapshot = std::move(Snapshot)](RenderContext& InContext)
-            {
-                if (ProxyCopy)
-                    ProxyCopy->UpdateMaterial(Snapshot, InContext);
-            });
+        mMaterial->ChangeMaterial(InMaterialPath);
+        if (mCubeTexture) mMaterial->SetTexture(MaterialParameterNames::SkyTexture(), mCubeTexture);
+        SetExposure(mExposure);
     }
 
     const Name& SkyComponent::GetType() const

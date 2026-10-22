@@ -25,6 +25,8 @@ namespace Elaine
 	public:
 		StaticMeshComponent(Actor* InObject);
 		virtual ~StaticMeshComponent();
+        StaticMeshComponent(const StaticMeshComponent&) = delete;
+        StaticMeshComponent& operator=(const StaticMeshComponent&) = delete;
 		EFUNCTION(Category="Mesh")
 		void ChangeMesh(const std::string& InPath);
 		EFUNCTION(Category="Mesh")
@@ -38,6 +40,7 @@ namespace Elaine
 	private:
 		StaticMeshRenderProxy* mRenderProxy = nullptr;
 		std::vector<MaterialInstanceDynamic*> mMaterials;
+        std::vector<ResourceSubscription> mMaterialSubscriptions;
 		MeshPtr mMesh = nullptr;
 		EPROPERTY(DisplayName="Cast Shadow", Category="Rendering", Tooltip="Whether this mesh casts shadows")
 		bool mbCastShadow = true;

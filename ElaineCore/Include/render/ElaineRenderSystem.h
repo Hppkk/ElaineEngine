@@ -13,6 +13,13 @@ namespace Elaine
 		RenderSystem();
 		~RenderSystem();
 		void Initialize(const RHI_PARAM_DESC& InDesc);
+        void InitializeRenderResources();
+        void ReleaseRenderResources();
+        RHITextureHandle GetDefaultTexture(RHIDefaultTexture Type) const;
+    private:
+        RHITextureHandle mDefaultTextures[static_cast<size_t>(RHIDefaultTexture::Count)];
+        bool mResourcesInitialized = false;
+    public:
 		RHIBufferHandle CreateBuffer(BufferUsageFlags InUsage, ERHIAccess InResourceState, void* InData, size_t InSize);
 		RenderCommandQueue* GetRenderCommandQueue() const { return mRenderCommandQueue; }
 		RenderContext& GetRenderContext() { return mRenderContext; }

@@ -1,21 +1,11 @@
-#include "Uniform_CommonVS.inl"
+#include "GridResources.inl"
 
 layout(location = 0) in vec3 nearPoint;
 layout(location = 1) in vec3 farPoint;
 
 layout(location = 0) out vec4 outColor;
 
-layout(set = 2, binding = 5) uniform MaterialParams
-{
-    vec4 U_BaseColorFactor;
-    vec4 U_EmissiveFactor;
-    vec4 U_PBRParams;
-    vec4 U_MaterialFlags;
-    vec4 U_GridParams;
-    vec4 U_GridColor;
-    vec4 U_XAxisColor;
-    vec4 U_ZAxisColor;
-};
+
 
 mat4 GridMatrix(vec4 row0, vec4 row1, vec4 row2, vec4 row3) {
     return transpose(mat4(row0, row1, row2, row3));
@@ -40,17 +30,17 @@ vec4 grid(vec3 fragPos3D, float scale) {
     float minimumz = min(derivative.y, 1.0);
     float minimumx = min(derivative.x, 1.0);
 
-    vec4 color = U_GridColor;
+    vec4 color = GridColor;
     color.a *= 1.0 - min(line, 1.0);
 
     // Z axis (blue) — when X is near 0
     if (fragPos3D.x > -0.1 * minimumx && fragPos3D.x < 0.1 * minimumx)
-        color = U_ZAxisColor;
+        color = ZAxisColor;
         color.a *= 1.0 - min(grid.x, 1.0);
 
     // X axis (red) — when Z is near 0
     if (fragPos3D.z > -0.1 * minimumz && fragPos3D.z < 0.1 * minimumz)
-        color = U_XAxisColor;
+        color = XAxisColor;
         color.a *= 1.0 - min(grid.y, 1.0);
 
     return color;
@@ -77,11 +67,11 @@ void main() {
 
     // Compute distance-based fade
     float distToCamera = length(U_CameraPosition.xyz - fragPos3D);
-    float fadeFar = 1.0 - smoothstep(U_GridParams.z, U_GridParams.w, distToCamera);
+    float fadeFar = 1.0 - smoothstep(FadeNear, FadeFar, distToCamera);
 
     // Two grid scales: 1m and 10m.
-    vec4 gridSmall = grid(fragPos3D, U_GridParams.x);
-    vec4 gridLarge = grid(fragPos3D, U_GridParams.y);
+    vec4 gridSmall = grid(fragPos3D, SmallGridScale);
+    vec4 gridLarge = grid(fragPos3D, LargeGridScale);
 
     // Blend: large grid more visible at distance
     outColor = gridSmall;

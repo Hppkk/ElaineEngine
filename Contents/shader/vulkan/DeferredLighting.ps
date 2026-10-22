@@ -20,73 +20,7 @@
 //=============================================================================
 
 #include "PBRLighting.inl"
-
-#define MAX_POINT_LIGHTS 64
-#define MAX_SPOT_LIGHTS  16
-
-//=========================================================================
-// GBuffer Samplers
-//=========================================================================
-layout(set = 0, binding = 0) uniform sampler2D texGBufferA;
-layout(set = 0, binding = 1) uniform sampler2D texGBufferB;
-layout(set = 0, binding = 2) uniform sampler2D texGBufferC;
-layout(set = 0, binding = 3) uniform sampler2D texSceneDepth;
-layout(set = 0, binding = 4) uniform sampler2D texShadowMap;
-
-//=========================================================================
-// Light & Camera Uniforms
-//=========================================================================
-layout(set = 1, binding = 0) uniform DeferredLightingUniforms
-{
-    // Camera
-    vec4 U_CameraPosition;       // xyz = camera world position
-    vec4 U_InvViewProjection[4]; // Inverse view-projection matrix (row-major vec4[4])
-
-    // Directional Light (Sun)
-    vec4 U_DirLightDirection;    // xyz = direction (pointing FROM light), w = shadow enabled (1/0)
-    vec4 U_DirLightColor;        // rgb = color, a = intensity
-
-    // Shadow
-    vec4 U_ShadowMatrix[4];      // Light view-projection matrix for shadow mapping
-    vec4 U_ShadowParams;         // x = shadow bias, y = shadow normal bias, z = shadow strength, w = unused
-
-    // Ambient
-    vec4 U_AmbientColor;         // rgb = ambient color, a = ambient intensity
-    vec4 U_AmbientSkyColor;      // rgb = sky hemisphere color (top)
-    vec4 U_AmbientGroundColor;   // rgb = ground hemisphere color (bottom)
-
-    // Tone mapping
-    vec4 U_ToneMapParams;        // x = exposure, y = gamma, z = tone map mode (0=ACES, 1=Reinhard, 2=Uncharted2), w = unused
-
-    // Point lights count & spot lights count
-    vec4 U_LightCounts;          // x = numPointLights, y = numSpotLights
-};
-
-// Point lights
-struct PointLightData
-{
-    vec4 PositionRadius;   // xyz = position, w = radius
-    vec4 ColorIntensity;   // rgb = color, a = intensity
-};
-
-layout(set = 1, binding = 1) uniform PointLightsBuffer
-{
-    PointLightData U_PointLights[MAX_POINT_LIGHTS];
-};
-
-// Spot lights
-struct SpotLightData
-{
-    vec4 PositionRadius;   // xyz = position, w = radius
-    vec4 DirectionInner;   // xyz = direction, w = inner cone angle (cosine)
-    vec4 ColorOuter;       // rgb = color, a = outer cone angle (cosine)
-    vec4 Intensity;        // x = intensity
-};
-
-layout(set = 1, binding = 2) uniform SpotLightsBuffer
-{
-    SpotLightData U_SpotLights[MAX_SPOT_LIGHTS];
-};
+#include "LightingResources.inl"
 
 //=========================================================================
 // Input / Output
@@ -144,14 +78,14 @@ void main()
 
     //--- Directional Light ---
     {
-        vec3 lightDir = U_DirLightDirection.xyz;
-        vec3 lightColor = U_DirLightColor.rgb * U_DirLightColor.a;
+        vec3 lightDir = U_LightDirection.xyz;
+        vec3 lightColor = U_LightColor.rgb * U_LightColor.a;
 
         vec3 directional = PBR_DirectionalLight(N, V, lightDir, albedo, metallic, roughness, lightColor);
 
         // Shadow
         float shadow = 1.0;
-        if (U_DirLightDirection.w > 0.5)
+        if (U_ShadowParams.w > 0.5)
         {
             // Transform world position to shadow map space
             vec4 shadowPos;

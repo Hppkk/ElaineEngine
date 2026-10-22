@@ -10,7 +10,7 @@ namespace VulkanRHI
 		// 向后兼容：无槽位构造
 		VulkanUniformBuffer(VulkanDevice* InDevice, size_t InSize, ERHIAccess InResourceState, void* InContent);
 		// 带槽位的构造
-		VulkanUniformBuffer(VulkanDevice* InDevice, Elaine::RHIUniformSlot InSlot, size_t InSize, ERHIAccess InResourceState, void* InContent);
+		VulkanUniformBuffer(VulkanDevice* InDevice, Elaine::RHIResourceGroup InSlot, size_t InSize, ERHIAccess InResourceState, void* InContent);
 		virtual ~VulkanUniformBuffer();
 
 		inline VkBuffer GetHandle() const

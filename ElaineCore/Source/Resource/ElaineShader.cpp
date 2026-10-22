@@ -71,6 +71,7 @@ namespace Elaine
         if (!RHI) throw std::runtime_error("Shader preparation requires an active RHI backend");
         Data.mPrepared = RHI->PrepareShader(Data.mShaderCode, mResourceName, Stage);
         if (!Data.mPrepared) throw std::runtime_error("Shader preparation returned no compilation output");
+        Data.mHashKey = GenerateShaderHashKey(Data.mShaderCode + ":" + std::to_string(Data.mPrepared->DeclarationSignature));
 		Data.MemoryUsage = Data.mShaderCode.size();
         return Pending;
 	}

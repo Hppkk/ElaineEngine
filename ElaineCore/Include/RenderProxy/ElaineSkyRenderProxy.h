@@ -12,14 +12,6 @@ namespace Elaine
         SkyRenderProxy();
         virtual ~SkyRenderProxy();
 
-        void SetCubeTexture(const TexturePtr& InCube)
-        {
-            if (mCubeTexture == InCube) return;
-            mCubeTexture = InCube;
-            mCubeTextureRHI.reset();
-            TrackResource(InCube);
-        }
-        void SetExposure(float InExposure) { mExposure = InExposure; }
         void SetRotation(const Quaternion& InRot) { mRotation = InRot; }
 
         /**
@@ -39,8 +31,6 @@ namespace Elaine
             mMaterialProxy.UpdateFromSnapshot(InSnapshot, InContext);
         }
 
-        TexturePtr GetCubeTexture() const { return mCubeTexture; }
-        float GetExposure() const { return mExposure; }
         const Quaternion& GetRotation() const { return mRotation; }
 
         /** 获取渲染线程材质代理（仅渲染线程访问） */
@@ -55,9 +45,6 @@ namespace Elaine
 
     private:
         RenderMaterialProxy mMaterialProxy;   // 渲染线程材质代理（值语义）
-        TexturePtr mCubeTexture;
-        RHITextureHandle mCubeTextureRHI;
-        float mExposure = 1.0f;
         Quaternion mRotation = Quaternion::IDENTITY;
     };
 

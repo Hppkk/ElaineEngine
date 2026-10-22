@@ -13,8 +13,7 @@ namespace Elaine
 {
     RenderMaterialProxy::RenderMaterialProxy()
     {
-        for (int i = 0; i < Tex_Count; ++i)
-            mResolvedTextures[i] = nullptr;
+
     }
 
     RenderMaterialProxy::~RenderMaterialProxy()
@@ -45,21 +44,8 @@ namespace Elaine
     void RenderMaterialProxy::UpdateFromSnapshot(const MaterialParamSnapshot& InSnapshot, RenderContext& InContext)
     {
         UpdateFromSnapshot(InSnapshot);
-        if (InContext.mCommandCtxRHI == nullptr)
-            return;
-
-        if (mMaterialUniformBuffer == nullptr || mAllocatedUniformSize != mUniformDataSize || mUploadedRevision != InSnapshot.Revision)
-        {
-            RHIUniformBufferDesc Desc; Desc.Size = mUniformDataSize; Desc.InitialData = mPackedUniformData.data(); Desc.Slot = RHIUniformSlot::PerMaterial;
-            mMaterialUniformBuffer = GetDynamicRHI()->GetDefaultCommandContext()->RHICreateUniformBufferWithSlot(Desc);
-            mAllocatedUniformSize = mUniformDataSize;
-
-        }
-
-
-        if (mMaterialUniformBuffer != nullptr)
-            mUploadedRevision = InSnapshot.Revision;
     }
+
 
     ShaderPass* RenderMaterialProxy::GetShaderPass() const
     {
@@ -74,9 +60,8 @@ namespace Elaine
 
     RHITexture* RenderMaterialProxy::GetResolvedTexture(TextureSemantics InSem) const
     {
-        if (InSem < 0 || InSem >= Tex_Count)
-            return nullptr;
-        return mResolvedTextures[InSem].get();
+        auto It = mResolvedTextures.find(SemanticsRegister::CanonicalTextureName(SemanticsRegister::GetName(InSem).ToString()));
+        return It == mResolvedTextures.end() ? nullptr : It->second.get();
     }
 
     float RenderMaterialProxy::GetScalar(uint64_t InParamHash, float InDefault) const
@@ -111,79 +96,42 @@ namespace Elaine
 
     void RenderMaterialProxy::BuildUniformData()
     {
-        const uint64_t BaseColorHash = Name("BaseColorFactor").GetHashValue();
-        const uint64_t EmissiveHash = Name("EmissiveFactor").GetHashValue();
-        const uint64_t RoughnessHash = Name("Roughness").GetHashValue();
-        const uint64_t MetallicHash = Name("Metallic").GetHashValue();
-        const uint64_t SmallGridHash = Name("SmallGridScale").GetHashValue();
-        const uint64_t LargeGridHash = Name("LargeGridScale").GetHashValue();
-        const uint64_t FadeNearHash = Name("FadeNear").GetHashValue();
-        const uint64_t FadeFarHash = Name("FadeFar").GetHashValue();
-        const uint64_t GridColorHash = Name("GridColor").GetHashValue();
-        const uint64_t XAxisHash = Name("XAxisColor").GetHashValue();
-        const uint64_t ZAxisHash = Name("ZAxisColor").GetHashValue();
-
-        mUniformData = MaterialUniformData{};
-        mUniformData.BaseColorFactor = GetVector(BaseColorHash, mUniformData.BaseColorFactor);
-        mUniformData.EmissiveFactor = GetVector(EmissiveHash, mUniformData.EmissiveFactor);
-        mUniformData.PBRParams.x = GetScalar(MetallicHash, mUniformData.PBRParams.x);
-        mUniformData.PBRParams.y = GetScalar(RoughnessHash, mUniformData.PBRParams.y);
-        mUniformData.GridParams.x = GetScalar(SmallGridHash, mUniformData.GridParams.x);
-        mUniformData.GridParams.y = GetScalar(LargeGridHash, mUniformData.GridParams.y);
-        mUniformData.GridParams.z = GetScalar(FadeNearHash, mUniformData.GridParams.z);
-        mUniformData.GridParams.w = GetScalar(FadeFarHash, mUniformData.GridParams.w);
-        mUniformData.GridColor = GetVector(GridColorHash, mUniformData.GridColor);
-        mUniformData.XAxisColor = GetVector(XAxisHash, mUniformData.XAxisColor);
-        mUniformData.ZAxisColor = GetVector(ZAxisHash, mUniformData.ZAxisColor);
-        mUniformData.MaterialFlags.x = mResolvedTextures[Normal] != nullptr ? 1.0f : 0.0f;
-        mUniformData.MaterialFlags.y = mResolvedTextures[Metallic] != nullptr ? 1.0f : 0.0f;
-        mUniformData.MaterialFlags.z = mResolvedTextures[Specular] != nullptr ? 1.0f : 0.0f;
-        mUniformData.MaterialFlags.w = mResolvedTextures[Ambient] != nullptr ? 1.0f : 0.0f;
-
-        mUniformDataSize = sizeof(MaterialUniformData);
-        if (!mSnapshot.ParameterLayout.empty())
+        mParameters = {};
+        for (const auto& Parameter : mSnapshot.ParameterLayout)
         {
-            for (const auto& Parameter : mSnapshot.ParameterLayout)
-                if (Parameter.Reflected)
-                    mUniformDataSize = std::max(mUniformDataSize, static_cast<size_t>(Parameter.Offset + Parameter.Size));
-        }
-        mPackedUniformData.assign(mUniformDataSize, 0);
-        std::memcpy(mPackedUniformData.data(), &mUniformData, std::min(mUniformDataSize, sizeof(MaterialUniformData)));
-        if (!mSnapshot.ParameterLayout.empty())
-        {
-            for (const auto& Parameter : mSnapshot.ParameterLayout)
+            const auto& N = Parameter.Name;
+            if (!Parameter.TexturePresence.empty())
             {
-                if (!Parameter.Reflected || !Parameter.HasDefault || Parameter.Offset + Parameter.Size > mPackedUniformData.size()) continue;
-                if (Parameter.Kind == MaterialParameterKind::Scalar)
-                {
-                    const float Value = GetScalar(Parameter.Hash, Parameter.DefaultValue.x);
-                    std::memcpy(mPackedUniformData.data() + Parameter.Offset, &Value, std::min<size_t>(sizeof(Value), Parameter.Size));
-                }
-                else if (Parameter.Kind == MaterialParameterKind::Vector || Parameter.Kind == MaterialParameterKind::Color)
-                {
-                    const Vector4 Value = GetVector(Parameter.Hash, Parameter.DefaultValue);
-                    std::memcpy(mPackedUniformData.data() + Parameter.Offset, Value.ptr(), std::min<size_t>(sizeof(Value), Parameter.Size));
-                }
-                else if (Parameter.Kind == MaterialParameterKind::Integer)
-                {
-                    const int32_t Value = GetInt(Parameter.Hash, static_cast<int32_t>(Parameter.DefaultValue.x));
-                    std::memcpy(mPackedUniformData.data() + Parameter.Offset, &Value, std::min<size_t>(sizeof(Value), Parameter.Size));
-                }
-                else if (Parameter.Kind == MaterialParameterKind::Boolean)
-                {
-                    const int32_t Value = GetBool(Parameter.Hash, Parameter.DefaultValue.x != 0.0f) ? 1 : 0;
-                    std::memcpy(mPackedUniformData.data() + Parameter.Offset, &Value, std::min<size_t>(sizeof(Value), Parameter.Size));
-                }
+                const auto It = mResolvedTextures.find(Parameter.TexturePresence);
+                mParameters.SetBool(N, It != mResolvedTextures.end() && bool(It->second));
+                continue;
             }
+            if (Parameter.Kind == MaterialParameterKind::Scalar) mParameters.SetFloat(N, GetScalar(Parameter.Hash, Parameter.DefaultValue.x));
+            else if (Parameter.Kind == MaterialParameterKind::Vector || Parameter.Kind == MaterialParameterKind::Color)
+            {
+                auto V = GetVector(Parameter.Hash, Parameter.DefaultValue);
+                mParameters.SetValue(N, V.ptr(), sizeof(float)*4, RHIShaderValueType::Float);
+            }
+            else if (Parameter.Kind == MaterialParameterKind::Integer) mParameters.SetInt(N, GetInt(Parameter.Hash, static_cast<int32>(Parameter.DefaultValue.x)));
+            else if (Parameter.Kind == MaterialParameterKind::Boolean) mParameters.SetBool(N, GetBool(Parameter.Hash, Parameter.DefaultValue.x != 0));
+            else if (Parameter.Kind == MaterialParameterKind::Matrix)
+            {
+                auto It = mSnapshot.Matrices.find(Parameter.Hash);
+                const auto& M = It == mSnapshot.Matrices.end() ? Parameter.DefaultMatrix : It->second;
+                mParameters.SetValue(N, M[0], sizeof(Matrix4x4), RHIShaderValueType::Matrix);
+            }
+            else if (Parameter.Kind == MaterialParameterKind::Texture && Parameter.DefaultTexture != RHIDefaultTexture::None) mParameters.TextureDefaults[N] = Parameter.DefaultTexture;
         }
+        for (const auto& Pair : mResolvedTextures) mParameters.SetTexture(Pair.first, Pair.second.get());
+        mParameters.Buffers = mSnapshot.Buffers;
+
     }
 
     void RenderMaterialProxy::BindToResourceBinding(RHI_DRAW_RESOURCE_BINDING& OutBinding)
     {
-        OutBinding.SetPSUniformBuffer(0, mMaterialUniformBuffer.get());
-        for (int i = 0; i < Tex_Count; ++i) OutBinding.SetTexture(i, mResolvedTextures[i].get());
-        OutBinding.ResourceLifetimes.clear();
+        OutBinding.GetParameters(RHIResourceGroup::PerMaterial) = mParameters;
     }
+
     void RenderMaterialProxy::ApplyResourceUpdate(const RenderResourceUpdate& Update)
     {
         auto Snapshot = mSnapshot;
@@ -193,30 +141,31 @@ namespace Elaine
             Snapshot = Update.Material;
             Snapshot.OverridedScalars = mSnapshot.OverridedScalars;
             Snapshot.OverridedVectors = mSnapshot.OverridedVectors;
+            Snapshot.OverridedMatrices = mSnapshot.OverridedMatrices;
             Snapshot.OverridedInts = mSnapshot.OverridedInts;
             Snapshot.OverridedBools = mSnapshot.OverridedBools;
             Snapshot.OverridedTextures = mSnapshot.OverridedTextures;
+            Snapshot.OverridedBuffers = mSnapshot.OverridedBuffers;
             Snapshot.OverrideTextureHandles = mSnapshot.OverrideTextureHandles;
             Snapshot.ApplyOverrides();
             Changed = true;
         }
         if (Update.IsTexture)
         {
-            for (size_t i = 0; i < Tex_Count; ++i)
-                if (Snapshot.TextureSources[i].get() == Update.Resource.get())
-                { Snapshot.ResolvedTextures[i] = Update.Texture; Changed = true; }
+            for (const auto& Pair : Snapshot.TextureSources)
+                if (Pair.second.get() == Update.Resource.get())
+                { Snapshot.ResolvedTextures[Pair.first] = Update.Texture; Changed = true; }
             for (const auto& Pair : Snapshot.OverridedTextures)
                 if (Pair.second.get() == Update.Resource.get())
                 { Snapshot.OverrideTextureHandles[Pair.first] = Update.Texture; Changed = true; }
             if (Changed) Snapshot.ApplyOverrides();
         }
         if (!Changed) return;
-        mUploadedRevision = ~Snapshot.Revision;
         RenderContext Context; Context.mCommandCtxRHI = GetDynamicRHI()->GetDefaultCommandContext();
         UpdateFromSnapshot(Snapshot, Context);
     }
     void RenderMaterialProxy::ResolveTextures(const MaterialParamSnapshot& InSnapshot)
     {
-        for (size_t i = 0; i < Tex_Count; ++i) mResolvedTextures[i] = InSnapshot.ResolvedTextures[i];
+        mResolvedTextures = InSnapshot.ResolvedTextures;
     }
 }

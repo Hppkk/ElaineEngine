@@ -1,4 +1,4 @@
-#include "Uniform_CommonVS.inl"
+#include "GridResources.inl"
 
 // Fullscreen triangle. Uses gl_VertexIndex to generate 3 vertices covering the screen.
 // Outputs near/far world-space positions for the fragment shader to

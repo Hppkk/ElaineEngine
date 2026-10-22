@@ -1,4 +1,5 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "render/ElaineEngineShaderParameters.h"
 #include "RenderProxy/ElaineMeshRenderProxy.h"
 #include "ElaineRenderContext.h"
 #include "ElaineRenderQueue.h"
@@ -144,26 +145,11 @@ namespace Elaine
 				else if (QueueName == "ui") Queue = RenderQueue_UI;
 				else continue;
 
-				if (!mObjectUniformBuffer || mUploadedWorldMatrix != mWorldMatrix)
-				{
-					struct ObjectUniformData
-					{
-						Matrix4x4 Model;
-						Matrix4x4 Normal;
-					} Data;
-					Data.Model = mWorldMatrix;
-					Data.Normal = std::abs(mWorldMatrix.determinant()) > 1e-8f ?
-						mWorldMatrix.inverse().transpose() : Matrix4x4::IDENTITY;
-					RHIUniformBufferDesc Desc;
-					Desc.Size = sizeof(Data);
-					Desc.InitialData = &Data;
-					Desc.Slot = RHIUniformSlot::PerObject;
-					// 新建不可变的变换数据，已入队的绘制继续持有旧缓冲。
-					mObjectUniformBuffer = GetDynamicRHI()->GetDefaultCommandContext()->RHICreateUniformBufferWithSlot(Desc);
-					if (!mObjectUniformBuffer) return;
-					mUploadedWorldMatrix = mWorldMatrix;
-				}
-				Binding.SetVSUniformBuffer(0, mObjectUniformBuffer.get());
+                ObjectShaderParameters Object{};
+                CopyMatrixRows(Object.U_ModelMatrix, mWorldMatrix);
+                const auto NormalMatrix = std::abs(mWorldMatrix.determinant()) > 1e-8f ? mWorldMatrix.inverse().transpose() : Matrix4x4::IDENTITY;
+                CopyMatrixRows(Object.U_NormalMatrix, NormalMatrix);
+                SetShaderParameters(Binding, Object);
 				InRenderQueue->GetRenderQueue(Queue)->UpdateRenderQueue(Pass.GetPipelineRHI(), Binding, mRenderLayer);
 			}
 		}

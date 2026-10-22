@@ -1,7 +1,10 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
+#include "render/ElaineShaderParameters.h"
 #include "render/common/ElaineRHICommandList.h"
 #include "render/common/ElaineRHICommandContext.h"
 #include "render/common/ElaineRHI.h"
+#include "render/ElaineRenderSystem.h"
+#include <cstring>
 
 namespace Elaine
 {
@@ -22,6 +25,7 @@ namespace Elaine
             free(Command);
         }
         mCommandLinkEnd = nullptr; mCommandNum = 0;
+        mUniformCache.clear(); mRecordingPipeline.reset(); mFrameParameters = {};
         if (mCompletion)
         {
             try { mCompletion->set_exception(Failure ? Failure : std::make_exception_ptr(std::runtime_error("RHI command batch abandoned"))); } catch (...) {}
@@ -72,6 +76,7 @@ namespace Elaine
                 free(Command);
             }
             mCommandLinkEnd = nullptr;
+            mUniformCache.clear(); mRecordingPipeline.reset(); mFrameParameters = {};
             if (mCompletion) { mCompletion->set_value(); mCompletion.reset(); }
         }
         catch (...)
@@ -118,6 +123,7 @@ namespace Elaine
 
 	void RHICommandList::BindGfxPipeline(RHIPipeline* InPipeline)
 	{
+        mRecordingPipeline = InPipeline;
         if (mHasRecordingPass && mGraphicsContext) mGraphicsContext->RHIPrepareGfxPipeline(InPipeline, mRecordingPass);
         ALLOC_COMMAND(RHI_COMMAND_TYPE(BindGfxPipeline))(InPipeline);
 	}
@@ -129,17 +135,40 @@ namespace Elaine
 
 	void RHICommandList::BindDrawData(RHI_DRAW_RESOURCE_BINDING* InDrawData)
 	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(BindDrawData))(InDrawData);
-	}
-
-	void RHICommandList::UpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents)
-	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(UpdateCommonUniformBuffer))(InUniformBufferRHI, InSize, InContents);
-	}
-
-	void RHICommandList::UpdateUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents)
-	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(UpdateUniformBuffer))(InUniformBufferRHI, InContents, InSize);
+        if (!InDrawData || !mRecordingPipeline) throw std::logic_error("Draw binding requires a pipeline");
+        auto Binding = *InDrawData;
+        auto& Frame = Binding.GetParameters(RHIResourceGroup::PerFrame);
+        Frame.Values.insert(mFrameParameters.Values.begin(), mFrameParameters.Values.end());
+        Frame.BlockValues.insert(mFrameParameters.BlockValues.begin(), mFrameParameters.BlockValues.end());
+        Frame.Textures.insert(mFrameParameters.Textures.begin(), mFrameParameters.Textures.end());
+        Frame.Buffers.insert(mFrameParameters.Buffers.begin(), mFrameParameters.Buffers.end());
+        Frame.Uniforms.insert(mFrameParameters.Uniforms.begin(), mFrameParameters.Uniforms.end());
+        Frame.TextureDefaults.insert(mFrameParameters.TextureDefaults.begin(), mFrameParameters.TextureDefaults.end());
+        for (const auto& Layout : mRecordingPipeline->GetResourceLayout())
+        {
+            auto& Group = Binding.Parameters[Layout.Group];
+            if (Layout.Type == RHIShaderResourceType::Texture)
+            {
+                auto It = Group.Textures.find(Layout.Name);
+                if (It == Group.Textures.end() || !It->second.Texture)
+                {
+                    auto Default = Group.TextureDefaults.find(Layout.Name);
+                    if (Default == Group.TextureDefaults.end() || Default->second == RHIDefaultTexture::None ||
+                        Layout.Dimension != TextureDimension::Texture2D || Layout.IntegerSample || Layout.DepthSample || Layout.Multisampled)
+                        throw std::runtime_error("Required texture is not bound: " + Layout.Name);
+                    Group.Textures[Layout.Name].Texture = RenderSystem::instance()->GetDefaultTexture(Default->second);
+                }
+                continue;
+            }
+            if (Layout.Type != RHIShaderResourceType::Uniform) continue;
+            if (Group.Uniforms.count(Layout.Name)) continue;
+            auto Bytes = PackShaderUniform(Layout, Group);
+            const std::string Key(reinterpret_cast<const char*>(Bytes.data()), Bytes.size());
+            auto Cached = mUniformCache.find(Key);
+            if (Cached == mUniformCache.end()) Cached = mUniformCache.emplace(Key, mGraphicsContext->RHIAllocateUniformData(Bytes.data(), Bytes.size())).first;
+            Group.Uniforms[Layout.Name] = Cached->second;
+        }
+        ALLOC_COMMAND(RHI_COMMAND_TYPE(BindDrawData))(&Binding);
 	}
 
 	void RHICommandList::SetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ)
@@ -200,11 +229,6 @@ namespace Elaine
 	void RHICommandList::CopyTexture(RHITexture* SourceTexture, RHITexture* DestTexture, const RHICopyTextureInfo& CopyInfo)
 	{
 		ALLOC_COMMAND(RHI_COMMAND_TYPE(CopyTexture))(SourceTexture, DestTexture, CopyInfo);
-	}
-
-	void RHICommandList::BindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer)
-	{
-		ALLOC_COMMAND(RHI_COMMAND_TYPE(BindUniformBuffer))(InSlot, InBuffer);
 	}
 
 	void RHICommandList::ResourceBarrier(const RHIResourceBarrierDesc& Barrier)
@@ -328,16 +352,6 @@ namespace Elaine
 		InCmdList->GetCmdContext()->RHIBindResourceBinding(mRenderData);
 	}
 
-	void RHI_COMMAND_TYPE(UpdateUniformBuffer)::Execute(RHICommandList* InCmdList)
-	{
-		InCmdList->GetCmdContext()->RHIUpdateUniformBuffer(mUniformBufferRHI.get(), mContents, mSize);
-	}
-
-	void RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)::Execute(RHICommandList* InCmdList)
-	{
-		InCmdList->GetCmdContext()->RHIUpdateCommonUniformBuffer(mUniformBufferRHI.get(), mSize, mContents);
-	}
-
 	void RHI_COMMAND_TYPE(SetViewport)::Execute(RHICommandList* InCmdList)
 	{
 		InCmdList->GetCmdContext()->RHISetViewport(mMinX, mMinY, mMinZ, mMaxX, mMaxY, mMaxZ);
@@ -398,11 +412,6 @@ namespace Elaine
 	void RHI_COMMAND_TYPE(CopyTexture)::Execute(RHICommandList* InCmdList)
 	{
 		InCmdList->GetCmdContext()->RHICopyTexture(mSourceTexture.get(), mDestTexture.get(), mCopyInfo);
-	}
-
-	void RHI_COMMAND_TYPE(BindUniformBuffer)::Execute(RHICommandList* InCmdList)
-	{
-		InCmdList->GetCmdContext()->RHIBindUniformBuffer(mSlot, mBuffer.get());
 	}
 
 	void RHI_COMMAND_TYPE(ResourceBarrier)::Execute(RHICommandList* InCmdList)

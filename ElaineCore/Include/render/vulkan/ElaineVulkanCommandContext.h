@@ -223,7 +223,6 @@ namespace VulkanRHI
 
 		virtual RHIBufferHandle RHICreateIndexBuffer(uint32 Stride, uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
-		virtual void RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* Contents, size_t InSize) override;
 
 		virtual RHIBufferHandle RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData) override;
 
@@ -240,11 +239,9 @@ namespace VulkanRHI
 		virtual void RHICreateSurface(void* InNativeHandle) override;
 
 		virtual RHIUniformBufferHandle RHICreateUniformBuffer(size_t InSize, void* InContents) override;
-		virtual void RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents) override;
 
 		// 新增：带语义槽位的 UniformBuffer 创建和绑定
 		virtual RHIUniformBufferHandle RHICreateUniformBufferWithSlot(const RHIUniformBufferDesc& InDesc) override;
-		virtual void RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer) override;
 
 		void RHIWriteGPUFence(RHIGPUFence* FenceRHI) override;
 		VulkanCommandBufferManager* GetCommandBufferManager() const { return mCmdBufferManager; }
@@ -269,7 +266,10 @@ namespace VulkanRHI
 		VulkanQueue* mQueue = nullptr;
 		VulkanGfxPipeline* mCurrentGfxPipeline = nullptr;
 		VulkanComputePipeline* mCurrentComputePipeline = nullptr;
-        RHITextureHandle mDefaultMaterialTextures[RTR_TEXTURE_MAX];
+        struct UniformPage { RHIUniformBufferHandle Buffer; size_t Used = 0, Capacity = 0; };
+        std::vector<UniformPage> mUniformPages;
+        RHIUniformBufferView RHIAllocateUniformData(const void* Data, size_t Size) override;
+        void RHIReleaseUniformPool() override { mUniformPages.clear(); }
         std::vector<std::unique_ptr<VulkanDescriptorPool>> mDrawPools;
         std::vector<std::unique_ptr<VulkanDescriptorSet>> mDrawSets;
         struct FrameSubmission { VulkanCommandBuffer* Buffer = nullptr; uint64 Counter = 0; };
@@ -280,7 +280,6 @@ namespace VulkanRHI
 		VulkanSemaphore* mImageAvailableSemaphores[MAX_FRAMES_IN_FLIGHT];
 		VulkanSemaphore* mRenderFinishedSemaphores[MAX_FRAMES_IN_FLIGHT];
 		VulkanDescriptorSet* mCommonDescriptorSet = nullptr;
-		RHIUniformBufferHandle mBoundUniformBuffers[(size_t)RHIUniformSlot::Count] = { nullptr };
 		bool mIsCreateCommonDescriptorSets = false;
 		int mCurrentFrameIndex = 0;
 		uint32_t mCurrentImageIndex = 0;

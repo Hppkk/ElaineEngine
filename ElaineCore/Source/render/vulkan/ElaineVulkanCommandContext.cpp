@@ -1,4 +1,4 @@
-#include "ElainePrecompiledHeader.h"
+﻿#include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanRHI.h"
 #include "render/common/ElaineRHICommandContext.h"
 #include "common/ElaineRHICommandList.h"
@@ -55,13 +55,12 @@ namespace VulkanRHI
 
 		mRenderPassCache = new VulkanRenderPassCache(mDevice);
 		mFramebufferCache = new VulkanFramebufferCache(mDevice);
-		mFrameDescriptorAllocator = new VulkanFrameDescriptorAllocator(mDevice, MAX_FRAMES_IN_FLIGHT, mDescriptorSetManager);
 	}
 
 	void VulkanCommandContext::Deinitilize()
 	{
-        for (auto& Texture : mDefaultMaterialTextures) Texture.reset();
-        for (auto& Uniform : mBoundUniformBuffers) Uniform.reset();
+        mUniformPages.clear();
+
         mDrawSets.clear(); mDrawPools.clear();
 		SAFE_DELETE(mCmdBufferManager);
         Elaine::FlushRHIResourceReleases();
@@ -187,8 +186,8 @@ namespace VulkanRHI
             auto* Buffer = static_cast<VulkanBuffer*>(Binding.mIndexBuffer.get());
             vkCmdBindIndexBuffer(Cmd->GetHandle(), Buffer->GetHandle(), Buffer->GetOffset() + Binding.mIndexOffset, EngineToVkIndexType(Binding.mIndexType));
         }
-        for (const auto& Resource : mBoundUniformBuffers) Cmd->Keep(Resource);
         const auto& Layouts = mCurrentGfxPipeline->GetDescriptorSetLayouts();
+        const auto& Limits = mDevice->GetPhyDevice()->GetDeviceProperties().limits;
         std::vector<VkDescriptorSet> Handles;
         for (uint32 Index = 0; Index < Layouts.size(); ++Index)
         {
@@ -197,39 +196,84 @@ namespace VulkanRHI
             auto Set = std::make_unique<VulkanDescriptorSet>(Index);
             VkDescriptorSetAllocateInfo Info{}; Info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
             Info.descriptorSetCount = 1; Info.pSetLayouts = &Layouts[Index];
-            if (!mDrawPools.back()->AllocateDescriptorSets(Info, &Set->GetHandle())) throw std::runtime_error("Draw descriptor allocation failed");
+            if (!mDrawPools.back()->AllocateDescriptorSets(Info, &Set->GetHandle()))
+            {
+                mDrawPools.push_back(std::make_unique<VulkanDescriptorPool>(mDevice, 64));
+                if (!mDrawPools.back()->AllocateDescriptorSets(Info, &Set->GetHandle())) throw std::runtime_error("Draw descriptor allocation failed");
+            }
             const auto& Bindings = mCurrentGfxPipeline->GetDescriptorBindings();
             const auto Declarations = Bindings.find(Index);
             if (Declarations != Bindings.end()) for (const auto& Declaration : Declarations->second)
             {
-                if (Declaration.count != 1) throw std::runtime_error("Descriptor arrays require an explicit array binding");
+                const auto& Group = Binding.Parameters[Index];
+                const auto& Name = Declaration.name;
+                VkDescriptorBufferInfo BufferInfo{};
                 if (Declaration.type == VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER)
                 {
-                    RHIUniformBuffer* Uniform = nullptr;
-                    if (Index == 0 && Declaration.binding == 0) Uniform = Binding.mCommonUniformBuffer ? Binding.mCommonUniformBuffer.get() : mBoundUniformBuffers[static_cast<size_t>(RHIUniformSlot::PerFrame)].get();
-                    else if (Index == 1 && Declaration.binding < RHI_MAX_VS_BUFFER_COUNT) Uniform = Binding.mVSUniformBuffers[Declaration.binding].get();
-                    else if (Index == 2 && Declaration.binding == 5) Uniform = Binding.mPSUniformBuffers[0].get();
-                    if (!Uniform) throw std::runtime_error("Required uniform buffer is not bound: " + Declaration.name);
-                    auto* Backend = static_cast<VulkanUniformBuffer*>(Uniform);
-                    if (Backend->GetBufferSize() < Declaration.blockSize) throw std::runtime_error("Uniform buffer is smaller than shader declaration");
-                    mDescriptorSetManager->WriteUniformBufferToDescriptorSet(Backend, Set.get(), Declaration.binding);
+                    auto It = Group.Uniforms.find(Name);
+                    if (It == Group.Uniforms.end() || !It->second) throw std::runtime_error("Required uniform block is not bound: " + Name);
+                    const auto& View = It->second;
+                    auto* Buffer = static_cast<VulkanUniformBuffer*>(View.Buffer.get());
+                    if (View.Offset % Limits.minUniformBufferOffsetAlignment || View.Size < Declaration.blockSize ||
+                        View.Size > Limits.maxUniformBufferRange || View.Offset > Buffer->GetBufferSize() || View.Size > Buffer->GetBufferSize() - View.Offset)
+                        throw std::runtime_error("Invalid uniform view: " + Name);
+                    BufferInfo = {Buffer->GetHandle(), Buffer->GetOffset() + View.Offset, View.Size};
+                    Cmd->Keep(View.Buffer);
+                }
+                else if (Declaration.type == VK_DESCRIPTOR_TYPE_STORAGE_BUFFER)
+                {
+                    auto It = Group.Buffers.find(Name);
+                    if (It == Group.Buffers.end() || !It->second.Buffer) throw std::runtime_error("Required read-only buffer is not bound: " + Name);
+                    const auto& View = It->second;
+                    const auto& Desc = View.Buffer->GetDesc();
+                    const uint64 Size = View.Size ? View.Size : (View.Offset <= Desc.Size ? Desc.Size - View.Offset : 0);
+                    const uint32 ShaderStride = Declaration.ResourceLayout.ElementStride;
+                    if (!EnumHasAnyFlags(Desc.Usage, BufferUsageFlags::StructuredBuffer) || !Size || Size < Declaration.blockSize ||
+                        View.Offset > Desc.Size || Size > Desc.Size - View.Offset || Size > Limits.maxStorageBufferRange ||
+                        (ShaderStride && ((Size - Declaration.blockSize) % ShaderStride || (View.Stride && View.Stride != ShaderStride) || (Desc.Stride && Desc.Stride != ShaderStride))) ||
+                        View.Offset % Limits.minStorageBufferOffsetAlignment || (View.Stride && (Size % View.Stride || (Desc.Stride && View.Stride != Desc.Stride))))
+                        throw std::runtime_error("Invalid read-only buffer view: " + Name);
+                    auto* Buffer = static_cast<VulkanBuffer*>(View.Buffer.get());
+                    BufferInfo = {Buffer->GetHandle(), Buffer->GetOffset() + View.Offset, Size};
+                    Cmd->Keep(View.Buffer);
                 }
                 else if (Declaration.type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER)
                 {
-                    if (Index != 2 || Declaration.binding >= RTR_TEXTURE_MAX)
-                        throw std::runtime_error("Unsupported sampled texture binding: " + Declaration.name);
-                    auto* Texture = Binding.mTextures[Declaration.binding].get();
-                    if (!Texture && Declaration.isColor2DSampler)
+                    auto It = Group.Textures.find(Name);
+                    if (It == Group.Textures.end() || !It->second.Texture) throw std::runtime_error("Required sampled texture is not bound: " + Name);
+                    auto* Texture = static_cast<VulkanTexture*>(It->second.Texture.get());
+                    const auto& Desc = Texture->GetDesc();
+                    const auto& Layout = Declaration.ResourceLayout;
+                    const auto Format = Texture->GetVkFormat();
+                    bool IntegerFormat = false, SignedFormat = false;
+                    switch (Format)
                     {
-                        auto& Fallback = mDefaultMaterialTextures[Declaration.binding];
-                        Texture = Fallback.get();
+                    case VK_FORMAT_R8_SINT: case VK_FORMAT_R8G8_SINT: case VK_FORMAT_R8G8B8_SINT: case VK_FORMAT_R8G8B8A8_SINT:
+                    case VK_FORMAT_R16_SINT: case VK_FORMAT_R16G16_SINT: case VK_FORMAT_R16G16B16_SINT: case VK_FORMAT_R16G16B16A16_SINT:
+                    case VK_FORMAT_R32_SINT: case VK_FORMAT_R32G32_SINT: case VK_FORMAT_R32G32B32_SINT: case VK_FORMAT_R32G32B32A32_SINT:
+                        IntegerFormat = SignedFormat = true; break;
+                    case VK_FORMAT_R8_UINT: case VK_FORMAT_R8G8_UINT: case VK_FORMAT_R8G8B8_UINT: case VK_FORMAT_R8G8B8A8_UINT:
+                    case VK_FORMAT_R16_UINT: case VK_FORMAT_R16G16_UINT: case VK_FORMAT_R16G16B16_UINT: case VK_FORMAT_R16G16B16A16_UINT:
+                    case VK_FORMAT_R32_UINT: case VK_FORMAT_R32G32_UINT: case VK_FORMAT_R32G32B32_UINT: case VK_FORMAT_R32G32B32A32_UINT:
+                    case VK_FORMAT_A2B10G10R10_UINT_PACK32: case VK_FORMAT_A2R10G10B10_UINT_PACK32:
+                        IntegerFormat = true; break;
+                    default: break;
                     }
-                    if (!Texture) throw std::runtime_error("Required sampled texture is not bound: " + Declaration.name);
-                    Cmd->Keep(Texture);
-                    mDescriptorSetManager->WriteImageToDescriptorSet(static_cast<VulkanTexture*>(Texture),
-                        mSamplerCache->GetSampler(Binding.mSamplerTypes[Declaration.binding]), Set.get(), Declaration.binding);
+                    if (Desc.mDimension != Layout.Dimension || (Desc.mNumSamples > 1) != Layout.Multisampled || IntegerFormat != Layout.IntegerSample ||
+                        (IntegerFormat && SignedFormat != Layout.SignedSample) ||
+                        !EnumHasAnyFlags(Desc.mFlags, TextureCreateFlags::ShaderResource) || (Layout.DepthSample && !(Texture->GetFullAspectMask() & VK_IMAGE_ASPECT_DEPTH_BIT)))
+                        throw std::runtime_error("Sampled texture type mismatch: " + Name);
+                    Cmd->Keep(It->second.Texture);
+                    const auto Sampler = IntegerFormat ? SAMPLER_NEAREST_CLAMP : (Layout.DepthSample ? SAMPLER_SHADOW :
+                        (Layout.Dimension == TextureDimension::TextureCube && It->second.Sampler == SAMPLER_DEFAULT ? SAMPLER_CUBEMAP : It->second.Sampler));
+                    mDescriptorSetManager->WriteImageToDescriptorSet(Texture, mSamplerCache->GetSampler(Sampler), Set.get(), Declaration.binding);
+                    continue;
                 }
-                else throw std::runtime_error("Unsupported draw descriptor type: " + Declaration.name);
+                else throw std::runtime_error("Unsupported draw descriptor type: " + Name);
+                VkWriteDescriptorSet Write{}; Write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+                Write.dstSet = Set->GetHandle(); Write.dstBinding = Declaration.binding;
+                Write.descriptorCount = 1; Write.descriptorType = Declaration.type; Write.pBufferInfo = &BufferInfo;
+                vkUpdateDescriptorSets(mDevice->GetDevice(), 1, &Write, 0, nullptr);
             }
             Handles.push_back(Set->GetHandle()); mDrawSets.push_back(std::move(Set));
         }
@@ -754,21 +798,41 @@ namespace VulkanRHI
 		return RHICreateBuffer(Size, Usage, Stride, ResourceState, InData);
 	}
 
-	void VulkanCommandContext::RHIUpdateUniformBuffer(RHIUniformBuffer* UniformBufferRHI, const void* InContents, size_t InSize)
-	{
-		if (UniformBufferRHI == nullptr)
-			return;
 
-		VulkanUniformBuffer* VkUniformBuffer = static_cast<VulkanUniformBuffer*>(UniformBufferRHI);
-		mDescriptorSetManager->WriteUniformBufferToDescriptorSet(VkUniformBuffer, mCurrentGfxPipeline->GetDescriptorSet((int32)VkUniformBuffer->GetSlot()));
-		VkUniformBuffer->UpdateBuffer(InContents, 0, InSize);
-	}
 
 	RHIBufferHandle VulkanCommandContext::RHICreateVertexBuffer(uint32 Size, BufferUsageFlags Usage, ERHIAccess ResourceState, void* InData)
 	{
         CheckRHICreationThread();
 		return RHICreateBuffer(Size, Usage, 0, ResourceState, InData);
 	}
+
+    RHIUniformBufferView VulkanCommandContext::RHIAllocateUniformData(const void* Data, size_t Size)
+    {
+        CheckRHICreationThread();
+        const auto& Limits = mDevice->GetPhyDevice()->GetDeviceProperties().limits;
+        if (!Data || !Size || Size > Limits.maxUniformBufferRange) throw std::invalid_argument("Invalid uniform allocation size");
+        const size_t Alignment = std::max<size_t>(16, Limits.minUniformBufferOffsetAlignment);
+        const size_t Aligned = (Size + Alignment - 1) / Alignment * Alignment;
+        UniformPage* Selected = nullptr;
+        for (auto& Page : mUniformPages)
+        {
+            // CPU command payloads and GPU submissions both own this same real page.
+            // Sole pool ownership proves there are no recorded or in-flight readers.
+            if (Page.Buffer->UseCount() == 1) Page.Used = 0;
+            if (Page.Capacity - Page.Used >= Aligned) { Selected = &Page; break; }
+        }
+        if (!Selected)
+        {
+            const size_t Capacity = std::max<size_t>(256 * 1024, Aligned);
+            RHIUniformBufferDesc Desc; Desc.Size = Capacity;
+            mUniformPages.push_back({RHICreateUniformBufferWithSlot(Desc), 0, Capacity});
+            Selected = &mUniformPages.back();
+        }
+        RHIUniformBufferView View{Selected->Buffer, Selected->Used, Size};
+        static_cast<VulkanUniformBuffer*>(Selected->Buffer.get())->UpdateBuffer(Data, View.Offset, Size);
+        Selected->Used += Aligned;
+        return View;
+    }
 
     RHITextureHandle VulkanCommandContext::RHICreateTexture(const RHITextureDesc& Desc, void* Data)
     {
@@ -792,17 +856,6 @@ namespace VulkanRHI
 	RHIPipelineHandle VulkanCommandContext::RHICreateGfxPipeline(const GRAPHICS_PIPELINE_STATE_DESC& InPipelineState)
 	{
         CheckRHICreationThread();
-        for (size_t Slot = 0; Slot < RTR_TEXTURE_MAX; ++Slot)
-        {
-            if (mDefaultMaterialTextures[Slot]) continue;
-            RHITextureDesc Desc; Desc.mExtent = Vector2(1, 1); Desc.mFormat = PF_R8G8B8A8;
-            Desc.mFlags = TextureCreateFlags::ShaderResource;
-            auto Texture = RHICreateTexture(Desc, nullptr);
-            uint8_t Pixel[4] = {255,255,255,255};
-            if (Slot == 1) { Pixel[0] = Pixel[1] = 128; }
-            UploadTexture(Texture.get(), Pixel, sizeof(Pixel));
-            mDefaultMaterialTextures[Slot] = std::move(Texture);
-        }
         auto Pipeline = RHIPipelineHandle(mDevice->GetPiplineManager()->GetOrCreateGfxPipeline(InPipelineState));
         if (Pipeline) Pipeline->SetDescription(std::make_shared<const GRAPHICS_PIPELINE_STATE_DESC>(InPipelineState));
         return Pipeline;
@@ -842,20 +895,7 @@ namespace VulkanRHI
 		return NewUniformBuffer;
 	}
 
-	void VulkanCommandContext::RHIUpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents)
-	{
-		if (InUniformBufferRHI == nullptr)
-			return;
 
-		//if (InUniformBufferRHI == nullptr)
-		
-			//mCommonUniformBuffer[mCurrentFrameIndex] = (VulkanUniformBuffer*)RHICreateUniformBuffer(InSize, InContents);
-			VulkanUniformBuffer* VKUniformBuf = static_cast<VulkanUniformBuffer*>(InUniformBufferRHI);
-            mBoundUniformBuffers[static_cast<size_t>(RHIUniformSlot::PerFrame)] = InUniformBufferRHI;
-		
-
-		VKUniformBuf->UpdateBuffer(InContents, 0, InSize);
-	}
 
 	//==========================================================================
 	// Slot-based UniformBuffer API
@@ -875,19 +915,7 @@ namespace VulkanRHI
 		return buffer;
 	}
 
-	void VulkanCommandContext::RHIBindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer)
-	{
-		if (InSlot == RHIUniformSlot::Invalid || InSlot >= RHIUniformSlot::Count)
-		{
-			LOG_ERROR("VulkanRHI: Invalid uniform slot for binding.");
-			return;
-		}
-		
-		mBoundUniformBuffers[(size_t)InSlot] = InBuffer;
-		
-		// 注意：实际的 DescriptorSet 更新在 Draw 时根据当前 Pipeline 的布局来完成
-		// 这里只记录绑定状态，延迟绑定策略
-	}
+
 
 
 	void VulkanCommandContext::RHIWriteGPUFence(RHIGPUFence* InFenceRHI)

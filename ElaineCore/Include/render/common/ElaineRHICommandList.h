@@ -63,8 +63,7 @@ namespace Elaine
 		void BindGfxPipeline(RHIPipeline* InPipeline);
 		void DrawPrimitive(uint32 InBaseVertexIndex, uint32 InNumPrimitives, uint32 InNumInstances);
 		void BindDrawData(RHI_DRAW_RESOURCE_BINDING* InDrawData);
-		void UpdateCommonUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents);
-		void UpdateUniformBuffer(RHIUniformBuffer* InUniformBufferRHI, size_t InSize, void* InContents);
+        void SetFrameParameters(const RHIShaderParameterSet& Parameters) { mFrameParameters = Parameters; }
 		void SetSwapchain(RHISwapchain* InSwapchain);
 		void SetViewport(float MinX, float MinY, float MinZ, float MaxX, float MaxY, float MaxZ);
 		void AcquireSwapchainImage(RHISwapchain* InSwapchain);
@@ -80,7 +79,6 @@ namespace Elaine
         void CopyBufferRegion(RHIBuffer* Dest, uint64 DstOffset, RHIBuffer* Source, uint64 SrcOffset, uint64 Size);
         void CopyBufferToTexture(RHIBuffer* Source, RHITexture* Target);
 		void CopyTexture(RHITexture* SourceTexture, RHITexture* DestTexture, const RHICopyTextureInfo& CopyInfo);
-		void BindUniformBuffer(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer);
 		void ResourceBarrier(const RHIResourceBarrierDesc& Barrier);
 
 		bool HasCommand();
@@ -93,6 +91,9 @@ namespace Elaine
 		}
 	protected:
         RHIRenderPassInfo mRecordingPass;
+        RHIPipelineHandle mRecordingPipeline;
+        RHIShaderParameterSet mFrameParameters;
+        std::unordered_map<std::string, RHIUniformBufferView> mUniformCache;
         bool mHasRecordingPass = false;
         std::shared_ptr<std::promise<void>> mCompletion;
 		RHICommand* mCommandLinkBegin = nullptr;
@@ -210,12 +211,12 @@ namespace Elaine
 		{
             for (const auto& Resource : mRenderData.mDrawData.mStreamInput.mIStreamBuffer) Keep(Resource.get());
             Keep(mRenderData.mIndexBuffer.get());
-            for (const auto& Resource : mRenderData.mTextures) Keep(Resource.get());
-            for (const auto& Resource : mRenderData.mVSUniformBuffers) Keep(Resource.get());
-            for (const auto& Resource : mRenderData.mPSUniformBuffers) Keep(Resource.get());
-            Keep(mRenderData.mCommonUniformBuffer.get()); Keep(mRenderData.mGSUniformBuffer.get());
-            for (const auto& Resource : mRenderData.mDrawData.mPSTextures) Keep(Resource.get());
-            for (const auto& Resource : mRenderData.mDrawData.mPsBuffers) Keep(Resource.get());
+            for (const auto& Group : mRenderData.Parameters)
+            {
+                for (const auto& Pair : Group.Uniforms) Keep(Pair.second.Buffer.get());
+                for (const auto& Pair : Group.Textures) Keep(Pair.second.Texture.get());
+                for (const auto& Pair : Group.Buffers) Keep(Pair.second.Buffer.get());
+            }
             for (const auto& Resource : mRenderData.mRenderTargets) Keep(Resource.get());
             Keep(mRenderData.mDepthStencilTarget.get());
 		}
@@ -223,50 +224,6 @@ namespace Elaine
 		void Execute(RHICommandList* InCmdList);
 
 		RHI_DRAW_RESOURCE_BINDING mRenderData;
-	};
-
-	RHI_COMMAND_DEFINE(UpdateUniformBuffer)
-	{
-		RHI_COMMAND_TYPE(UpdateUniformBuffer)(RHIUniformBuffer* InUniformBufferRHI, void* InContents, size_t InSize)
-			: mUniformBufferRHI(InUniformBufferRHI)
-			, mContents(nullptr)
-			, mSize(InSize)
-		{
-            Keep(InUniformBufferRHI);
-            mContents = Memory::SystemMalloc(InSize);
-            Memory::MemoryCopy(mContents, InContents, InSize);
-		}
-
-		~RHI_COMMAND_TYPE(UpdateUniformBuffer)() { Memory::SystemFree(mContents); }
-        void Execute(RHICommandList * InCmdList);
-
-		size_t mSize;
-		void* mContents = nullptr;
-		RHIUniformBufferHandle mUniformBufferRHI = nullptr;
-	};
-
-	RHI_COMMAND_DEFINE(UpdateCommonUniformBuffer)
-	{
-		RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)(RHIUniformBuffer * InUniformBufferRHI, size_t InSize, void* InContents)
-			: mUniformBufferRHI(InUniformBufferRHI)
-			, mSize(InSize)
-			, mContents(InContents)
-		{
-            Keep(InUniformBufferRHI);
-			mContents = Memory::SystemMalloc(InSize);
-			Memory::MemoryCopy(mContents, InContents, InSize);
-		}
-
-		~RHI_COMMAND_TYPE(UpdateCommonUniformBuffer)()
-		{
-			Memory::SystemFree(mContents);
-		}
-
-		void Execute(RHICommandList * InCmdList);
-
-		size_t mSize;
-		void* mContents;
-		RHIUniformBufferHandle mUniformBufferRHI;
 	};
 
 	RHI_COMMAND_DEFINE(SetViewport)
@@ -424,19 +381,6 @@ namespace Elaine
 		RHITextureHandle mSourceTexture;
 		RHITextureHandle mDestTexture;
 		RHICopyTextureInfo mCopyInfo;
-	};
-
-	RHI_COMMAND_DEFINE(BindUniformBuffer)
-	{
-		RHI_COMMAND_TYPE(BindUniformBuffer)(RHIUniformSlot InSlot, RHIUniformBuffer* InBuffer)
-			: mSlot(InSlot)
-			, mBuffer(InBuffer)
-		{
-            Keep(InBuffer);}
-		void Execute(RHICommandList* InCmdList);
-
-		RHIUniformSlot mSlot;
-		RHIUniformBufferHandle mBuffer;
 	};
 
 	RHI_COMMAND_DEFINE(ResourceBarrier)

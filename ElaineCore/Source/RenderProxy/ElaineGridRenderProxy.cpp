@@ -37,6 +37,7 @@ namespace Elaine
         if (!mMaterialProxy.IsReady())
             return;
 
+        mMaterialProxy.BindToResourceBinding(mResourceBinding);
         ShaderPass* GridPass = mMaterialProxy.GetPass(Name("Grid"));
         if (GridPass == nullptr)
             return;

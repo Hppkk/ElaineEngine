@@ -18,6 +18,8 @@ namespace Elaine
 
     StaticMeshComponent::~StaticMeshComponent()
     {
+        // 在销毁组件和材质前解除通知。
+        mMaterialSubscriptions.clear();
         // 逻辑线程销毁材质实例
         for (auto* Mat : mMaterials)
         {
@@ -39,11 +41,18 @@ namespace Elaine
     void StaticMeshComponent::ChangeMaterial(uint32 InIndex, const std::string& InMatName)
     {
         if (InIndex >= mMaterials.size())
-            return;
+        {
+            mMaterials.resize(static_cast<size_t>(InIndex) + 1, nullptr);
+            mMaterialSubscriptions.resize(mMaterials.size());
+        }
 
+        mMaterialSubscriptions[InIndex].Reset();
         delete mMaterials[InIndex];
         mMaterials[InIndex] = new MaterialInstanceDynamic();
         mMaterials[InIndex]->ChangeMaterial(InMatName);
+        mMaterialSubscriptions[InIndex] = mMaterials[InIndex]->ObserveParameterChanges([this] {
+            MarkRenderStateDirty();
+        });
         MarkRenderStateDirty();
     }
 

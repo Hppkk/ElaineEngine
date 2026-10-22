@@ -34,11 +34,13 @@ namespace Elaine
         void SetMaterial(const std::string& InMaterialPath);
         const Name& GetType() const override;
     private:
+        void UpdateMaterialSnapshot();
         SkyRenderProxy* mProxy = nullptr;
         TexturePtr mCubeTexture;
         EPROPERTY(DisplayName="Exposure", Category="Sky", Tooltip="Sky exposure multiplier", Min=0.0, Max=20.0)
         float mExposure = 1.0f;
         MaterialInstanceDynamic* mMaterial = nullptr;
+        ResourceSubscription mMaterialSubscription;
     };
 
     DEFINE_COM_FACTORY(SkyComponent);

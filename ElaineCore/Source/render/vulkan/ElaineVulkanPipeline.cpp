@@ -121,7 +121,8 @@ namespace VulkanRHI
         auto PSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mPSPrepared);
         if ((InState.mVSPrepared && !VSPrepared) || (InState.mPSPrepared && !PSPrepared))
             throw std::runtime_error("Shader compilation output does not belong to the Vulkan backend");
-        VulkanGfxPipeline* NewPipeline = new VulkanGfxPipeline(mDevice);
+        auto PipelineOwner = std::make_unique<VulkanGfxPipeline>(mDevice);
+        auto* NewPipeline = PipelineOwner.get();
         NewPipeline->SetPipelineState(InState);  // 保存 State 用于创建变体
         
         VkGraphicsPipelineCreateInfo CreateInfo;
@@ -152,7 +153,7 @@ namespace VulkanRHI
 
         if (!NewVsShader || !NewPsShader)
         {
-            delete NewPipeline;
+
             return nullptr;
         }
 
@@ -161,7 +162,7 @@ namespace VulkanRHI
         if (!CompileSucceed)
         {
             LOG_ERROR("Pipeline Compile Failed.");
-            delete NewPipeline;
+
             return nullptr;
         }
 
@@ -372,9 +373,9 @@ namespace VulkanRHI
         CreateInfo.subpass = 0;
         CreateInfo.basePipelineHandle = VK_NULL_HANDLE;
         CreateInfo.basePipelineIndex = -1;
-        if (vkCreateGraphicsPipelines(mDevice->GetDevice(), mPipelineCache.GetHandle(), 1, &CreateInfo, VULKAN_CPU_ALLOCATOR, &NewPipeline->mPipeline) != VK_SUCCESS) { delete NewPipeline; return nullptr; }
+        if (vkCreateGraphicsPipelines(mDevice->GetDevice(), mPipelineCache.GetHandle(), 1, &CreateInfo, VULKAN_CPU_ALLOCATOR, &NewPipeline->mPipeline) != VK_SUCCESS) {  return nullptr; }
 
-        return NewPipeline;
+        return PipelineOwner.release();
     }
 
     VulkanGfxPipeline* VulkanPiplineManager::GetOrCreateGfxPipelineForRenderPass(
@@ -397,7 +398,8 @@ namespace VulkanRHI
         auto PSPrepared = std::dynamic_pointer_cast<const PreparedShader>(InState.mPSPrepared);
         if ((InState.mVSPrepared && !VSPrepared) || (InState.mPSPrepared && !PSPrepared))
             throw std::runtime_error("Shader compilation output does not belong to the Vulkan backend");
-        VulkanGfxPipeline* NewPipeline = new VulkanGfxPipeline(mDevice);
+        auto PipelineOwner = std::make_unique<VulkanGfxPipeline>(mDevice);
+        auto* NewPipeline = PipelineOwner.get();
         NewPipeline->SetPipelineState(InState);  // 保存 State 用于创建变体
         
         VkGraphicsPipelineCreateInfo CreateInfo;
@@ -415,6 +417,7 @@ namespace VulkanRHI
             NewPipeline->mOwnsShaders = false;
             NewPipeline->mOwnsDescriptors = false;
             NewPipeline->mMaterialParametersRHI = ExistingPipeline->GetMaterialParameters();
+            NewPipeline->SetResourceLayout(ExistingPipeline->GetResourceLayout());
             // 直接复用已编译的 Shader
             VsShader = ExistingPipeline->mVsShader;
             PsShader = ExistingPipeline->mPsShader;
@@ -444,7 +447,7 @@ namespace VulkanRHI
 
             if (!VsShader || !PsShader)
             {
-                delete NewPipeline;
+
                 return nullptr;
             }
 
@@ -452,14 +455,14 @@ namespace VulkanRHI
             if (!CompileSucceed)
             {
                 LOG_ERROR("Pipeline Compile Failed.");
-                delete NewPipeline;
+
                 return nullptr;
             }
         }
 
         if (!VsShader || !PsShader)
         {
-            delete NewPipeline;
+
             return nullptr;
         }
 
@@ -590,10 +593,10 @@ namespace VulkanRHI
         if (Result != VK_SUCCESS)
         {
             LOG_ERROR("Failed to create graphics pipeline with RenderPass variant!");
-            delete NewPipeline;
+
             return nullptr;
         }
 
-        return NewPipeline;
+        return PipelineOwner.release();
     }
 }

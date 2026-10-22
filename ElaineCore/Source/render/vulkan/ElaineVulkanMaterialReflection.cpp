@@ -26,7 +26,7 @@ namespace VulkanRHI
         for (const auto& Resource : Resources.uniform_buffers)
         {
             if (!Reflection.has_decoration(Resource.id, spv::DecorationDescriptorSet) ||
-                Reflection.get_decoration(Resource.id, spv::DecorationDescriptorSet) != 2)
+                Reflection.get_decoration(Resource.id, spv::DecorationDescriptorSet) != static_cast<uint32_t>(RHIResourceGroup::PerMaterial))
                 continue;
 
             const uint32_t Set = Reflection.get_decoration(Resource.id, spv::DecorationDescriptorSet);

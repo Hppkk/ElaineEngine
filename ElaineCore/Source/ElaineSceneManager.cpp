@@ -94,15 +94,6 @@ namespace Elaine
 		
 		UpdateCommonUniformBuffer(FrameData, InCamera);
 		
-		if (mCommonUniformBufferRHI == nullptr)
-		{
-			RHIUniformBufferDesc Desc;
-			Desc.Dynamic = true;
-			Desc.InitialData = nullptr;
-			Desc.Size = sizeof(CommonUniformBufferCPU);
-			Desc.Slot = RHIUniformSlot::PerFrame;
-			mCommonUniformBufferRHI = GetDynamicRHI()->GetDefaultCommandContext()->RHICreateUniformBufferWithSlot(Desc);
-		}
 
 		// 提交
 		mCurrentWriteFrame = (WriteIndex + 1) % 2;

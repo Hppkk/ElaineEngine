@@ -101,10 +101,6 @@ namespace VulkanRHI
 			Key.ColorLoadOps[Key.NumColorTargets] = GetVkLoadOp(ColorRT.Action);
 			Key.ColorStoreOps[Key.NumColorTargets] = GetVkStoreOp(ColorRT.Action);
 			Key.ColorFinalLayouts[Key.NumColorTargets] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-			if (VkTexture->IsSwapchainImage() && (Key.ColorStoreOps[Key.NumColorTargets] == VK_ATTACHMENT_STORE_OP_STORE))
-			{
-				Key.ColorFinalLayouts[Key.NumColorTargets] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-			}
 			Key.ColorSamples[Key.NumColorTargets] = VK_SAMPLE_COUNT_1_BIT;
 			Key.NumColorTargets++;
 		}

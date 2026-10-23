@@ -14,10 +14,12 @@ namespace Elaine
 	}
 
     ShaderPass::~ShaderPass() = default;
-    void ShaderPass::PrepareDependencies()
+    void ShaderPass::PrepareDependencies(const ResourceLoadData& Data)
     {
 		for (auto&& ShaderStageIns : mShaders)
 		{
+            ShaderStageIns.mShader = static_pointer_cast<Shader>(Data.GetDependency(ShaderStageIns.mReference, "Shader"));
+            if (ShaderStageIns.mShader->GetStage() != ShaderStageIns.mStage) throw std::runtime_error("Shader stage does not match material pass");
 			if (ShaderStageIns.mStage == EShaderStage::VertexShader)
 			{
 				mRHIDesc.mVSShaderCode = ShaderStageIns.mShader->GetShaderCode();

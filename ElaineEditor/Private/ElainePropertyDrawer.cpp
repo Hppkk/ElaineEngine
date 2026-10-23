@@ -1,6 +1,8 @@
 ﻿#include "ElainePropertyDrawer.h"
 #include <vector>
 #include <algorithm>
+#include "math/ElaineTransform.h"
+#include "ElaineCameraState.h"
 
 namespace Elaine
 {
@@ -46,272 +48,194 @@ namespace Elaine
 		}
 		return changed;
 	}
-	// ============================================================
-	// DrawFloat
-	// ============================================================
-	bool PropertyDrawer::DrawFloat(const char* label, void* data, const PropertyDescriptor& prop)
-	{
-		float* val = static_cast<float*>(data);
-		bool hasMin = prop.HasMeta("Min");
-		bool hasMax = prop.HasMeta("Max");
-		float speed = prop.GetMetaFloat("Speed", 0.1f);
+    namespace
+    {
+        struct EditResult
+        {
+            bool Changed = false, Finished = false, Active = false;
+            std::string Path;
+        };
 
-		if (hasMin && hasMax)
-		{
-			float minV = prop.GetMetaFloat("Min", 0.f);
-			float maxV = prop.GetMetaFloat("Max", 100.f);
-			return ImGui::SliderFloat(label, val, minV, maxV);
-		}
-		else
-		{
-			return ImGui::DragFloat(label, val, speed);
-		}
-	}
+        EditResult DrawValue(const char* Label, void* Value, const PropertyDescriptor& Property, const std::string& Path)
+        {
+            EditResult Result;
+            Result.Path = Path;
+            const std::string Type = Property.TypeName ? Property.TypeName : "";
+            auto* Custom = PropertyWidgetRegistry::Instance().Find(Type);
+            if (Custom) Result.Changed = Custom->Draw(Label, Value, Property);
+            else if (Type == "float")
+            {
+                auto* Number = static_cast<float*>(Value);
+                Result.Changed = Property.HasMeta("Min") && Property.HasMeta("Max") ?
+                    ImGui::SliderFloat(Label, Number, Property.GetMetaFloat("Min"), Property.GetMetaFloat("Max")) :
+                    ImGui::DragFloat(Label, Number, Property.GetMetaFloat("Speed", 0.1f));
+            }
+            else if (Type == "double") Result.Changed = ImGui::InputDouble(Label, static_cast<double*>(Value));
+            else if (Type == "int" || Type == "int32" || Type == "int32_t")
+                Result.Changed = ImGui::DragInt(Label, static_cast<int*>(Value), 1.0f,
+                    Property.GetMetaInt("Min", 0), Property.GetMetaInt("Max", 0));
+            else if (Type == "uint32" || Type == "uint32_t" || Type == "unsigned int")
+                Result.Changed = ImGui::InputScalar(Label, ImGuiDataType_U32, Value);
+            else if (Type == "uint8" || Type == "uint8_t" || Type == "unsigned char")
+            {
+                int Number = *static_cast<unsigned char*>(Value);
+                Result.Changed = ImGui::DragInt(Label, &Number, 1.0f, 0, 255, "%d", ImGuiSliderFlags_AlwaysClamp);
+                if (Result.Changed) *static_cast<unsigned char*>(Value) = static_cast<unsigned char>(Number);
+            }
+            else if (Type == "bool") Result.Changed = ImGui::Checkbox(Label, static_cast<bool*>(Value));
+            else if (Type == "ProjectionType")
+            {
+                int Index = static_cast<int>(*static_cast<ProjectionType*>(Value));
+                Result.Changed = ImGui::Combo(Label, &Index, "Perspective\0Orthographic\0");
+                if (Result.Changed) *static_cast<ProjectionType*>(Value) = static_cast<ProjectionType>(Index);
+            }
+            else if (Type == "std::string" || Type == "std::basic_string<char>")
+            {
+                auto& String = *static_cast<std::string*>(Value);
+                // Resize callback keeps arbitrarily long strings editable without truncation.
+                if (String.capacity() < 64) String.reserve(64);
+                auto Resize = [](ImGuiInputTextCallbackData* Data) -> int {
+                    auto& Text = *static_cast<std::string*>(Data->UserData);
+                    Text.resize(static_cast<size_t>(Data->BufTextLen)); Data->Buf = Text.data(); return 0;
+                };
+                const auto Flags = ImGuiInputTextFlags_CallbackResize;
+                Result.Changed = Property.HasMeta("Multiline") ?
+                    ImGui::InputTextMultiline(Label, String.data(), String.capacity() + 1, ImVec2(0, 0), Flags, Resize, &String) :
+                    ImGui::InputText(Label, String.data(), String.capacity() + 1, Flags, Resize, &String);
+                if (Result.Changed) String.resize(std::strlen(String.c_str()));
+            }
+            else if (Type == "Vector3") Result.Changed = ImGui::DragFloat3(Label, static_cast<Vector3*>(Value)->ptr(), 0.1f);
+            else if (Type == "Quaternion") Result.Changed = ImGui::DragFloat4(Label, static_cast<Quaternion*>(Value)->ptr(), 0.01f);
+            else if (Type == "Transform")
+            {
+                if (ImGui::TreeNode(Label))
+                {
+                    auto& TransformValue = *static_cast<Transform*>(Value);
+                    auto Member = [&](const char* MemberLabel, auto& Field, const char* MemberName, const char* TypeName) {
+                        PropertyDescriptor Child; Child.TypeName = TypeName;
+                        const auto Edit = DrawValue(MemberLabel, &Field, Child, Path + "." + MemberName);
+                        if (Edit.Changed || Edit.Finished) Result = Edit;
+                    };
+                    Member("Position", TransformValue.mPosition, "mPosition", "Vector3");
+                    Member("Rotation (wxyz)", TransformValue.mRotation, "mRotation", "Quaternion");
+                    Member("Scale", TransformValue.mScale, "mScale", "Vector3");
+                    if (Result.Changed) TransformValue.mDirty = true;
+                    ImGui::TreePop();
+                }
+                return Result;
+            }
+            else if (const auto* Nested = TypeRegistry::Instance().Find(Type))
+            {
+                if (ImGui::TreeNode(Label))
+                {
+                    for (const auto& Child : Nested->GetProperties())
+                    {
+                        if (Child.IsHidden()) continue;
+                        PropertyEditValue ChildCopy(Child, Value);
+                        if (!ChildCopy.Get()) continue;
+                        ImGui::PushID(Child.Name);
+                        ImGui::BeginDisabled(Child.IsReadOnly());
+                        const auto Edit = DrawValue(Child.GetDisplayName(), ChildCopy.Get(), Child, Path + "." + Child.Name);
+                        ImGui::EndDisabled();
+                        ImGui::PopID();
+                        if (!Child.IsReadOnly())
+                        {
+                            if (Edit.Changed && Child.AssignValue) Child.AssignValue(Child.GetPtrIn(Value), ChildCopy.Get());
+                            if (Edit.Changed || Edit.Finished)
+                            {
+                                Result.Path = Edit.Path;
+                                Result.Changed |= Edit.Changed; Result.Finished |= Edit.Finished; Result.Active |= Edit.Active;
+                            }
+                        }
+                    }
+                    ImGui::TreePop();
+                }
+                return Result;
+            }
+            else ImGui::LabelText(Label, "[%s]", Type.c_str());
+            Result.Finished = ImGui::IsItemDeactivatedAfterEdit();
+            Result.Active = ImGui::IsItemActive();
+            return Result;
+        }
 
-	// ============================================================
-	// DrawInt
-	// ============================================================
-	bool PropertyDrawer::DrawInt(const char* label, void* data, const PropertyDescriptor& prop)
-	{
-		int* val = static_cast<int*>(data);
-		bool hasMin = prop.HasMeta("Min");
-		bool hasMax = prop.HasMeta("Max");
+        struct CollectedProperty
+        {
+            const PropertyDescriptor* Property;
+            const TypeDescriptor* DeclaringType;
+        };
 
-		if (hasMin && hasMax)
-		{
-			int minV = prop.GetMetaInt("Min", 0);
-			int maxV = prop.GetMetaInt("Max", 100);
-			return ImGui::SliderInt(label, val, minV, maxV);
-		}
-		else
-		{
-			return ImGui::DragInt(label, val);
-		}
-	}
+        void CollectProperties(const TypeDescriptor* Descriptor, std::vector<CollectedProperty>& Properties)
+        {
+            const char* Parent = Descriptor->GetParentClassName();
+            if (Parent)
+                if (auto* Base = TypeRegistry::Instance().Find(Parent)) CollectProperties(Base, Properties);
+            for (const auto& Property : Descriptor->GetProperties()) Properties.push_back({&Property, Descriptor});
+        }
+    }
 
-	// ============================================================
-	// DrawBool
-	// ============================================================
-	bool PropertyDrawer::DrawBool(const char* label, void* data, const PropertyDescriptor& prop)
-	{
-		return ImGui::Checkbox(label, static_cast<bool*>(data));
-	}
+    bool PropertyDrawer::DrawProperty(void* Object, const PropertyDescriptor& Property, const TypeDescriptor* Owner)
+    {
+        if (!Object || !Owner || Property.IsHidden()) return false;
+        PropertyEditValue Copy(Property, Object);
+        if (!Copy.Get()) { ImGui::TextDisabled("%s (no editor value adapter)", Property.GetDisplayName()); return false; }
+        ImGui::PushID(Property.Name);
+        ImGui::BeginDisabled(Property.IsReadOnly());
+        const auto Edit = DrawValue(Property.GetDisplayName(), Copy.Get(), Property, Property.Name);
+        ImGui::EndDisabled();
+        if (Property.GetTooltip()[0] && ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
+            ImGui::SetTooltip("%s", Property.GetTooltip());
+        ImGui::PopID();
+        if (Property.IsReadOnly()) return false;
+        bool Changed = false;
+        if (Edit.Changed)
+            Changed = Owner->CommitPropertyEdit(Object, Property, Copy.Get(), Edit.Path,
+                Edit.Active ? PropertyChangeType::Interactive : PropertyChangeType::ValueSet);
+        if (Edit.Finished) Owner->NotifyPropertyChanged(Object, {&Property, Edit.Path, PropertyChangeType::EditFinished});
+        return Changed;
+    }
 
-	// ============================================================
-	// DrawString
-	// ============================================================
-	bool PropertyDrawer::DrawString(const char* label, void* data, const PropertyDescriptor& prop)
-	{
-		auto* str = static_cast<std::string*>(data);
-		char buf[512];
-		strncpy_s(buf, str->c_str(), sizeof(buf) - 1);
+    bool PropertyDrawer::DrawProperties(void* Object, const TypeDescriptor* Descriptor)
+    {
+        if (!Object || !Descriptor) return false;
+        std::vector<CollectedProperty> Properties;
+        CollectProperties(Descriptor, Properties);
+        bool Changed = false;
+        for (const auto& Entry : Properties) Changed |= DrawProperty(Object, *Entry.Property, Descriptor);
+        return Changed;
+    }
 
-		bool multiline = prop.HasMeta("Multiline");
-		bool changed = false;
+    bool PropertyDrawer::DrawPropertiesGrouped(void* Object, const TypeDescriptor* Descriptor)
+    {
+        if (!Object || !Descriptor) return false;
+        std::vector<CollectedProperty> Properties;
+        CollectProperties(Descriptor, Properties);
+        // Inherited class-name categories are implementation details, not inspector sections.
+        auto CategoryOf = [Descriptor](const CollectedProperty& Entry) -> std::string {
+            const std::string Category = Entry.Property->GetCategory();
+            return Entry.DeclaringType != Descriptor && Category == Entry.DeclaringType->GetClassName() ? "" : Category;
+        };
+        std::vector<std::string> Categories;
+        for (const auto& Entry : Properties)
+        {
+            const auto Category = CategoryOf(Entry);
+            if (!Entry.Property->IsHidden() && std::find(Categories.begin(), Categories.end(), Category) == Categories.end())
+                Categories.push_back(Category);
+        }
+        bool Changed = false;
+        for (const auto& Category : Categories)
+            if (Category.empty() || Categories.size() == 1 || ImGui::CollapsingHeader(Category.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
+                for (const auto& Entry : Properties)
+                    if (Category == CategoryOf(Entry)) Changed |= DrawProperty(Object, *Entry.Property, Descriptor);
+        return Changed;
+    }
 
-		if (multiline)
-		{
-			changed = ImGui::InputTextMultiline(label, buf, sizeof(buf));
-		}
-		else
-		{
-			changed = ImGui::InputText(label, buf, sizeof(buf));
-		}
-
-		if (changed)
-			*str = buf;
-
-		return changed;
-	}
-
-	// ============================================================
-	// DrawUint8
-	// ============================================================
-	bool PropertyDrawer::DrawUint8(const char* label, void* data, const PropertyDescriptor& prop)
-	{
-		int v = *static_cast<unsigned char*>(data);
-		bool changed = ImGui::DragInt(label, &v, 1.0f, 0, 255);
-		if (changed)
-			*static_cast<unsigned char*>(data) = static_cast<unsigned char>(v);
-		return changed;
-	}
-
-	// ============================================================
-	// DrawProperty — single property dispatch
-	// ============================================================
-	bool PropertyDrawer::DrawProperty(void* obj, const PropertyDescriptor& prop)
-	{
-		if (prop.IsHidden())
-			return false;
-
-		void* data = prop.GetPtrIn(obj);
-		const char* label = prop.GetDisplayName();
-		const char* typeName = prop.TypeName;
-
-		bool readOnly = prop.IsReadOnly();
-		if (readOnly)
-			ImGui::BeginDisabled();
-
-		// Check for custom widget first
-		IPropertyWidget* custom = PropertyWidgetRegistry::Instance().Find(typeName);
-		bool changed = false;
-
-		if (custom)
-		{
-			changed = custom->Draw(label, data, prop);
-		}
-		else if (strcmp(typeName, "float") == 0)
-		{
-			changed = DrawFloat(label, data, prop);
-		}
-		else if (strcmp(typeName, "double") == 0)
-		{
-			float v = static_cast<float>(*static_cast<double*>(data));
-			if (ImGui::DragFloat(label, &v, 0.1f))
-			{
-				*static_cast<double*>(data) = v;
-				changed = true;
-			}
-		}
-		else if (strcmp(typeName, "int") == 0 || strcmp(typeName, "int32") == 0 ||
-				 strcmp(typeName, "int32_t") == 0)
-		{
-			changed = DrawInt(label, data, prop);
-		}
-		else if (strcmp(typeName, "uint32") == 0 || strcmp(typeName, "uint32_t") == 0 ||
-				 strcmp(typeName, "unsigned int") == 0)
-		{
-			changed = DrawInt(label, data, prop);
-		}
-		else if (strcmp(typeName, "uint8") == 0 || strcmp(typeName, "uint8_t") == 0 ||
-				 strcmp(typeName, "unsigned char") == 0)
-		{
-			changed = DrawUint8(label, data, prop);
-		}
-		else if (strcmp(typeName, "bool") == 0)
-		{
-			changed = DrawBool(label, data, prop);
-		}
-		else if (strcmp(typeName, "std::string") == 0 ||
-				 strcmp(typeName, "std::basic_string<char>") == 0)
-		{
-			changed = DrawString(label, data, prop);
-		}
-		else if (strcmp(typeName, "Vector3") == 0)
-		{
-			changed = ImGui::DragFloat3(label, static_cast<float*>(data), 0.1f);
-		}
-		else if (strcmp(typeName, "Quaternion") == 0)
-		{
-			changed = ImGui::DragFloat4(label, static_cast<float*>(data), 0.01f);
-		}
-		else
-		{
-			// Check if this is a nested reflected type
-			TypeDescriptor* nested = TypeRegistry::Instance().Find(typeName);
-			if (nested)
-			{
-				if (ImGui::TreeNode(label))
-				{
-					changed = DrawProperties(data, nested);
-					ImGui::TreePop();
-				}
-			}
-			else
-			{
-				ImGui::LabelText(label, "[%s]", typeName);
-			}
-		}
-
-		// Tooltip
-		const char* tooltip = prop.GetTooltip();
-		if (tooltip && tooltip[0] != '\0')
-		{
-			if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))
-				ImGui::SetTooltip("%s", tooltip);
-		}
-
-		if (readOnly)
-			ImGui::EndDisabled();
-
-		return changed;
-	}
-
-	// ============================================================
-	// DrawProperties — flat layout
-	// ============================================================
-	bool PropertyDrawer::DrawProperties(void* obj, const TypeDescriptor* desc)
-	{
-		if (!obj || !desc)
-			return false;
-
-		bool changed = false;
-		for (auto& prop : desc->GetProperties())
-		{
-			changed |= DrawProperty(obj, prop);
-		}
-		return changed;
-	}
-
-	// ============================================================
-	// DrawPropertiesGrouped — grouped by Category
-	// ============================================================
-	bool PropertyDrawer::DrawPropertiesGrouped(void* obj, const TypeDescriptor* desc)
-	{
-		if (!obj || !desc)
-			return false;
-
-		bool changed = false;
-		auto categories = desc->GetCategories();
-
-		if (categories.size() <= 1)
-		{
-			// Single category — just draw flat
-			return DrawProperties(obj, desc);
-		}
-
-		for (auto& cat : categories)
-		{
-			auto props = desc->GetPropertiesInCategory(cat.c_str());
-			if (props.empty())
-				continue;
-
-			if (ImGui::CollapsingHeader(cat.c_str(), ImGuiTreeNodeFlags_DefaultOpen))
-			{
-				for (auto* prop : props)
-				{
-					changed |= DrawProperty(obj, *prop);
-				}
-			}
-		}
-
-		return changed;
-	}
-
-	// ============================================================
-	// DrawComponentInspector — full ActorComponent panel
-	// ============================================================
-	bool PropertyDrawer::DrawComponentInspector(void* obj, const TypeDescriptor* desc)
-	{
-		if (!obj || !desc)
-			return false;
-
-		const char* className = desc->GetClassName();
-
-		ImGui::PushID(className);
-		
-		bool headerOpen = ImGui::CollapsingHeader(className, ImGuiTreeNodeFlags_DefaultOpen);
-		
-		if (headerOpen)
-		{
-			ImGui::Indent(10.f);
-			bool changed = DrawPropertiesGrouped(obj, desc);
-			ImGui::Unindent(10.f);
-			ImGui::PopID();
-			return changed;
-		}
-
-		ImGui::PopID();
-		return false;
-	}
+    bool PropertyDrawer::DrawComponentInspector(void* Object, const TypeDescriptor* Descriptor)
+    {
+        if (!Object || !Descriptor) return false;
+        ImGui::PushID(Object);
+        const bool Changed = ImGui::CollapsingHeader(Descriptor->GetClassName(), ImGuiTreeNodeFlags_DefaultOpen) &&
+            DrawPropertiesGrouped(Object, Descriptor);
+        ImGui::PopID();
+        return Changed;
+    }
 }

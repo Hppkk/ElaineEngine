@@ -1,6 +1,10 @@
 ﻿#pragma once
 #include "ElaineCorePrerequirements.h"
 #include "math/ElaineVector4.h"
+#include "ElaineCameraState.h"
+#include <functional>
+
+namespace TaskGraph { class TaskCompletionEvent; }
 
 namespace Elaine
 {
@@ -55,6 +59,9 @@ namespace Elaine
 		bool mbEnableShadows = true;
 		bool mbEnableTransparency = true;
 		bool mbActive = true;
+        std::shared_ptr<TaskGraph::TaskCompletionEvent> mSubmissionEvent;
+        // RenderThread-only hook: metadata accompanies the actual rendered pixels.
+        std::function<void(const CameraState&)> mOnFrameCaptured;
 		
 		LinearColor mClearColor = LinearColor(0.0f, 0.2f, 0.4f, 1.0f);
 		

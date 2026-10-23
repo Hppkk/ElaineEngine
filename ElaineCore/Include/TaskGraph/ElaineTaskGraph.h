@@ -33,15 +33,6 @@ namespace TaskGraph
 	};
 
 
-	/* TaskGraph
-		Experimental testing, further improvements are needed for the scheduling notification mechanism.
-		TODO: 
-			1. Event notification mechanism.
-			2. Convenient creation mechanism.
-			3. Optimize thread locks.
-			4. A mechanism to notify the client whether the current task chain has been executed.
-			5. More convenient to create interfaces.
-	*/
 	class ElaineCoreExport TaskGraph : public Elaine::Singleton<TaskGraph>
 	{
 	public:
@@ -56,11 +47,20 @@ namespace TaskGraph
 		Worker* GetWorker(Elaine::NamedThread InNamedThread) const;
 		Worker* FindIdleWorker();
 		void ExecuteInThread(Elaine::NamedThread InNamedThread);
+        void ExecuteResourceTasks();
+        void ExecuteResourceCallbacks();
+        void CancelTasks(TaskCategory Category);
+        void WaitForResourceTasks(const TaskCompletionEventPtr& Event);
+        void SetThreadWakeCallback(Elaine::NamedThread Thread, std::function<void()> Callback);
+        void BeginGameThreadFrame();
+        void EndGameThreadFrame() { mInGameThreadFrame = false; }
+        bool IsInGameThreadFrame() const { return mInGameThreadFrame; }
 	private:
 		GraphTaskPtr CreateTaskRecursively(const GraphTaskDesc& InDesc);
 	private:
 		std::mutex mDispatchMutex;
-        TaskScheduler* mTaskScheduler = nullptr;
+        std::shared_ptr<TaskScheduler> mTaskScheduler;
+        bool mInGameThreadFrame = false;
 		//std::set<GraphTaskPtr> mTasks;
 		Worker* mWorkers[(size_t)Elaine::NamedThread::ThreadCount] = { };
 	};

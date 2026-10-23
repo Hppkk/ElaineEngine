@@ -57,6 +57,8 @@ namespace Elaine
 		ProjectionType GetProjectionType() const { return mProjectionType; }
 		const Name& GetType() const override;
 
+		CameraState CaptureState() const;
+		void PostEditChangeProperty(const PropertyChangedEvent& Event) override;
 		Camera* GetRenderThreadCamera() const { return mRenderCamera; }
 
 		const Matrix4x4& GetViewMatrix() const;
@@ -90,6 +92,7 @@ namespace Elaine
 		mutable bool mbCacheViewOutOfData = true;
 		mutable bool mbCacheOutOfData = true;
 
+		void ApplyCameraState();
 		void SendUpdateToRenderThread();
 		void UpdateLocalAxes();
 		void UpdateViewParams() const;

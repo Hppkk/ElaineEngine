@@ -1,0 +1,40 @@
+{
+  "data": {
+    "origin": {
+      "id": "12ebbd8d-0489-4086-8005-f41ae952481d",
+      "path": "material/skybox.asset"
+    },
+    "parameters": {
+      "Exposure": 1.0
+    },
+    "textures": {
+      "CubeMap": {
+        "id": "879921c6-e0b4-4399-b7c7-3628465c7db5",
+        "path": "texture/sky/sky.asset"
+      }
+    },
+    "version": "2.0.0"
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [
+      {
+        "id": "12ebbd8d-0489-4086-8005-f41ae952481d",
+        "kind": "hard",
+        "path": "material/skybox.asset"
+      },
+      {
+        "id": "879921c6-e0b4-4399-b7c7-3628465c7db5",
+        "kind": "hard",
+        "path": "texture/sky/sky.asset"
+      }
+    ],
+    "displayName": "SkyBox",
+    "id": "3d8bf3e6-4b8e-4dc9-ad44-2c9a071b68a5",
+    "sourceFiles": [],
+    "tags": {
+      "Overrides": 1
+    },
+    "type": "MaterialInstance"
+  }
+}

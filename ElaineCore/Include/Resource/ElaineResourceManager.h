@@ -29,14 +29,13 @@ namespace Elaine
 		ResourceManager(ResourceType InType);
 		virtual ~ResourceManager();
 
-        ResourceRequestBase RequestResource(const std::string& InPath);
-        ResourceRequestBase ReloadResource(const std::string& InPath);
-        template<class T> ResourceRequest<T> RequestResource(const std::string& Path)
-        { return ResourceRequest<T>(RequestResource(Path)); }
+        ResourceBasePtr GetResource(const std::string& InPath);
+        ResourceBasePtr GetResource(const ResourceId& Id);
+        ResourceBasePtr GetResource(const ResourceReference& Reference);
+        ResourceBasePtr ReloadResource(const std::string& InPath);
 		ResourceBasePtr CreateEmptyResource(const std::string& InPath);
 		ResourceMemoryStats GetMemoryStats() const;
 		bool ReloadIfFileChanged(const std::string& InFullPath);
-		uint32_t ReloadResourcesDependingOn(const std::string& InFullPath);
 		ResourceType GetResourceType() const { return mResourceType; }
 		void OnResourceMemoryChanged(int64_t Delta, size_t AllocatedBytes = 0);
 		void OnResourceLoaded(bool Loaded);
@@ -50,11 +49,15 @@ namespace Elaine
 	private:
         friend class ResourceBase;
         ResourceBasePtr FindCachedResource(const std::string& Path);
+        friend class ResourceLoader;
+        void Relocate(const ResourceId& Id, const std::string& Path);
+        void Unload(const ResourceId& Id);
 	protected:
 		virtual	ResourceBasePtr CreateResourceImpl(const std::string& InPath) = 0;
 	protected:
 		ResourceType mResourceType;
 		std::map<std::string, ResourceBasePtr> mResources;
+        std::map<std::string, std::string> mPaths;
 		std::mutex mMtx;
 		std::atomic<uint64_t> mCurrentBytes{0};
 		std::atomic<uint64_t> mPeakBytes{0};

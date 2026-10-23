@@ -37,6 +37,7 @@ namespace Elaine
 		void			ExportToFile();
 	private:
         struct LoadData;
+        JsonCpp mSavedJson;
 		std::string mGUID;
 		std::string mName;
 		std::set<Actor*> mInstances;
@@ -161,6 +162,7 @@ namespace Elaine
 		std::string						mName;
 		ActorNameGenerator			mNameGenerator;
 		bool							mbInitialized = false;
+        bool mbRegisteredWorld = false;
 
 		// ISpatialObject state
 		int32_t							mBVHNodeID = -1;

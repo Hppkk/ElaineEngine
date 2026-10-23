@@ -7,6 +7,8 @@
 #include "ElaineMaterialInstanceDynamic.h"
 #include "ElaineMaterialParamSnapshot.h"
 #include "ElaineActor.h"
+#include "ElaineWorld.h"
+#include "math/ElaineDynamicBVH.h"
 
 namespace Elaine
 {
@@ -20,6 +22,7 @@ namespace Elaine
     {
         // 在销毁组件和材质前解除通知。
         mMaterialSubscriptions.clear();
+        mMeshSubscription.Reset();
         // 逻辑线程销毁材质实例
         for (auto* Mat : mMaterials)
         {
@@ -34,8 +37,25 @@ namespace Elaine
             return;
 
         mPath = InPath;
-        mMesh = MeshManager::instance()->RequestResource(InPath).GetResult().Resource;
+        ApplyMeshPath();
+    }
+
+    void StaticMeshComponent::ApplyMeshPath()
+    {
+        mMeshSubscription.Reset();
+        mMesh = mPath.empty() ? MeshPtr() : MeshManager::instance()->GetResource(mPath);
+        if (mMesh) mMeshSubscription = mMesh->ObserveChanges([this](const ResourceLoadResult&) { MarkRenderStateDirty(); MarkTransformDirty(); });
         MarkRenderStateDirty();
+        MarkTransformDirty();
+    }
+    void StaticMeshComponent::ApplyVisibility() { MarkRenderStateDirty(); }
+    void StaticMeshComponent::PostEditChangeProperty(const PropertyChangedEvent& Event)
+    {
+        ActorComponent::PostEditChangeProperty(Event);
+        if (Event.Type == PropertyChangeType::EditFinished) return;
+        if (Event.IsProperty("mPath")) ApplyMeshPath();
+        else if (Event.IsProperty("mbCastShadow") || Event.IsProperty("mbReceiveShadow") || Event.IsProperty("mRenderLayer"))
+            MarkRenderStateDirty();
     }
 
     void StaticMeshComponent::ChangeMaterial(uint32 InIndex, const std::string& InMatName)
@@ -48,6 +68,8 @@ namespace Elaine
 
         mMaterialSubscriptions[InIndex].Reset();
         delete mMaterials[InIndex];
+        mMaterials[InIndex] = nullptr;
+        if (InMatName.empty()) { MarkRenderStateDirty(); return; }
         mMaterials[InIndex] = new MaterialInstanceDynamic();
         mMaterials[InIndex]->ChangeMaterial(InMatName);
         mMaterialSubscriptions[InIndex] = mMaterials[InIndex]->ObserveParameterChanges([this] {
@@ -56,42 +78,60 @@ namespace Elaine
         MarkRenderStateDirty();
     }
 
+    std::vector<MaterialParamSnapshot> StaticMeshComponent::CaptureMaterials() const
+    {
+        const size_t SlotCount = mMesh && mMesh->IsReady() ? mMesh->GetMaterialSlots().size() : 0;
+        std::vector<MaterialParamSnapshot> Snapshots;
+        for (size_t I=0; I<std::max(SlotCount, mMaterials.size()); ++I)
+        {
+            if (I < mMaterials.size() && mMaterials[I]) Snapshots.push_back(mMaterials[I]->CreateSnapshot());
+            else
+            {
+                MaterialParamSnapshot Snapshot;
+                if (I < SlotCount) Snapshot.Source = mMesh->GetDefaultMaterial(static_cast<uint32>(I));
+                if (Snapshot.Source) { Snapshot.Revision = Snapshot.Source->GetContentRevision(); Snapshot.CaptureResources(); }
+                Snapshots.push_back(std::move(Snapshot));
+            }
+        }
+        return Snapshots;
+    }
+
     void StaticMeshComponent::OnRegisterWorldImpl(World* InWorld)
     {
         // 在逻辑线程生成所有材质的快照
-        std::vector<MaterialParamSnapshot> Snapshots;
-        Snapshots.reserve(mMaterials.size());
-        for (const auto* Mat : mMaterials)
-        {
-            if (Mat)
-                Snapshots.push_back(Mat->CreateSnapshot());
-            else
-                Snapshots.push_back(MaterialParamSnapshot());
-        }
+        auto Snapshots = CaptureMaterials();
 
         MeshPtr CurrentMesh = mMesh;
+        const auto MeshSnapshot = CurrentMesh && CurrentMesh->IsReady() ? CurrentMesh->CreateRenderData() : MeshRenderData{};
         uint32 Count = 0;
         if (!CurrentMesh.isNull())
             Count = CurrentMesh->GetSubMeshCount();
 
+        auto Result = std::make_shared<StaticMeshRenderProxy*>(nullptr);
+        auto* Scene = GetActor()->GetSceneManager(); auto* ActorIdentity = GetActor();
         ENQUEUE_RENDER_COMMAND(CreateProxy)(
-            [this, Snapshots = std::move(Snapshots), CurrentMesh, Count](RenderContext& Context)
+            [Result, Scene, ActorIdentity, Snapshots = std::move(Snapshots), CurrentMesh, MeshSnapshot, Count,
+                Cast = mbCastShadow, Recv = mbReceiveShadow, Layer = mRenderLayer, Visible = mbVisible](RenderContext& Context)
             {
-                mRenderProxy = static_cast<StaticMeshRenderProxy*>(GetActor()->GetSceneManager()->CreateRenderProxy(EProxyType::StaticMesh));
-                if (mRenderProxy)
+                auto* Proxy = static_cast<StaticMeshRenderProxy*>(Scene->CreateRenderProxy(EProxyType::StaticMesh));
+                *Result = Proxy;
+                if (Proxy)
                 {
-                    mRenderProxy->SetMesh(CurrentMesh);
+                    Proxy->SetMesh(CurrentMesh, MeshSnapshot);
                     // 用快照数组更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
-                    mRenderProxy->UpdateMaterials(Snapshots, Context);
-                    mRenderProxy->SetSubMeshCount(Count);
-                    mRenderProxy->SetCastShadow(mbCastShadow);
-                    mRenderProxy->SetReceiveShadow(mbReceiveShadow);
-                    mRenderProxy->SetRenderLayer(mRenderLayer);
-                    mRenderProxy->mUserData = GetActor();
-                    mRenderProxy->mUserType = 1; // 1 = Actor
+                    Proxy->UpdateMaterials(Snapshots, Context);
+                    Proxy->SetSubMeshCount(Count);
+                    Proxy->SetCastShadow(Cast);
+                    Proxy->SetReceiveShadow(Recv);
+                    Proxy->SetRenderLayer(Layer);
+                    Proxy->SetVisible(Visible);
+                    Proxy->mUserData = ActorIdentity;
+                    Proxy->mUserType = 1; // 1 = Actor
                 }
             });
         Root::instance()->FlushRenderCommands();
+        mRenderProxy = *Result;
+        MarkTransformDirty();
     }
 
     void StaticMeshComponent::OnUnregisterWorldImpl()
@@ -115,37 +155,32 @@ namespace Elaine
             return;
 
         // 在逻辑线程生成所有材质的快照
-        std::vector<MaterialParamSnapshot> Snapshots;
-        Snapshots.reserve(mMaterials.size());
-        for (const auto* Mat : mMaterials)
-        {
-            if (Mat)
-                Snapshots.push_back(Mat->CreateSnapshot());
-            else
-                Snapshots.push_back(MaterialParamSnapshot());
-        }
+        auto Snapshots = CaptureMaterials();
 
         StaticMeshRenderProxy* Proxy = mRenderProxy;
         MeshPtr CurrentMesh = mMesh;
+        const auto MeshSnapshot = CurrentMesh && CurrentMesh->IsReady() ? CurrentMesh->CreateRenderData() : MeshRenderData{};
         uint32 Count = 0;
         if (!CurrentMesh.isNull())
             Count = CurrentMesh->GetSubMeshCount();
 
         ENQUEUE_RENDER_COMMAND(UpdateMeshState)(
-            [Proxy, CurrentMesh, Snapshots = std::move(Snapshots), Count, Cast = mbCastShadow, Recv = mbReceiveShadow, Layer = mRenderLayer](RenderContext& Context)
+            [Proxy, CurrentMesh, MeshSnapshot, Snapshots = std::move(Snapshots), Count, Cast = mbCastShadow, Recv = mbReceiveShadow, Layer = mRenderLayer, Visible = mbVisible](RenderContext& Context)
             {
-                Proxy->SetMesh(CurrentMesh);
+                Proxy->SetMesh(CurrentMesh, MeshSnapshot);
                 Proxy->SetSubMeshCount(Count);
                 // 用快照数组更新渲染线程的 RenderMaterialProxy
                 Proxy->UpdateMaterials(Snapshots, Context);
                 Proxy->SetCastShadow(Cast);
                 Proxy->SetReceiveShadow(Recv);
                 Proxy->SetRenderLayer(Layer);
+                Proxy->SetVisible(Visible);
             });
     }
 
     void StaticMeshComponent::MarkTransformDirty()
     {
+        if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(GetActor());
         if (mRenderProxy == nullptr)
             return;
 
@@ -153,6 +188,8 @@ namespace Elaine
         Matrix4x4 WorldMat = GetActor()->GetWorldMatrix();
         Vector3 WorldPos = GetActor()->GetWorldPosition();
         Vector3 WorldScale = GetActor()->GetWorldScale();
+        const auto Bounds = GetBoundingBox();
+        auto* Scene = GetActor()->GetSceneManager();
 
         ENQUEUE_RENDER_COMMAND(UpdateProxy)(
             [=](RenderContext& Context)
@@ -160,7 +197,17 @@ namespace Elaine
                 Proxy->SetWorldMatrix(WorldMat);
                 Proxy->SetWorldPosition(WorldPos);
                 Proxy->SetWorldScale(WorldScale);
+                Proxy->SetWorldAABB(Bounds);
+                Scene->UpdateRenderProxyBounds(Proxy);
             });
+    }
+
+    AxisAlignedBox StaticMeshComponent::GetBoundingBox() const
+    {
+        AxisAlignedBox Bounds;
+        if (mMesh && mMesh->IsReady() && mParent)
+        { Bounds = mMesh->GetLocalBounds(); Bounds.transformAffine(mParent->GetWorldMatrix()); }
+        return Bounds;
     }
 
     const Name& StaticMeshComponent::GetType() const

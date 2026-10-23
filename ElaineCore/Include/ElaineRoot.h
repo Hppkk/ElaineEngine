@@ -69,7 +69,11 @@ namespace Elaine
 		SceneManager*							mMainSceneMgr = nullptr;
 		ERHI_TYPE									mRHIType = Vulkan;
 		bool									mbEnableVulkanValidationLayer = true;
-		std::atomic<bool> mStopping{false};
+		std::mutex mRenderWakeMutex;
+        std::condition_variable mRenderWakeCondition;
+        bool mRenderWorkPending = false;
+        void WakeRenderThread();
+        std::atomic<bool> mStopping{false};
         std::atomic<bool> mShutdownRender{false};
         std::atomic<bool> mRenderStopped{false};
         ThreadWrap*								mRenderThread = nullptr;

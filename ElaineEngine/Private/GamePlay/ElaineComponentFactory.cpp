@@ -23,11 +23,6 @@ namespace Elaine
 		if (InInfo == nullptr)
 			return;
 
-		auto Iter = mActorComponentInfos.find(InInfo);
-		if (Iter == mActorComponentInfos.end())
-			return;
-
-		mActorComponentInfos.erase(Iter);
 
 		SAFE_DELETE(InInfo)
 	}
@@ -44,10 +39,6 @@ namespace Elaine
 
 	ComponentFactory::~ComponentFactory()
 	{
-		for (auto info : mActorComponentInfos)
-		{
-			SAFE_DELETE(info)
-		}
 
 		for (auto com : mComponents)
 		{
@@ -55,7 +46,6 @@ namespace Elaine
 		}
 
 		mComponents.clear();
-		mActorComponentInfos.clear();
 	}
 
 	ActorComponent* ComponentFactory::CreateComponent(Actor* InObject)
@@ -71,7 +61,6 @@ namespace Elaine
 	{
 		MemoryScope Scope({Memory::TypeId(mType.C_Str()), 0, 0});
 		ActorComponentInfo* NewComInfo = CreateActorComponentInfoImpl();
-		mActorComponentInfos.insert(NewComInfo);
 		return NewComInfo;
 	}
 

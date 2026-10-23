@@ -7,53 +7,25 @@ namespace Elaine
 {
 	// ======================== ViewFrustum Implementation ========================
 	
-	void ViewFrustum::BuildFromCamera(const Matrix4x4& viewProjMatrix)
-	{
-		// 从视图投影矩阵提取视锥体平面
-		// 这是标准的视锥体提取算法
-		
-		Matrix4x4 m = viewProjMatrix;
-		float* mat = (float*)&m;
-		
-		// Near plane: z + w = 0
-		planes[(int)FrustumPlane::Near].normal = Vector3(
-			mat[2], mat[6], mat[10]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Near].distance = mat[14];
-		
-		// Far plane: -z + w = 0
-		planes[(int)FrustumPlane::Far].normal = Vector3(
-			-mat[2], -mat[6], -mat[10]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Far].distance = -mat[14];
-		
-		// Left plane: x + w = 0
-		planes[(int)FrustumPlane::Left].normal = Vector3(
-			mat[0], mat[4], mat[8]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Left].distance = mat[12];
-		
-		// Right plane: -x + w = 0
-		planes[(int)FrustumPlane::Right].normal = Vector3(
-			-mat[0], -mat[4], -mat[8]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Right].distance = -mat[12];
-		
-		// Top plane: -y + w = 0
-		planes[(int)FrustumPlane::Top].normal = Vector3(
-			-mat[1], -mat[5], -mat[9]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Top].distance = -mat[13];
-		
-		// Bottom plane: y + w = 0
-		planes[(int)FrustumPlane::Bottom].normal = Vector3(
-			mat[1], mat[5], mat[9]
-		).normalisedCopy();
-		planes[(int)FrustumPlane::Bottom].distance = mat[13];
-	}
-	
+    void ViewFrustum::BuildFromCamera(const Matrix4x4& Matrix)
+    {
+        auto SetPlane = [&](FrustumPlane Index, float X, float Y, float Z, float D) {
+            const float Length = Vector3(X, Y, Z).length();
+            planes[static_cast<int>(Index)].normal = Vector3(X, Y, Z) / Length;
+            planes[static_cast<int>(Index)].distance = D / Length;
+        };
+        SetPlane(FrustumPlane::Near, Matrix[2][0], Matrix[2][1], Matrix[2][2], Matrix[2][3]);
+        SetPlane(FrustumPlane::Far, Matrix[3][0]-Matrix[2][0], Matrix[3][1]-Matrix[2][1], Matrix[3][2]-Matrix[2][2], Matrix[3][3]-Matrix[2][3]);
+        SetPlane(FrustumPlane::Left, Matrix[3][0]+Matrix[0][0], Matrix[3][1]+Matrix[0][1], Matrix[3][2]+Matrix[0][2], Matrix[3][3]+Matrix[0][3]);
+        SetPlane(FrustumPlane::Right, Matrix[3][0]-Matrix[0][0], Matrix[3][1]-Matrix[0][1], Matrix[3][2]-Matrix[0][2], Matrix[3][3]-Matrix[0][3]);
+        SetPlane(FrustumPlane::Bottom, Matrix[3][0]+Matrix[1][0], Matrix[3][1]+Matrix[1][1], Matrix[3][2]+Matrix[1][2], Matrix[3][3]+Matrix[1][3]);
+        SetPlane(FrustumPlane::Top, Matrix[3][0]-Matrix[1][0], Matrix[3][1]-Matrix[1][1], Matrix[3][2]-Matrix[1][2], Matrix[3][3]-Matrix[1][3]);
+    }
+
 	bool ViewFrustum::IsAABBInFrustum(const AxisAlignedBox& aabb) const
 	{
+        if (aabb.isNull()) return false;
+        if (aabb.m_extent == AxisAlignedBox::Extent_Infinite) return true;
 		const Vector3& min = aabb.getMin();
 		const Vector3& max = aabb.getMax();
 		
@@ -157,6 +129,8 @@ namespace Elaine
 
 	bool QuadTreeNode::IsAABBIntersect(const AxisAlignedBox& aabb) const
 	{
+        if (aabb.isNull()) return false;
+        if (aabb.m_extent == AxisAlignedBox::Extent_Infinite) return true;
 		const Vector3& nodeMin = mNodeBounds.getMin();
 		const Vector3& nodeMax = mNodeBounds.getMax();
 		const Vector3& aabbMin = aabb.getMin();

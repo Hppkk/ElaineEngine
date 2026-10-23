@@ -42,6 +42,7 @@ namespace Elaine
 		EFUNCTION(DisplayName="Set Rotation", Category="Transform")
 		void SetRotation(const Quaternion& InRotation);
 		void NodeTick(float InDeltaTime);
+        void PostEditChangeProperty(const PropertyChangedEvent& Event) override;
 		void OnRegisterWorldImpl(World* InWorld) override;
 		void OnUnregisterWorldImpl() override;
 		const Name& GetType() const override;
@@ -49,7 +50,9 @@ namespace Elaine
 		EPROPERTY(DisplayName="Local Transform", Category="Transform", Tooltip="Local space transform")
 		Transform mTransform;
 		EPROPERTY(DisplayName="World Transform", Category="Transform", ReadOnly, Tooltip="World space transform (computed)")
-		Transform mWorldTransform;
+		mutable Transform mWorldTransform;
+        void UpdateWorldTransform() const;
+        void ApplyTransformChange();
 		TComponentTickTask<TransformComponent> mNodeTick;
 	};
 

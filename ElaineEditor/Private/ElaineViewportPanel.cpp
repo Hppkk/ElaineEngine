@@ -1,4 +1,5 @@
 ﻿#include "ElaineViewportPanel.h"
+#include "ElaineEditorInput.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "ElaineImGuiLayer.h"
@@ -94,6 +95,18 @@ namespace Editor
     void ViewportPanel::UpdateInputLayers()
     {
         auto* input = Elaine::InputSystem::instance();
+        auto* Window = ImGui::FindWindowByID(mImageWindowId);
+        const auto& IO = ImGui::GetIO();
+        const bool Popup = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
+        const bool WidgetActive = IsEditorUIInputActive();
+        // ImGui only focuses ordinary windows on left click. Camera gestures also
+        // start with right/middle click, before this frame's keyboard is routed.
+        Elaine::InputEvent Pointer; Pointer.Window = mInputWindow; Pointer.X = IO.MousePos.x; Pointer.Y = IO.MousePos.y;
+        if (Window && !Popup && !WidgetActive && ContainsInput(Pointer) &&
+            (IO.MouseClicked[0] || IO.MouseClicked[1] || IO.MouseClicked[2]))
+            ImGui::FocusWindow(Window);
+        auto* Focused = ImGui::GetCurrentContext()->NavWindow;
+        mWindowFocused = Window && Focused && ImGui::IsWindowChildOf(Focused, Window, true, false);
         if (mRegisteredWindow && (!mImageVisible || mRegisteredWindow != mInputWindow))
             input->RemoveViewport(mRegisteredWindow, 1);
         mRegisteredWindow = mImageVisible ? mInputWindow : 0;
@@ -103,7 +116,8 @@ namespace Editor
             if (mWindowFocused) input->SetKeyboardFocus(mInputWindow, 1);
         }
         mSceneDesc.Window = mGizmoDesc.Window = mInputWindow;
-        mSceneDesc.Enabled = mGizmoDesc.Enabled = mImageVisible;
+        mSceneDesc.Enabled = mImageVisible;
+        mGizmoDesc.Enabled = mImageVisible && !mGizmoBlocked;
         mSceneDesc.KeyboardFocused = mWindowFocused || IsDragging();
         input->UpdateLayer(mSceneInput, mSceneDesc);
         input->UpdateLayer(mGizmoInput, mGizmoDesc);
@@ -112,6 +126,7 @@ namespace Editor
     {
         auto* Context = EditorGlobalContext::instance();
         auto& Gizmos = Context->GetGizmoManager();
+        mDisplayedFrame = Context->GetDisplayedViewportFrame();
         Gizmos.DrawSettings();
         Context->GetGridManager().SetVisible(Gizmos.IsVisible(GizmoType::Grid));
         const ImVec2 AreaSize = ImGui::GetContentRegionAvail();
@@ -144,22 +159,29 @@ namespace Editor
         auto& io = ImGui::GetIO();
         const bool modal = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
         const auto& gizmoState = input->GetState(mGizmoInput);
-        const bool allowGizmo = !modal && !io.KeyAlt && !io.MouseDown[1] &&
+        auto* selected = Context->GetSelectedActor();
+        if (ImGuizmo::IsUsing() && selected != mGizmoActor)
+        {
+            Gizmos.CancelTransform();
+            mGizmoBlocked = true;
+        }
+        else if (!io.MouseDown[0]) mGizmoBlocked = false;
+        mGizmoActor = selected;
+        const bool allowGizmo = !mGizmoBlocked && !IsEditorUIInputActive() && !modal && !io.KeyAlt && !io.MouseDown[1] &&
             (hovered || input->HasPointerCapture(mGizmoInput)) &&
             (!io.MouseDown[0] || io.MouseClicked[0] || gizmoState.IsMouseDown(Elaine::EMouseButton::Left));
         auto* viewport = Context->GetSceneViewport();
-        auto* selected = Context->GetSelectedActor();
-        if (viewport && viewport->GetCamera() && selected &&
+        if (mDisplayedFrame.Valid && viewport && viewport->GetCamera() && selected &&
             (Gizmos.IsVisible(GizmoType::Transform) || Gizmos.IsVisible(GizmoType::Bounds)))
         {
             auto* camera = viewport->GetCamera();
             ImGuizmo::SetDrawlist(DrawList);
-            ImGuizmo::SetOrthographic(camera->GetProjectionType() == Elaine::ProjectionType::Orthographic);
-            Gizmos.DrawTransform(selected, camera->GetViewMatrix(), camera->GetProjMatrix(),
+            ImGuizmo::SetOrthographic(mDisplayedFrame.Camera.Projection == Elaine::ProjectionType::Orthographic);
+            Gizmos.DrawTransform(selected, mDisplayedFrame.Matrices.View, mDisplayedFrame.Matrices.Projection,
                 Image.Min.x, Image.Min.y, Image.Size().x, Image.Size().y, allowGizmo);
             mGizmoHit = allowGizmo && (ImGuizmo::IsUsing() || ImGuizmo::IsOver());
         }
-        else ImGuizmo::Enable(false);
+        else Gizmos.CancelTransform();
     }
 
     void ViewportPanel::ProcessInput()
@@ -179,7 +201,7 @@ namespace Editor
             }
         Gizmos.CommitTransform(mImageVisible && !gizmo.Cancelled &&
             (gizmo.IsMouseDown(EMouseButton::Left) || gizmo.IsMouseReleased(EMouseButton::Left)));
-        if (gizmo.Cancelled) ImGuizmo::Enable(false);
+        if (!mImageVisible || gizmo.Cancelled) Gizmos.CancelTransform();
         auto* viewport = Context->GetSceneViewport();
         if (!viewport || !viewport->GetCamera()) return;
         auto* Camera = viewport->GetCamera();
@@ -221,8 +243,9 @@ namespace Editor
                 ImVec2 Mouse(event.X, event.Y);
                 Mouse.x = std::max(Image.Min.x, std::min(Image.Max.x, Mouse.x));
                 Mouse.y = std::max(Image.Min.y, std::min(Image.Max.y, Mouse.y));
-                const Elaine::Matrix4x4 View = Camera->GetViewMatrix();
-                const Elaine::Matrix4x4 Projection = Camera->GetProjMatrix();
+                if (!mDisplayedFrame.Valid) { mIsBoxSelecting = mSelectionActive = false; continue; }
+                const Elaine::Matrix4x4 View = mDisplayedFrame.Matrices.View;
+                const Elaine::Matrix4x4 Projection = mDisplayedFrame.Matrices.Projection;
                 const Elaine::Matrix4x4 InverseViewProjection = (Projection * View).inverse();
                 if (mIsBoxSelecting)
                 {
@@ -264,11 +287,17 @@ namespace Editor
                     if (Target.w != 0.0f)
                     {
                         Target.x /= Target.w; Target.y /= Target.w; Target.z /= Target.w;
-                        Elaine::Vector3 Direction(Target.x - Camera->GetPosition().x, Target.y - Camera->GetPosition().y, Target.z - Camera->GetPosition().z);
+                        Elaine::Vector3 Origin = mDisplayedFrame.Camera.Position;
+                        if (mDisplayedFrame.Camera.Projection == ProjectionType::Orthographic)
+                        {
+                            auto Near = InverseViewProjection * Vector4(NdcX, NdcY, 0, 1);
+                            Origin = Vector3(Near.x / Near.w, Near.y / Near.w, Near.z / Near.w);
+                        }
+                        Elaine::Vector3 Direction(Target.x - Origin.x, Target.y - Origin.y, Target.z - Origin.z);
                         Direction.normalise();
                         if (Context->GetActiveWorld())
                         {
-                            auto Hit = Context->GetActiveWorld()->Raycast(Elaine::Ray(Camera->GetPosition(), Direction));
+                            auto Hit = Context->GetActiveWorld()->Raycast(Elaine::Ray(Origin, Direction));
                             if (Hit && Hit->GetUserType() == 1) Context->SetSelectedActor(static_cast<Elaine::Actor*>(Hit->GetUserData()));
                             else Context->SetSelectedActor(nullptr);
                         }

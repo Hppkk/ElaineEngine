@@ -14,6 +14,7 @@ namespace Elaine
 		case Extent_Finite:
 			mMaximum.makeCeil(new_point);
 			mMinimum.makeFloor(new_point);
+			setExtent(mMinimum, mMaximum);
 			break;
 		case Extent_Infinite:
 			break;
@@ -37,6 +38,7 @@ namespace Elaine
 			Vector3 max = mMaximum;
 			max.makeCeil(rhs.mMaximum);
 			min.makeFloor(rhs.mMinimum);
+			setExtent(min, max);
 		}
 	}
 
@@ -50,6 +52,7 @@ namespace Elaine
 		m_extent = Extent_Finite;
 		mMinimum = val;
 		m_extent_val = mMaximum - mMinimum;
+		m_center = (mMaximum + mMinimum) * 0.5f;
 	}
 	void AxisAlignedBox::setMinimum(float x, float y, float z)
 	{
@@ -58,6 +61,7 @@ namespace Elaine
 		mMinimum.y = y;
 		mMinimum.z = z;
 		m_extent_val = mMaximum - mMinimum;
+		m_center = (mMaximum + mMinimum) * 0.5f;
 	}
 
 	void AxisAlignedBox::setMaximum(Vector3 val)
@@ -65,6 +69,7 @@ namespace Elaine
 		m_extent = Extent_Finite;
 		mMaximum = val;
 		m_extent_val = mMaximum - mMinimum;
+		m_center = (mMaximum + mMinimum) * 0.5f;
 	}
 
 	void AxisAlignedBox::setMaximum(float x, float y, float z)
@@ -74,6 +79,7 @@ namespace Elaine
 		mMaximum.y = y;
 		mMaximum.z = z;
 		m_extent_val = mMaximum - mMinimum;
+		m_center = (mMaximum + mMinimum) * 0.5f;
 	}
 
 	void AxisAlignedBox::setExtent(Vector3 min, Vector3 max)
@@ -82,6 +88,7 @@ namespace Elaine
 		mMinimum = min;
 		mMaximum = max;
 		m_extent_val = mMaximum - mMinimum;
+		m_center = (mMaximum + mMinimum) * 0.5f;
 	}
 
 	void AxisAlignedBox::setInfinite()

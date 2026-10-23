@@ -38,7 +38,16 @@ namespace Elaine
 			else
 				setExtent(box.mMinimum, box.mMaximum);
 		}
-		~AxisAlignedBox() { SAFE_DELETE(m_Corners); }
+		~AxisAlignedBox() { delete[] m_Corners; }
+
+        AxisAlignedBox& operator=(const AxisAlignedBox& Other)
+        {
+            if (this == &Other) return *this;
+            if (Other.isNull()) setNull();
+            else if (Other.m_extent == Extent_Infinite) setInfinite();
+            else setExtent(Other.mMinimum, Other.mMaximum);
+            return *this;
+        }
 
 		void			merge(const Vector3& new_point);
 		void			merge(const AxisAlignedBox& rhs);

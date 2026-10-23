@@ -43,16 +43,17 @@ namespace Elaine
 		RenderTarget* Target = InRenderView->mRenderTarget;
 
 		SceneMgr->PrepareRenderData(CameraIns);
+        if (InRenderView->mOnFrameCaptured) InRenderView->mOnFrameCaptured(CameraIns->GetState());
 
 		RenderFrameData& FrameData = SceneMgr->GetRenderFrameData();
 		RenderQueueSet* QueueSet = FrameData.mRenderQueueSet;
 		
-		if (!QueueSet || QueueSet->IsEmpty())
-			return;
+		if (!QueueSet) return;
 
 		Elaine::RHICommandContext* GraphicsContext = GetDynamicRHI()->GetDefaultCommandContext();
 		RHICommandList* CmdList = GraphicsContext->GetRHICommandListMgr()->CreateCommandList();
 
+        CmdList->SetSubmissionEvent(std::move(InRenderView->mSubmissionEvent));
 		CmdList->BeginFrame();
 
 		// @TODO
@@ -119,7 +120,7 @@ namespace Elaine
 		{
 			mShadowMapTexture = ResourcePool.AcquirePersistentTexture("ShadowMap", ShadowMapDesc, GraphicsContext);
 		}
-		if (!mSceneColorTexture)
+		if ((!Target || Target->IsSwapchainTarget()) && !mSceneColorTexture)
 		{
 			mSceneColorTexture = ResourcePool.AcquirePersistentTexture("SceneColor", SceneColorDesc, GraphicsContext);
 		}
@@ -129,7 +130,7 @@ namespace Elaine
 		}
 
 		RenderGraph::RGTextureHandle ShadowMap = Builder.ImportTexture("ShadowMap", mShadowMapTexture.get(), ShadowMapDesc);
-		RenderGraph::RGTextureHandle SceneColor = Builder.ImportTexture("SceneColor", mSceneColorTexture.get(), SceneColorDesc);
+		RenderGraph::RGTextureHandle SceneColor = Builder.ImportTexture("SceneColor", Target && !Target->IsSwapchainTarget() ? AcquiredBackBuffer : mSceneColorTexture.get(), SceneColorDesc);
 		RenderGraph::RGTextureHandle SceneDepth = Builder.ImportTexture("SceneDepth", mSceneDepthTexture.get(), DepthDesc);
 
 		//=========================================================================
@@ -211,7 +212,7 @@ namespace Elaine
 		//=========================================================================
 		// Copy Pass - [SceneColor -> Swapchain Image]
 		//=========================================================================
-		if (AcquiredBackBuffer)
+		if (AcquiredBackBuffer && Swapchain)
 		{
 			RenderGraph::RGTextureDesc BackBufferDesc = RenderGraph::RGTextureDesc::Create2D(
 				Width, Height, PF_R8G8B8A8, TextureCreateFlags::RenderTargetable);

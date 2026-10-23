@@ -1,8 +1,9 @@
 #include "ElainePrecompiledHeader.h"
 #include "ElaineResourceManager.h"
 #include "ElaineResourceBase.h"
-#include "Resource/ElaineResourcePipeline.h"
+#include "Resource/ElaineResourceLoader.h"
 #include "ElaineRoot.h"
+#include "Resource/ElaineResourceRegistry.h"
 #include <filesystem>
 #include <array>
 
@@ -26,42 +27,67 @@ namespace Elaine
     ResourceBasePtr ResourceManager::FindCachedResource(const std::string& Path)
     {
         std::lock_guard<std::mutex> Lock(mMtx);
-        auto It = mResources.find(std::filesystem::path(Path).lexically_normal().generic_string());
+        auto Key = CanonicalResourcePath(Path); auto Alias = mPaths.find(Key);
+        auto It = mResources.find(Alias == mPaths.end() ? Key : Alias->second);
         return It == mResources.end() ? ResourceBasePtr() : It->second;
     }
-    ResourceRequestBase ResourceManager::RequestResource(const std::string& Path)
+    ResourceBasePtr ResourceManager::GetResource(const ResourceId& Id)
+    { return GetResource(ResourceReference{Id, {}}); }
+    ResourceBasePtr ResourceManager::GetResource(const ResourceReference& Ref)
+    { return GetResource(ResourceRegistry::Get().Resolve(Ref, ResourceTypeName(mResourceType))); }
+    ResourceBasePtr ResourceManager::GetResource(const std::string& Path)
     {
-        ResourceBasePtr Resource;
-        const std::string Key = std::filesystem::path(Path).lexically_normal().generic_string();
-        {
-            std::lock_guard<std::mutex> Lock(mMtx);
-            auto It = mResources.find(Key);
-            if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
-            Resource = It->second;
-        }
-        return ResourcePipeline::Get().Request(Resource);
+        ResourceBasePtr Resource = CreateEmptyResource(Path);
+        ResourceLoader::instance()->StartLoad(Resource);
+        return Resource;
     }
-    ResourceRequestBase ResourceManager::ReloadResource(const std::string& Path)
+    ResourceBasePtr ResourceManager::ReloadResource(const std::string& Path)
     {
-        ResourceBasePtr Resource;
-        const std::string Key = std::filesystem::path(Path).lexically_normal().generic_string();
-        {
-            std::lock_guard<std::mutex> Lock(mMtx);
-            auto It = mResources.find(Key);
-            if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
-            Resource = It->second;
-        }
-        return ResourcePipeline::Get().Request(Resource, true);
+        ResourceBasePtr Resource = CreateEmptyResource(Path);
+        ResourceLoader::instance()->StartLoad(Resource, true);
+        return Resource;
     }
-
-	ResourceBasePtr ResourceManager::CreateEmptyResource(const std::string& InPath)
+    ResourceBasePtr ResourceManager::CreateEmptyResource(const std::string& Path)
     {
-        MemoryScope Scope({0, static_cast<uint16_t>(mResourceType), 0});
-        const auto Key = std::filesystem::path(InPath).lexically_normal().generic_string();
+        auto Key = CanonicalResourcePath(Path);
+        std::string Identity = Key;
+        const auto Extension = std::filesystem::path(Key).extension();
+        if (!Extension.empty() && Extension != (mResourceType == RT_Shader ? ".shader" : ".asset"))
+            throw std::runtime_error("Runtime resource path requires a typed asset container: " + Key);
+        if (Extension == ".asset" || Extension == ".shader")
+        {
+            const auto File = std::filesystem::path(Root::instance()->GetResourcePath()) / Key;
+            if (std::filesystem::is_regular_file(File))
+            {
+                const auto Descriptor = ResourceRegistry::Get().FindByPath(Key);
+                if (Descriptor.Type != ResourceTypeName(mResourceType)) throw std::runtime_error("Wrong resource type: " + Key);
+                Identity = Descriptor.Id.ToString(); Key = Descriptor.Path;
+            }
+        }
         std::lock_guard<std::mutex> Lock(mMtx);
-        auto It = mResources.find(Key);
-        if (It == mResources.end()) It = mResources.emplace(Key, CreateResourceImpl(Key)).first;
+        if (auto Alias = mPaths.find(Key); Alias != mPaths.end() && (Identity == Key || Identity == Alias->second)) return mResources.at(Alias->second);
+        auto It = mResources.find(Identity);
+        if (It == mResources.end())
+        {
+            auto Resource = CreateResourceImpl(Key);
+            Identity = Resource->GetId().ToString();
+            It = mResources.emplace(Identity, std::move(Resource)).first;
+        }
+
+        mPaths[Key] = Identity;
         return It->second;
+    }
+    void ResourceManager::Relocate(const ResourceId& Id, const std::string& Path)
+    {
+        std::lock_guard Lock(mMtx); auto It = mResources.find(Id.ToString()); if (It == mResources.end()) return;
+        mPaths.erase(It->second->mResourceName); It->second->mResourceName = Path;
+        It->second->mDescriptor.Path = Path; mPaths[Path] = It->first;
+    }
+    void ResourceManager::Unload(const ResourceId& Id)
+    {
+        ResourceBasePtr Resource;
+        { std::lock_guard Lock(mMtx); auto It = mResources.find(Id.ToString()); if (It != mResources.end()) Resource = It->second; }
+        if (Resource) Resource->UnloadResource();
     }
 
 	ResourceMemoryStats ResourceManager::GetMemoryStats() const
@@ -103,35 +129,6 @@ namespace Elaine
         for (auto& Target : Targets) Target->ReloadResource();
         return !Targets.empty();
     }
-
-	uint32_t ResourceManager::ReloadResourcesDependingOn(const std::string& InFullPath)
-	{
-		std::vector<ResourceBasePtr> Targets;
-		{
-			std::lock_guard<std::mutex> Lock(mMtx);
-			for (const auto& Pair : mResources)
-			{
-				if (Pair.second.isNull() || !Pair.second->IsLoaded()) continue;
-				std::vector<ResourceBasePtr> Dependencies;
-				Pair.second->GetDirectDependencies(Dependencies);
-				for (const auto& Dependency : Dependencies)
-				{
-					if (Dependency.isNull()) continue;
-					const std::string RootPath = Root::instance()->GetResourcePath();
-					const std::array<std::string, 3> Candidates = { RootPath + Dependency->GetPath(), RootPath + "shader/vulkan/" + Dependency->GetPath(), RootPath + "shader/" + Dependency->GetPath() };
-					bool Matches = false;
-					for (const auto& Candidate : Candidates)
-					{
-						Matches = SameResourcePath(Candidate, InFullPath);
-						if (Matches) break;
-					}
-					if (Matches) { Targets.push_back(Pair.second); break; }
-				}
-			}
-		}
-		for (const auto& Target : Targets) Target->ReloadResource();
-		return static_cast<uint32_t>(Targets.size());
-	}
 
 	void ResourceManager::OnResourceMemoryChanged(int64_t Delta, size_t AllocatedBytes)
 	{

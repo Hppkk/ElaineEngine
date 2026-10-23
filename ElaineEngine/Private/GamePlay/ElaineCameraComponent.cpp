@@ -54,207 +54,66 @@ namespace Elaine
 	//=============================================================================
 	// 逻辑线程接口实现
 	//=============================================================================
-	void CameraComponent::SetPosition(const Vector3& Position)
-	{
-		mPosition = Position;
-		mbCacheViewOutOfData = true;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
+    CameraState CameraComponent::CaptureState() const
+    {
+        CameraState State;
+        State.Position = mPosition; State.Rotation = mRotation; State.FOV = mFOV;
+        State.Near = mNear; State.Far = mFar; State.Aspect = mAspect; State.Projection = mProjectionType;
+        return ValidateCameraState(State);
+    }
 
-	void CameraComponent::SetRotation(const Vector3& Rotation)
-	{
-		mRotation = Quaternion::fromEulerZYX(Rotation);
-		mbCacheViewOutOfData = true;
-		mbCacheOutOfData = true;
-		UpdateLocalAxes();
-		SendUpdateToRenderThread();
-	}
+    void CameraComponent::ApplyCameraState()
+    {
+        const auto State = CaptureState();
+        mPosition = State.Position; mRotation = State.Rotation; mFOV = State.FOV;
+        mNear = State.Near; mFar = State.Far; mAspect = State.Aspect; mProjectionType = State.Projection;
+        mbCacheViewOutOfData = mbCacheOutOfData = true;
+        UpdateLocalAxes();
+        SendUpdateToRenderThread();
+    }
 
-	void CameraComponent::SetRotation(const Quaternion& Rotation)
-	{
-		mRotation = Rotation;
-		mbCacheViewOutOfData = true;
-		mbCacheOutOfData = true;
-		UpdateLocalAxes();
-		SendUpdateToRenderThread();
-	}
+    void CameraComponent::SetPosition(const Vector3& Value) { mPosition = Value; ApplyCameraState(); }
+    void CameraComponent::SetRotation(const Vector3& Value) { SetRotation(Quaternion::fromEulerZYX(Value)); }
+    void CameraComponent::SetRotation(const Quaternion& Value) { mRotation = Value; ApplyCameraState(); }
+    void CameraComponent::LookAt(const Vector3& Target)
+    {
+        auto State = CaptureState();
+        if (SetCameraLookAt(State, Target)) { mRotation = State.Rotation; ApplyCameraState(); }
+    }
+    void CameraComponent::SetFOV(float Value) { mFOV = Value; ApplyCameraState(); }
+    void CameraComponent::SetAspect(float Value) { mAspect = Value; ApplyCameraState(); }
+    void CameraComponent::SetNearPlane(float Value) { mNear = Value; ApplyCameraState(); }
+    void CameraComponent::SetFarPlane(float Value) { mFar = Value; ApplyCameraState(); }
+    void CameraComponent::SetProjectionType(ProjectionType Value) { mProjectionType = Value; ApplyCameraState(); }
+    void CameraComponent::PostEditChangeProperty(const PropertyChangedEvent& Event)
+    {
+        ActorComponent::PostEditChangeProperty(Event);
+        if (Event.Type != PropertyChangeType::EditFinished) ApplyCameraState();
+    }
 
-	void CameraComponent::LookAt(const Vector3& Target)
-	{
-		Vector3 Direction = (Target - mPosition).normalisedCopy();
-		// 计算旋转（简化实现）
-		mForward = Direction;
-		UpdateLocalAxes(); // Here we technically should update mRotation from Direction, simplified for now
-		mbCacheViewOutOfData = true;
-		mbCacheOutOfData = true;
-		
-		Vector3 TargetCopy = Target;
-		Camera* RenderCam = mRenderCamera;
-		ENQUEUE_RENDER_COMMAND(CameraLookAt)([RenderCam, TargetCopy](RenderContext& Context)
-		{
-			if (RenderCam)
-				RenderCam->LookAt(TargetCopy);
-		});
-	}
+    void CameraComponent::SendUpdateToRenderThread()
+    {
+        Camera* RenderCamera = mRenderCamera;
+        if (!RenderCamera) return;
+        const auto State = CaptureState();
+        ENQUEUE_RENDER_COMMAND(UpdateCamera)([RenderCamera, State](RenderContext&) { RenderCamera->SetState(State); });
+    }
 
-	void CameraComponent::SetFOV(float FOV)
-	{
-		mFOV = FOV;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
-
-	void CameraComponent::SetAspect(float Aspect)
-	{
-		mAspect = Aspect;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
-
-	void CameraComponent::SetNearPlane(float Near)
-	{
-		mNear = Near;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
-
-	void CameraComponent::SetFarPlane(float Far)
-	{
-		mFar = Far;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
-
-	void CameraComponent::SetProjectionType(ProjectionType Type)
-	{
-		mProjectionType = Type;
-		mbCacheOutOfData = true;
-		SendUpdateToRenderThread();
-	}
-
-	//=============================================================================
-	// 同步到渲染线程
-	//=============================================================================
-	void CameraComponent::SendUpdateToRenderThread()
-	{
-		Vector3 Pos = mPosition;
-		Vector3 Rot = Quaternion::toEulerZYX(mRotation);
-		float FOV = mFOV;
-		float Near = mNear;
-		float Far = mFar;
-		float Aspect = mAspect;
-		ProjectionType ProjType = mProjectionType;
-		Camera* RenderCam = mRenderCamera;
-
-		ENQUEUE_RENDER_COMMAND(UpdateCamera)([=](RenderContext& Context)
-		{
-			if (RenderCam)
-			{
-				RenderCam->SetPosition(Pos);
-				RenderCam->SetRotation(Rot);
-				RenderCam->SetFOV(FOV);
-				RenderCam->SetAspect(Aspect);
-				RenderCam->SetProjectionType(ProjType);
-			}
-		});
-	}
-
-	void CameraComponent::UpdateLocalAxes()
-	{
-		// 根据旋转更新局部坐标轴
-		mForward = mRotation * Vector3::UNIT_Z;
-		mUp = mRotation * Vector3::UNIT_Y;
-		mRight = mRotation * Vector3::UNIT_X;
-	}
-
-	const Matrix4x4& CameraComponent::GetViewMatrix() const
-	{
-		if (mbCacheViewOutOfData)
-		{
-			UpdateViewParams();
-		}
-		return mViewMatrix;
-	}
-
-	const Matrix4x4& CameraComponent::GetProjMatrix() const
-	{
-		if (mbCacheViewOutOfData)
-		{
-			UpdateViewParams();
-		}
-		else if (mbCacheOutOfData)
-		{
-			CalculateProjMatrix();
-		}
-		return mProjMatrix;
-	}
-
-	const Matrix4x4& CameraComponent::GetViewProjMatrix() const
-	{
-		if (mbCacheViewOutOfData)
-		{
-			UpdateViewParams();
-		}
-		else if (mbCacheOutOfData)
-		{
-			CalculateProjMatrix();
-		}
-		return mViewProjMatrix;
-	}
-
-	void CameraComponent::UpdateViewParams() const
-	{
-		if (!mbCacheViewOutOfData) return;
-
-		Matrix4x4 TranslationMat = Matrix4x4::IDENTITY;
-		TranslationMat[0][3] = -mPosition[0];
-		TranslationMat[1][3] = -mPosition[1];
-		TranslationMat[2][3] = -mPosition[2];
-
-		// We assume mRight, mUp, mForward are up-to-date
-		// Standard View matrix (Right dot Pos, etc. simplified using TranslationMat)
-		mViewMatrix = Matrix4x4(mRight[0], mUp[0], mForward[0], 0.0f,
-								mRight[1], mUp[1], mForward[1], 0.0f,
-								mRight[2], mUp[2], mForward[2], 0.0f,
-								0.0f, 0.0f, 0.0f, 1.0f).transpose() * TranslationMat;
-
-		mbCacheViewOutOfData = false;
-		CalculateProjMatrix();
-	}
-
-	void CameraComponent::CalculateProjMatrix() const
-	{
-		if (!mbCacheOutOfData) return;
-		mbCacheOutOfData = false;
-
-		Degree Fovy(mFOV);
-		float RadFovy = Fovy.ValueRadians();
-		if (mProjectionType == ProjectionType::Prespective)
-		{
-			float xx = 1.0f / (mAspect * Math::tan(RadFovy / 2.0f));
-			float yy = 1.0f / Math::tan(RadFovy / 2.0f);
-			float zz = mFar / (mFar - mNear);
-			float zw = -(mFar * mNear) / (mFar - mNear);
-			mProjMatrix = Matrix4x4(xx, 0.0f, 0.0f, 0.0f,
-									0.0f, yy, 0.0f, 0.0f,
-									0.0f, 0.0f, zz, zw,
-									0.0f, 0.0f, 1.0f, 0.0f);
-		}
-		else
-		{
-			float h = 2 * mNear * Math::tan(RadFovy / 2.0f);
-			float w = mAspect * h;
-			float l = -w / 2.0f;
-			float r = w / 2.0f;
-			float b = -h / 2.0f;
-			float t = h / 2.0f;
-			mProjMatrix = Matrix4x4(2.0f / (r - l), 0.0f, 0.0f, -(r + l) / (r - l),
-									0.0f, -2.0f / (t - b), 0.0f, -(t + b) / (t - b),
-									0.0f, 0.0f, 1.0f / (mFar - mNear), -mNear / (mFar - mNear),
-									0.0f, 0.0f, 0.0f, 1.0f);
-		}
-
-		mViewProjMatrix = mProjMatrix * mViewMatrix;
-	}
+    void CameraComponent::UpdateLocalAxes()
+    {
+        mRight = mRotation * Vector3::UNIT_X;
+        mUp = mRotation * Vector3::UNIT_Y;
+        mForward = mRotation * Vector3::UNIT_Z;
+    }
+    void CameraComponent::UpdateViewParams() const
+    {
+        if (!mbCacheViewOutOfData && !mbCacheOutOfData) return;
+        const auto Matrices = BuildCameraMatrices(CaptureState());
+        mViewMatrix = Matrices.View; mProjMatrix = Matrices.Projection; mViewProjMatrix = Matrices.ViewProjection;
+        mbCacheViewOutOfData = mbCacheOutOfData = false;
+    }
+    void CameraComponent::CalculateProjMatrix() const { UpdateViewParams(); }
+    const Matrix4x4& CameraComponent::GetViewMatrix() const { UpdateViewParams(); return mViewMatrix; }
+    const Matrix4x4& CameraComponent::GetProjMatrix() const { UpdateViewParams(); return mProjMatrix; }
+    const Matrix4x4& CameraComponent::GetViewProjMatrix() const { UpdateViewParams(); return mViewProjMatrix; }
 }

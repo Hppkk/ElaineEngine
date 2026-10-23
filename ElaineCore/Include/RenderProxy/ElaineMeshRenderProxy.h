@@ -12,6 +12,7 @@ namespace Elaine
         StaticMeshRenderProxy();
         virtual ~StaticMeshRenderProxy();
         void SetMesh(const MeshPtr& InMesh);
+        void SetMesh(const MeshPtr& InMesh, const MeshRenderData& Data) { SetMesh(InMesh); mMeshData = Data; }
         void SetSubMeshCount(uint32 InCount) { mSubMeshCount = InCount; }
         void SetCastShadow(bool b) { mbCastShadow = b; }
         void SetReceiveShadow(bool b) { mbReceiveShadow = b; }

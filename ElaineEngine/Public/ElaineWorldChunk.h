@@ -2,6 +2,7 @@
 
 #include "ElaineEnginePrerequirements.h"
 #include "ElaineVector3.h"
+#include "Resource/ElaineAsset.h"
 #include "math/ElaineAxisAlignedBox.h"
 
 namespace Elaine
@@ -24,8 +25,8 @@ namespace Elaine
         int32_t X = 0;
         int32_t Y = 0;
         AxisAlignedBox Bounds;
-        std::vector<std::string> ActorPaths;
-        std::string BundlePath;
+        std::vector<ResourceReference> ActorReferences;
+        ResourceReference Bundle;
         bool LoadOnStart = false;
     };
 

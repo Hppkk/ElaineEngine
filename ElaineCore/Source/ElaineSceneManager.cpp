@@ -79,7 +79,7 @@ namespace Elaine
 		// finite world-space QuadTree bounds used for regular renderables.
 		for (RenderProxy* Proxy : mRenderProxys)
 		{
-			if (Proxy != nullptr && Proxy->GetType() == EProxyType::Grid &&
+			if (Proxy != nullptr && (Proxy->GetType() == EProxyType::Grid || Proxy->GetType() == EProxyType::Sky) && Proxy->IsVisible() &&
 				std::find(VisibleRenderProxys.begin(), VisibleRenderProxys.end(), Proxy) == VisibleRenderProxys.end())
 			{
 				VisibleRenderProxys.push_back(Proxy);
@@ -115,8 +115,7 @@ namespace Elaine
 		{
 			RenderProxy* NewRenderProxy = new SkyRenderProxy();
 			mRenderProxys.insert(NewRenderProxy);
-			// Sky is global; still insert to proxy set but do not add to quad tree
-			mQuadTree->AddRenderProxy(NewRenderProxy);
+			// Sky follows the view and bypasses spatial culling.
 			return NewRenderProxy;
 		}
 		case Elaine::EProxyType::Grid:
@@ -150,6 +149,11 @@ namespace Elaine
 		mQuadTree->RemoveRenderProxy(InProxy);
 		SAFE_DELETE(InProxy);
 	}
+
+    void SceneManager::UpdateRenderProxyBounds(RenderProxy* Proxy)
+    {
+        if (Proxy && mRenderProxys.contains(Proxy)) mQuadTree->UpdateRenderProxy(Proxy);
+    }
 
 	void SceneManager::RenderScene()
 	{
@@ -194,9 +198,10 @@ namespace Elaine
 			InCamera = mMainCamera;
 
 		CommonUniformBufferCPU& UB = FrameData.mCommonUniformBuffer;
-		UB.U_ViewMatrix = InCamera->GetViewMatrix();
-		UB.U_ProjectionMatrix = InCamera->GetProjMatrix();
-		UB.U_ViewProjectionMatrix = InCamera->GetViewProjMatrix();
+        const auto Matrices = AdjustCameraForRendering(BuildCameraMatrices(InCamera->GetState()), Root::instance()->GetRHIType() == Vulkan);
+        UB.U_ViewMatrix = Matrices.View;
+        UB.U_ProjectionMatrix = Matrices.Projection;
+        UB.U_ViewProjectionMatrix = Matrices.ViewProjection;
 		UB.U_CameraDirection = Vector4(InCamera->GetForward(), 0.0f);
 		UB.U_CameraPosition = Vector4(InCamera->GetPosition(), 1.0f);
 	}

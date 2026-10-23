@@ -389,7 +389,7 @@ namespace VulkanRHI
 		VkResult GetMemoryTypeFromPropertiesExcluding(uint32 TypeBits, VkMemoryPropertyFlags Properties, uint32 ExcludeTypeIndex, uint32* OutTypeIndex);
 		const VkPhysicalDeviceMemoryProperties& GetMemoryProperties() const;
 		// bCanFail means an allocation failing is not a fatal error, just returns nullptr
-		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
+		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0, const void* ImportInfo = nullptr);
 		VulkanDeviceMemoryAllocation* Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeBits, VkMemoryPropertyFlags MemoryPropertyFlags, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType = (VkExternalMemoryHandleTypeFlagBits)0);
 
 		// Sets the Allocation to nullptr

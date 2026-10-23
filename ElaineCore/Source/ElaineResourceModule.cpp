@@ -2,6 +2,7 @@
 #include "ElaineResourceModule.h"
 #include "Resource/ElaineResourceLoader.h"
 #include "ElaineTextureManager.h"
+#include "Resource/ElaineResourceRegistry.h"
 #include "ElaineShaderManager.h"
 #include "ElaineMeshManager.h"
 #include "ElaineMaterialManager.h"
@@ -16,11 +17,14 @@ namespace Elaine
 	void ResourceModule::Initialize()
 	{
 		new ResourceLoader();
+        ResourceLoader::instance()->Start();
 		RegisterResourceLoader(RT_Texture, new TextureManager());
 		RegisterResourceLoader(RT_Mesh, new MeshManager());
 		RegisterResourceLoader(RT_Material, new MaterialManager());
 		RegisterResourceLoader(RT_MaterialInstance, new MaterialInstanceStaticManager());
 		RegisterResourceLoader(RT_Shader, new ShaderManager());
+        ResourceRegistry::Get().Start(Root::instance()->GetResourcePath());
+        ResourceRegistry::Get().WaitForStartup();
 	}
 
 	void ResourceModule::Terminate()

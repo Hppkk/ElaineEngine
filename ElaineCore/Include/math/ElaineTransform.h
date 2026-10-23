@@ -14,6 +14,9 @@ namespace Elaine
         {
         }
 
+        bool operator==(const Transform& Other) const
+        { return mPosition == Other.mPosition && mScale == Other.mScale && mRotation == Other.mRotation; }
+
         const Matrix4x4& GetMatrix() const
         {
             if (mDirty)

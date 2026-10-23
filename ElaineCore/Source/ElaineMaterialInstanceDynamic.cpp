@@ -20,7 +20,7 @@ namespace Elaine
 			return;
 
 		mPath = InPath;
-		mSource = MaterialInstanceStaticManager::instance()->RequestResource(InPath).GetResult().Resource;
+		mSource = MaterialInstanceStaticManager::instance()->GetResource(InPath);
 		
 		// 清空覆盖的参数，因为切换了材质
 		mOverridedTextures.clear();

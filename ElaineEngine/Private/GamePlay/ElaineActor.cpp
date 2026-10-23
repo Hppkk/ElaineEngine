@@ -6,6 +6,7 @@
 #include "GamePlay/ElaineMeshComponent.h"
 #include "ElaineDataStream.h"
 #include "ElaineActorInfoMgr.h"
+#include "Resource/ElaineResourceLoader.h"
 #include "ElaineWorld.h"
 #include "math/ElaineDynamicBVH.h"
 
@@ -36,9 +37,7 @@ namespace Elaine
 	std::unique_ptr<ResourceLoadData> ActorInfo::LoadImpl()
     {
         auto Data = std::make_unique<LoadData>();
-        DataStream Stream(Root::instance()->GetResourcePath() + mResourceName, DataStream::In);
-        Stream.ReadAll();
-        Data->Json = JsonCpp::parse(Stream.GetDataStream());
+        Data->Json = AssetFile::ReadJson(std::filesystem::path(Root::instance()->GetResourcePath()) / mResourceName, "Actor");
         if (!Data->Json.is_object()) throw std::runtime_error("Actor resource must be an object");
         Data->Name = Data->Json.value("Name", "");
         Data->GUID = Data->Json.value("GUID", "");
@@ -69,6 +68,7 @@ namespace Elaine
     void ActorInfo::ApplyLoadedData(ResourceLoadData& InData) noexcept
     {
         auto& Data = static_cast<LoadData&>(InData);
+        mSavedJson.swap(Data.Json);
         mGUID.swap(Data.GUID); mName.swap(Data.Name);
         mChildren.swap(Data.Children); mActorComponentInfos.swap(Data.Components);
     }
@@ -79,20 +79,14 @@ namespace Elaine
         mActorComponentInfos.clear(); mChildren.clear(); mName.clear(); mGUID.clear();
     }
 
-	void ActorInfo::SaveResourceImpl()
-	{
-	}
+    void ActorInfo::SaveResourceImpl()
+    { JsonCpp Json; ExportData(Json); SaveAssetJson(std::move(Json), "Actor"); }
 
 
 
 	void ActorInfo::ExportToFile()
 	{
-		JsonCpp JsonData;
-		ExportData(JsonData);
-
-		DataStream JsonFileStream(Root::instance()->GetResourcePath() + mResourceName, DataStream::Out);
-		std::string JsonStr = JsonData.dump();
-		JsonFileStream.Write(JsonStr.data(), JsonStr.size());
+        SaveResource();
 	}
 
 	void ActorInfo::ImportData(const JsonCpp& jsonNode)
@@ -106,6 +100,7 @@ namespace Elaine
 		if (jsonNode.contains("GUID"))
 			mGUID = jsonNode["GUID"].get<std::string>();
 
+        mSavedJson = jsonNode;
 		// Components
 		if (jsonNode.contains("Components"))
 		{
@@ -114,11 +109,11 @@ namespace Elaine
 				if (CompJson.contains("Type"))
 				{
 					Name ComType = CompJson["Type"].get<std::string>().c_str();
-					ActorComponentInfo* NewComInfo = ComponentFactoryManager::instance()->CreateActorComponentInfo(ComType);
+					std::unique_ptr<ActorComponentInfo> NewComInfo(ComponentFactoryManager::instance()->CreateActorComponentInfo(ComType));
 					if (NewComInfo != nullptr)
 					{
 						NewComInfo->ImportData(CompJson);
-						mActorComponentInfos.push_back(NewComInfo);
+						mActorComponentInfos.push_back(NewComInfo.release());
 					}
 				}
 			}
@@ -139,6 +134,7 @@ namespace Elaine
 
 	void ActorInfo::ExportData(JsonCpp& jsonNode)
 	{
+        jsonNode = mSavedJson.is_object() ? mSavedJson : JsonCpp::object();
 		jsonNode["Name"] = mName;
 		jsonNode["GUID"] = mGUID;
 
@@ -241,12 +237,13 @@ namespace Elaine
 
 	ActorComponent* Actor::AddComponent(const Name& InType)
 	{
+        if (auto* Existing = GetComponentByName(InType)) return Existing;
 		ActorComponent* NewComponent = ComponentFactoryManager::instance()->CreateComponent(InType, this);
 		if (NewComponent != nullptr)
 		{
 			NewComponent->Initialize(nullptr);
 		}
-		mComponents.emplace(InType, NewComponent);
+		AddComponent(NewComponent);
 
 		return NewComponent;
 	}
@@ -294,7 +291,7 @@ namespace Elaine
 		if (auto* Transform = dynamic_cast<TransformComponent*>(InCom))
 			mTransformCom = Transform;
 
-		//InCom->OnRegisterWorld(mWorld);
+        if (mbRegisteredWorld) InCom->OnRegisterWorld(mWorld);
 	}
 
 	Actor* Actor::CreateChildActor()
@@ -441,14 +438,17 @@ namespace Elaine
         if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(this);
 	}
 
-	void Actor::UpdateNode(bool childUpdate /*= true*/, bool notifyParent /*= true*/)
-	{
-
-	}
+    void Actor::UpdateNode(bool childUpdate, bool notifyParent)
+    {
+        if (mTransformCom) mTransformCom->NodeTick(0.0f);
+        if (childUpdate) for (auto* Child : mChildren) if (Child) Child->UpdateNode(true, false);
+    }
 
 	void Actor::OnRegisterWorld(World* InWorld)
 	{
+        if (mbRegisteredWorld) return;
 		mWorld = InWorld;
+        mbRegisteredWorld = true;
 		for (auto&& Com : mComponents)
 		{
 			Com.second->OnRegisterWorld(InWorld);
@@ -460,6 +460,8 @@ namespace Elaine
 
 	void Actor::OnUnregisterWorld()
 	{
+        if (!mbRegisteredWorld) return;
+        mbRegisteredWorld = false;
         if (mWorld && mWorld->GetSceneBVH() && mBVHNodeID != -1)
             mWorld->GetSceneBVH()->RemoveObject(this);
 
@@ -479,17 +481,15 @@ namespace Elaine
 		// Check logic for finding mesh ActorComponent
 		for (auto& Pair : mComponents)
 		{
-			//if (MeshComponent* MeshComp = dynamic_cast<MeshComponent*>(Pair.second))
-			//{
-			//	Box.merge(MeshComp->GetBoundingBox()); 
-			//}
+            if (const auto* Mesh = dynamic_cast<StaticMeshComponent*>(Pair.second))
+                Box.merge(Mesh->GetBoundingBox());
 		}
 
 		if (Box.isNull())
 		{
 			// Fallback if no specific ActorComponent provides bounds: create small bound around position
-			Vector3 Pos = GetWorldPosition();
-			Box.setExtent(Pos - Vector3(0.5f, 0.5f, 0.5f), Pos + Vector3(0.5f, 0.5f, 0.5f));
+            Box.setExtent(Vector3(-0.5f), Vector3(0.5f));
+            Box.transformAffine(GetWorldMatrix());
 		}
 
 		return Box;

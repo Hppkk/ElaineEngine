@@ -17,61 +17,23 @@ namespace Elaine
 
     void SkyRenderProxy::InitializeResourceBinding()
     {
-        struct VertexData
+        // Position is the only vertex input used by the sky shader.
+        // All faces have the same outward winding; sampling uses world direction.
+        const std::array<Vector3, 6> Normals = {Vector3::UNIT_X, -Vector3::UNIT_X,
+            Vector3::UNIT_Y, -Vector3::UNIT_Y, Vector3::UNIT_Z, -Vector3::UNIT_Z};
+        std::vector<Vector3> Vertices;
+        for (const auto& Normal : Normals)
         {
-            float mVertex[3];
-            float mUV[2];
-            float mNormals[3];
-        };
-
-        std::vector<VertexData> CpuData = {
-            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f},
-            { 1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 0.0f},
-            { 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f},
-            { 1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 1.0f, 1.0f},
-            {-1.0f,  1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f, -1.0f,  0.0f,  0.0f, -1.0f, 0.0f, 0.0f},
-
-            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f},
-            { 1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 0.0f},
-            { 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f},
-            { 1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 1.0f, 1.0f},
-            {-1.0f,  1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f,  1.0f,  0.0f,  0.0f,  1.0f, 0.0f, 0.0f},
-
-            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f},
-            {-1.0f,  1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 1.0f},
-            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f, -1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 1.0f},
-            {-1.0f, -1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 0.0f, 0.0f},
-            {-1.0f,  1.0f,  1.0f, -1.0f,  0.0f,  0.0f, 1.0f, 0.0f},
-
-            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f},
-            { 1.0f,  1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 1.0f},
-            { 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f, -1.0f, -1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f, -1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 0.0f, 0.0f},
-            { 1.0f,  1.0f,  1.0f,  1.0f,  0.0f,  0.0f, 1.0f, 0.0f},
-
-            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 1.0f},
-            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f},
-            { 1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 1.0f, 0.0f},
-            {-1.0f, -1.0f,  1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 0.0f},
-            {-1.0f, -1.0f, -1.0f,  0.0f, -1.0f,  0.0f, 0.0f, 1.0f},
-
-            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f},
-            { 1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 1.0f},
-            { 1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f},
-            { 1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 1.0f, 0.0f},
-            {-1.0f,  1.0f,  1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 0.0f},
-            {-1.0f,  1.0f, -1.0f,  0.0f,  1.0f,  0.0f, 0.0f, 1.0f},
-        };
-
-        //@TODO RHI thread.
-        auto VertexBuffer = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer, ERHIAccess::VertexOrIndexBuffer,
-                CpuData.data(), CpuData.size() * sizeof(VertexData));
-        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = VertexBuffer.get();
+            const Vector3 Up = std::abs(Normal.y) > 0.5f ? Vector3::UNIT_Z : Vector3::UNIT_Y;
+            const Vector3 Right = Up.crossProduct(Normal);
+            const Vector3 FaceUp = Normal.crossProduct(Right);
+            const Vector3 Corners[] = {Normal - Right - FaceUp, Normal + Right - FaceUp,
+                Normal + Right + FaceUp, Normal - Right + FaceUp};
+            for (int Index : {0, 1, 2, 0, 2, 3}) Vertices.push_back(Corners[Index]);
+        }
+        auto VertexBuffer = RenderSystem::instance()->CreateBuffer(BufferUsageFlags::VertexBuffer,
+            ERHIAccess::VertexOrIndexBuffer, Vertices.data(), Vertices.size() * sizeof(Vector3));
+        mResourceBinding.mDrawData.mStreamInput.mIStreamBuffer[STREAM_VERTEXBUFFER] = VertexBuffer;
 
         mResourceBinding.mVertexCount = 36;
         mResourceBinding.mInstanceCount = 1;
@@ -82,7 +44,7 @@ namespace Elaine
 
     void SkyRenderProxy::UpdateRenderQueue(RenderQueueSet* InRenderQueue)
     {
-        if (!IsBindingsInitialized())
+        if (!IsVisible() || !IsBindingsInitialized())
             return;
 
         // 使用 RenderMaterialProxy 的 IsReady 检查

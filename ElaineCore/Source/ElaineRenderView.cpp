@@ -2,6 +2,7 @@
 #include "ElaineRenderView.h"
 #include "render/common/ElaineRHITypes.h"
 #include "ElaineRenderTarget.h"
+#include "TaskGraph/ElaineTask.h"
 
 namespace Elaine
 {
@@ -11,6 +12,7 @@ namespace Elaine
 
 	RenderView::~RenderView()
 	{
+        if (mSubmissionEvent) mSubmissionEvent->Cancel();
 		// 注意：不负责删除 Camera/Viewport/SceneManager
 		// 这些对象的生命周期由外部管理
 	}

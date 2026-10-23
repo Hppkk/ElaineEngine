@@ -1,31 +1,26 @@
 #pragma once
-#include "ElaineCorePrerequirements.h"
-#include "ElaineThreadManager.h"
 #include "TaskGraph/ElaineTask.h"
-
-
 namespace TaskGraph
 {
-	class WorkerPool;
-	class GraphTask;
-
-	class ElaineCoreExport TaskScheduler
-	{
-	public:
-		TaskScheduler();
-		~TaskScheduler();
-		void QueueTask(GraphTaskPtr InTask);
-	private:
-		void ScheduleTask();
-		static void ThreadMain(void* InThis);
-		void DispatchTaskInThread(GraphTaskPtr InTask);
-		GraphTaskPtr PrepareNextTask();
-	private:
-		std::queue<GraphTaskPtr> mReadyForDispatch;
-		std::vector<GraphTaskPtr> mWaitForDispatch;
-		Elaine::ThreadWrap* mThreadHandle;
-		std::atomic_bool mStopping{false};
+    class ElaineCoreExport TaskScheduler : public std::enable_shared_from_this<TaskScheduler>
+    {
+    public:
+        TaskScheduler();
+        ~TaskScheduler();
+        void QueueTask(GraphTaskPtr Task);
+        void EnqueueReady(GraphTaskPtr Task);
+        void Stop();
+        void CancelCategory(TaskCategory Category);
+    private:
+        static void ThreadMain(void* Self);
+        void ScheduleTask();
+        void DispatchTaskInThread(GraphTaskPtr Task);
+        std::queue<GraphTaskPtr> mReadyForDispatch;
+        // Ownership only; never scanned to advance dependencies.
+        std::map<TaskUUID, GraphTaskPtr> mActive;
+        Elaine::ThreadWrap* mThreadHandle = nullptr;
+        bool mStopping = false;
         std::mutex mMtx;
-		std::condition_variable mConditionVariable;
-	};
+        std::condition_variable mConditionVariable;
+    };
 }

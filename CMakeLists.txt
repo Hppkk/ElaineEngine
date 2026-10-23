@@ -4,6 +4,7 @@ set(PROJECT_VERSION_MAJOR 0)
 set(PROJECT_VERSION_MINOR 1)
 
 set(_Use_Volk_  1)
+option(ELAINE_WITH_RENDERDOC "Enable optional RenderDoc integration in Debug configurations" ON)
 
 set(CMAKE_CONFIGURATION_TYPES EditorDebug EditorRelease RuntimeDebug RuntimeRelease)
 set(CMAKE_SHARED_LINKER_FLAGS_EDITORDEBUG ${CMAKE_SHARED_LINKER_FLAGS_DEBUG})
@@ -96,7 +97,18 @@ set(ENGINE_INCLUDE_DIR
 
 add_subdirectory(ElaineReflection)
 add_subdirectory(ElaineCore)
+add_subdirectory(ElaineAssetImport)
 add_subdirectory(ElaineEditor)
 add_subdirectory(ElaineEngine)
 add_subdirectory(Samples)
 add_subdirectory(ElaineBuildTool)
+
+add_executable(ElaineAssetTool Tools/Assets/ElaineAssetTool.cpp)
+target_link_libraries(ElaineAssetTool PRIVATE ElaineCore ElaineAssetImport)
+target_include_directories(ElaineAssetTool PRIVATE ${THIRD_PARTY_DIR})
+
+option(ELAINE_BUILD_RESOURCE_TESTS "Build headless resource pipeline and mock RHI tests" OFF)
+if(ELAINE_BUILD_RESOURCE_TESTS)
+    enable_testing()
+    add_subdirectory(Tests/Resources)
+endif()

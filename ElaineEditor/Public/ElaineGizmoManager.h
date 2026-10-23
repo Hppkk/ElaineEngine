@@ -43,6 +43,7 @@ namespace Editor
         bool DrawTransform(Elaine::Actor* Actor, const Elaine::Matrix4x4& View,
             const Elaine::Matrix4x4& Projection, float X, float Y, float Width, float Height, bool AllowInput);
         bool CommitTransform(bool AllowCommit);
+        void CancelTransform();
 
     private:
         Elaine::Actor* mPendingActor = nullptr;

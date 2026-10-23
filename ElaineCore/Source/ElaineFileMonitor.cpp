@@ -54,13 +54,24 @@ namespace Elaine
 		mCallbacks.push_back(std::move(InCallback));
 	}
 
+    void FileMonitor::DeferChanges(const std::vector<std::string>& Paths, bool Defer)
+    {
+        std::lock_guard Lock(mMutex);
+        for (const auto& Path : Paths)
+        {
+            auto Key = std::filesystem::weakly_canonical(Path).string();
+            if (Defer) mDeferredPaths.insert(Key); else mDeferredPaths.erase(Key);
+        }
+    }
 	void FileMonitor::DispatchChanges()
 	{
 		std::vector<std::string> Changes;
 		std::vector<ChangeCallback> Callbacks;
 		{
 			std::lock_guard<std::mutex> Lock(mMutex);
-			Changes.swap(mPendingChanges);
+            for (auto It = mPendingChanges.begin(); It != mPendingChanges.end(); )
+                if (mDeferredPaths.contains(*It)) ++It;
+                else { Changes.push_back(std::move(*It)); It = mPendingChanges.erase(It); }
 			Callbacks = mCallbacks;
 		}
 		for (const auto& Path : Changes)
@@ -70,6 +81,7 @@ namespace Elaine
 
 	void FileMonitor::WatchLoop()
 	{
+        bool InitialSnapshot = true;
 		while (mRunning.load(std::memory_order_acquire))
 		{
 			std::unordered_map<std::string, FileStamp> Current;
@@ -86,7 +98,7 @@ namespace Elaine
 				const std::string Path = PathObj.lexically_normal().string();
 				Current[Path] = { static_cast<uint64_t>(Stamp), Size };
 				auto It = mFileStamps.find(Path);
-				if (It != mFileStamps.end() && It->second != Current[Path]) Changes.push_back(Path);
+				if (!InitialSnapshot && (It == mFileStamps.end() || It->second != Current[Path])) Changes.push_back(Path);
 			}
 			for (const auto& Old : mFileStamps)
 				if (Current.find(Old.first) == Current.end()) Changes.push_back(Old.first);
@@ -98,6 +110,7 @@ namespace Elaine
 						mPendingChanges.push_back(Path);
 			}
 			mFileStamps.swap(Current);
+            InitialSnapshot = false;
 			std::this_thread::sleep_for(std::chrono::milliseconds(mIntervalMs));
 		}
 	}

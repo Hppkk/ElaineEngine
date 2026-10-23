@@ -1,0 +1,59 @@
+{
+  "data": {
+    "Chunks": [
+      {
+        "Actors": [
+          {
+            "id": "6c213b4d-f2ae-4625-b190-5427f2eb9107",
+            "path": "worlds/testworld/actors/test_actor.asset"
+          }
+        ],
+        "Bounds": {
+          "Max": [
+            100.0,
+            100.0,
+            100.0
+          ],
+          "Min": [
+            -100.0,
+            -100.0,
+            -100.0
+          ]
+        },
+        "Coord": [
+          0,
+          0
+        ],
+        "Id": "chunk_0_0",
+        "LoadOnStart": true
+      }
+    ],
+    "Origin": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "Streaming": {
+      "LoadRadius": 1,
+      "UnloadRadius": 2
+    },
+    "Version": 1
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [
+      {
+        "id": "6c213b4d-f2ae-4625-b190-5427f2eb9107",
+        "kind": "soft",
+        "path": "worlds/testworld/actors/test_actor.asset"
+      }
+    ],
+    "displayName": "testworld",
+    "id": "b142dc1b-bc93-43e4-adb1-8b7a16aec643",
+    "sourceFiles": [],
+    "tags": {
+      "Chunks": 1
+    },
+    "type": "World"
+  }
+}

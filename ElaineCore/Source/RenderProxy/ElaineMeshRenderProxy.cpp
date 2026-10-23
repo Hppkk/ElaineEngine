@@ -18,6 +18,7 @@ namespace Elaine
 
     void StaticMeshRenderProxy::SetMesh(const MeshPtr& InMesh)
     {
+        if (mMesh != InMesh || !InMesh) mMeshData = {};
         mMeshPath = InMesh ? InMesh->GetPath() : std::string();
         mMesh = InMesh;
         if (InMesh) TrackResource(InMesh);

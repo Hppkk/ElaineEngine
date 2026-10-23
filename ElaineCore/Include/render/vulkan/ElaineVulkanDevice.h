@@ -148,6 +148,7 @@ namespace VulkanRHI
 		VulkanDevice(VulkanPhysicalDevice* InPhyDevice);
 		~VulkanDevice();
 		void Initialize();
+        bool SupportsDX11KeyedMutex() const { return mSupportsDX11KeyedMutex; }
 
 		VkDevice	GetDevice() const
 		{
@@ -249,6 +250,7 @@ namespace VulkanRHI
 		VkFormatProperties				mFormatProperties[VK_FORMAT_ASTC_12x12_SRGB_BLOCK - VK_FORMAT_UNDEFINED + 1];
 		std::vector<const char*>		mDeviceExtensions;
 		uint64							mTimestampValidBitsMask;
+        bool mSupportsDX11KeyedMutex = false;
 		bool							mbAsyncComputeQueue = false;
 		bool							mbPresentOnComputeQueue = false;
 

@@ -9,6 +9,7 @@
 namespace Elaine
 {
 	class MaterialInstanceDynamic;
+    struct MaterialParamSnapshot;
 	class StaticMeshRenderProxy;
 
 	class ElaineEngineExport StaticMeshComponentInfo : public ActorComponentInfo
@@ -36,11 +37,17 @@ namespace Elaine
 		const Name& GetType() const override;
         void MarkRenderStateDirty();
         void MarkTransformDirty();
+        AxisAlignedBox GetBoundingBox() const;
+        void PostEditChangeProperty(const PropertyChangedEvent& Event) override;
+        void ApplyVisibility() override;
 		const std::vector<MaterialInstanceDynamic*>& GetMaterialInstances() const { return mMaterials; }
 	private:
+		void ApplyMeshPath();
+        std::vector<MaterialParamSnapshot> CaptureMaterials() const;
 		StaticMeshRenderProxy* mRenderProxy = nullptr;
 		std::vector<MaterialInstanceDynamic*> mMaterials;
         std::vector<ResourceSubscription> mMaterialSubscriptions;
+        ResourceSubscription mMeshSubscription;
 		MeshPtr mMesh = nullptr;
 		EPROPERTY(DisplayName="Cast Shadow", Category="Rendering", Tooltip="Whether this mesh casts shadows")
 		bool mbCastShadow = true;

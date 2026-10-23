@@ -33,6 +33,8 @@ namespace Elaine
         EFUNCTION(Category="Sky")
         void SetMaterial(const std::string& InMaterialPath);
         const Name& GetType() const override;
+        void PostEditChangeProperty(const PropertyChangedEvent& Event) override;
+        void ApplyVisibility() override;
     private:
         void UpdateMaterialSnapshot();
         SkyRenderProxy* mProxy = nullptr;

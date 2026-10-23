@@ -1,4 +1,6 @@
 #include "ElaineEngine.h"
+#include "render/ElaineRenderDocCapture.h"
+#include <iostream>
 #include "ElaineWorld.h"
 #include "ElaineActor.h"
 #include "ElaineMeshComponent.h"
@@ -71,6 +73,12 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
+        std::string CaptureError;
+        if (!Elaine::RenderDocCapture::InitializeFromCommandLine(argc, argv, CaptureError))
+        { std::cerr << "RenderDoc initialization failed: " << CaptureError << std::endl; return 2; }
+        struct CaptureLifetime { ~CaptureLifetime() { Elaine::RenderDocCapture::Shutdown(); } } CaptureGuard;
+        try
+        {
         bool Smoke = false, DedicatedRHI = true;
         for (int i = 1; i < argc; ++i)
         {
@@ -102,7 +110,7 @@ extern "C" {
 		Elaine::Actor* Scene = Test->CreateActor();
 		Elaine::CameraComponent* NewCamera = Scene->AddComponentType<Elaine::CameraComponent>("CameraComponent");
 		Elaine::SkyComponent* NewSky = Test->CreateActor()->AddComponentType<Elaine::SkyComponent>("SkyComponent");
-		//NewSky->SetMaterial("material_instance/SkyBox.mi");
+		//NewSky->SetMaterial("material_instance/SkyBox.asset");
 		Elaine::StaticMeshComponent* NewCom = Test->CreateActor()->AddComponentType<Elaine::StaticMeshComponent>("StaticMeshComponent");
 		NewCom->ChangeMesh("");
 
@@ -128,7 +136,12 @@ extern "C" {
 		//NewEngine->DestroyViewport(MainView);
 		delete NewEngine;
         delete NewWindow;
+        const auto CaptureResult = Elaine::RenderDocCapture::GetStatus();
+        if (CaptureResult.AutomaticCapture && CaptureResult.Phase != Elaine::RenderDocCapturePhase::Succeeded)
+        { std::cerr << "Requested Vulkan capture did not complete: " << CaptureResult.Message << std::endl; return 1; }
         return Smoke && Elaine::GetRHIValidationErrorCount() != 0 ? 1 : 0;
+        }
+        catch (const std::exception& Error) { std::cerr << "Runtime startup failed: " << Error.what() << std::endl; return 1; }
 	}
 
 #ifdef __cplusplus

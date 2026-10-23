@@ -1,9 +1,11 @@
 ﻿#pragma once
 #include "ElaineCorePrerequirements.h"
 #include "ElaineMaterialInterface.h"
+#include "ElaineMaterialInstanceStatic.h"
 #include "ElaineUniformGPUManager.h"
 #include "ElaineResourceBase.h"
 #include "render/common/ElaineRHI.h"
+#include "math/ElaineAxisAlignedBox.h"
 
 namespace Elaine
 {
@@ -37,6 +39,7 @@ namespace Elaine
 	{
 		uint64 SlotHash;
 		std::string SlotName;
+		ResourceReference DefaultMaterial;
 	};
 
 	class ElaineCoreExport SubMesh
@@ -58,6 +61,8 @@ namespace Elaine
 		MaterialInterface* MaterialInstance = nullptr;
 
 		Name DebugName;
+
+        AxisAlignedBox LocalBounds;
 
 	public:
 
@@ -94,10 +99,14 @@ namespace Elaine
         const RHIBufferHandle& GetIndexBuffer() const { return mIndexBuffer; }
         uint32 GetIndexStride() const { return mIndexStride; }
         const VertexLayoutDesc& GetVertexLayout() const { return mVertexLayout; }
+        const AxisAlignedBox& GetLocalBounds() const { return mLocalBounds; }
+        const std::vector<MaterialSlot>& GetMaterialSlots() const { return mMaterialSlots; }
+        MaterialInstanceStaticPtr GetDefaultMaterial(uint32 Slot) const;
         const std::vector<SubMesh*>& GetSubMeshes() const { return mSubMeshes; }
 	protected:
 		void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
         std::unique_ptr<ResourceLoadData> LoadImpl() override;
+        void PrepareDependencies(ResourceLoadData& Data) override;
         bool InitializeGPU(ResourceLoadData& Data) override;
 		virtual	void UnloadImpl() override;
 		virtual void SaveResourceImpl() override;
@@ -111,15 +120,11 @@ namespace Elaine
 		std::vector<RHIBufferHandle> mGPUVertexBuffers;
         std::vector<uint8_t> mIndexBytes;
         uint32 mIndexStride = 4;
+        AxisAlignedBox mLocalBounds;
 		std::vector<MaterialSlot> mMaterialSlots;
+        std::vector<MaterialInstanceStaticPtr> mDefaultMaterials;
 		RHIBufferHandle mIndexBuffer;
-#ifdef _HAS_EDITOR_
-		friend class MeshConverter;
-#endif
 	};
 
 	using MeshPtr = ResourcePtr<Mesh>;
-#ifdef _HAS_EDITOR_
-	void ElaineCoreExport ImportMeshFromFile(const std::string& srcPath, const std::string& destRelPath);
-#endif
 }

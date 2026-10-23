@@ -45,6 +45,7 @@ namespace Elaine
 
         EProxyType GetType() const { return mType; }
         const AxisAlignedBox& GetWorldAABB() const { return mWorldAABB; }
+        void SetWorldAABB(const AxisAlignedBox& Bounds) { mWorldAABB = Bounds; }
         void SetWorldMatrix(const Matrix4x4& InMat) { mWorldMatrix = InMat; }
         const Matrix4x4& GetWorldMatrix() const { return mWorldMatrix; }
         bool IsVisible() const { return mbVisible; }

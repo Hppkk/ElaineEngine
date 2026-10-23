@@ -185,6 +185,7 @@ namespace ElaineBuildTool
 		ss << "    static Elaine::TypeDescriptor* Register()\n";
 		ss << "    {\n";
 		ss << "        static Elaine::TypeDescriptor desc;\n";
+        ss << "        desc.SetEditNotifier<" << fullClassName << ">();\n";
 		ss << "        desc.SetClassName(\"" << cls.ClassName << "\");\n";
 
 		if (!cls.ParentClassName.empty())
@@ -213,6 +214,7 @@ namespace ElaineBuildTool
 				ss << "            pd.TypeName = \"" << prop.TypeName << "\";\n";
 				ss << "            pd.Offset = offsetof(" << fullClassName << ", " << prop.Name << ");\n";
 				ss << "            pd.Size = sizeof(((" << fullClassName << "*)nullptr)->" << prop.Name << ");\n";
+                ss << "            pd.SetValueOperations<decltype(" << fullClassName << "::" << prop.Name << ")>();\n";
 				for (auto& [key, value] : prop.MetaData)
 				{
 					ss << "            pd.Meta[\"" << EscapeStringForCpp(key) << "\"] = \""
@@ -355,182 +357,15 @@ namespace ElaineBuildTool
 		return ss.str();
 	}
 
-	std::string CodeGenerator::GenerateEditorDrawImplementation(const ParsedClass& cls)
-	{
-		std::ostringstream ss;
-
-		std::string fullClassName = cls.ClassName;
-		if (!cls.Namespace.empty())
-			fullClassName = cls.Namespace + "::" + cls.ClassName;
-
-		ss << "// Draw properties for " << fullClassName << "\n";
-		ss << "bool Z_Drawer_" << cls.ClassName << "::Draw(" << fullClassName << "* obj)\n";
-		ss << "{\n";
-		ss << "    bool changed = false;\n";
-
-		if (cls.Properties.empty())
-		{
-			ss << "    ImGui::TextDisabled(\"No reflected properties\");\n";
-			ss << "    return changed;\n";
-			ss << "}\n";
-			return ss.str();
-		}
-
-		// Group by category
-		std::unordered_map<std::string, std::vector<const ParsedProperty*>> categories;
-		for (auto& prop : cls.Properties)
-		{
-			if (prop.MetaData.count("Hidden"))
-				continue;
-
-			std::string cat = "Default";
-			auto catIt = prop.MetaData.find("Category");
-			if (catIt != prop.MetaData.end() && !catIt->second.empty())
-				cat = catIt->second;
-			categories[cat].push_back(&prop);
-		}
-
-		// Maintain stable category order
-		std::vector<std::string> catOrder;
-		for (auto& prop : cls.Properties)
-		{
-			if (prop.MetaData.count("Hidden")) continue;
-			std::string cat = "Default";
-			auto catIt = prop.MetaData.find("Category");
-			if (catIt != prop.MetaData.end() && !catIt->second.empty())
-				cat = catIt->second;
-			bool found = false;
-			for (auto& c : catOrder) { if (c == cat) { found = true; break; } }
-			if (!found) catOrder.push_back(cat);
-		}
-
-		for (auto& cat : catOrder)
-		{
-			auto& props = categories[cat];
-			if (props.empty()) continue;
-
-			bool needsHeader = (catOrder.size() > 1);
-			if (needsHeader)
-				ss << "    if (ImGui::CollapsingHeader(\"" << EscapeStringForCpp(cat) << "\", ImGuiTreeNodeFlags_DefaultOpen))\n    {\n";
-
-			for (auto* prop : props)
-			{
-				std::string indent = needsHeader ? "        " : "    ";
-
-				std::string displayName = prop->Name;
-				auto dnIt = prop->MetaData.find("DisplayName");
-				if (dnIt != prop->MetaData.end())
-					displayName = dnIt->second;
-
-				bool readOnly = prop->MetaData.count("ReadOnly") > 0;
-
-				if (readOnly)
-					ss << indent << "ImGui::BeginDisabled();\n";
-
-				if (prop->TypeName == "float")
-				{
-					bool hasRange = prop->MetaData.count("Min") && prop->MetaData.count("Max");
-					if (hasRange)
-					{
-						std::string minVal = prop->MetaData.at("Min");
-						std::string maxVal = prop->MetaData.at("Max");
-						ss << indent << "changed |= ImGui::SliderFloat(\""
-						   << EscapeStringForCpp(displayName) << "\", &obj->"
-						   << prop->Name << ", " << minVal << "f, " << maxVal << "f);\n";
-					}
-					else
-					{
-						ss << indent << "changed |= ImGui::DragFloat(\""
-						   << EscapeStringForCpp(displayName) << "\", &obj->"
-						   << prop->Name << ", 0.1f);\n";
-					}
-				}
-				else if (prop->TypeName == "int" || prop->TypeName == "int32" ||
-						 prop->TypeName == "int32_t" || prop->TypeName == "uint32" ||
-						 prop->TypeName == "uint32_t")
-				{
-					bool hasRange = prop->MetaData.count("Min") && prop->MetaData.count("Max");
-					if (hasRange)
-					{
-						std::string minVal = prop->MetaData.at("Min");
-						std::string maxVal = prop->MetaData.at("Max");
-						ss << indent << "changed |= ImGui::SliderInt(\""
-						   << EscapeStringForCpp(displayName) << "\", (int*)&obj->"
-						   << prop->Name << ", " << minVal << ", " << maxVal << ");\n";
-					}
-					else
-					{
-						ss << indent << "changed |= ImGui::DragInt(\""
-						   << EscapeStringForCpp(displayName) << "\", (int*)&obj->"
-						   << prop->Name << ");\n";
-					}
-				}
-				else if (prop->TypeName == "uint8" || prop->TypeName == "uint8_t")
-				{
-					ss << indent << "{ int v = obj->" << prop->Name << "; "
-					   << "if (ImGui::DragInt(\"" << EscapeStringForCpp(displayName)
-					   << "\", &v, 1.0f, 0, 255)) { obj->" << prop->Name
-					   << " = (uint8)v; changed = true; } }\n";
-				}
-				else if (prop->TypeName == "bool")
-				{
-					ss << indent << "changed |= ImGui::Checkbox(\""
-					   << EscapeStringForCpp(displayName) << "\", &obj->"
-					   << prop->Name << ");\n";
-				}
-				else if (prop->TypeName == "std::string" ||
-						 prop->TypeName == "std::basic_string<char>")
-				{
-					ss << indent << "{\n";
-					ss << indent << "    char buf[256];\n";
-					ss << indent << "    strncpy_s(buf, obj->" << prop->Name
-					   << ".c_str(), sizeof(buf) - 1);\n";
-					ss << indent << "    if (ImGui::InputText(\"" << EscapeStringForCpp(displayName)
-					   << "\", buf, sizeof(buf))) { obj->" << prop->Name
-					   << " = buf; changed = true; }\n";
-					ss << indent << "}\n";
-				}
-				else if (prop->TypeName == "Vector3")
-				{
-					ss << indent << "changed |= ImGui::DragFloat3(\""
-					   << EscapeStringForCpp(displayName) << "\", (float*)&obj->"
-					   << prop->Name << ", 0.1f);\n";
-				}
-				else if (prop->TypeName == "Quaternion")
-				{
-					ss << indent << "changed |= ImGui::DragFloat4(\""
-					   << EscapeStringForCpp(displayName) << "\", (float*)&obj->"
-					   << prop->Name << ", 0.01f);\n";
-				}
-				else
-				{
-					ss << indent << "ImGui::LabelText(\""
-					   << EscapeStringForCpp(displayName) << "\", \""
-					   << prop->TypeName << "\");\n";
-				}
-
-				// Tooltip
-				auto tipIt = prop->MetaData.find("Tooltip");
-				if (tipIt != prop->MetaData.end() && !tipIt->second.empty())
-				{
-					ss << indent << "if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort))\n";
-					ss << indent << "    ImGui::SetTooltip(\""
-					   << EscapeStringForCpp(tipIt->second) << "\");\n";
-				}
-
-				if (readOnly)
-					ss << indent << "ImGui::EndDisabled();\n";
-			}
-
-			if (needsHeader)
-				ss << "    }\n";
-		}
-
-		ss << "    return changed;\n";
-		ss << "}\n";
-
-		return ss.str();
-	}
+    std::string CodeGenerator::GenerateEditorDrawImplementation(const ParsedClass& cls)
+    {
+        const std::string Type = cls.Namespace.empty() ? cls.ClassName : cls.Namespace + "::" + cls.ClassName;
+        std::ostringstream ss;
+        ss << "bool Z_Drawer_" << cls.ClassName << "::Draw(" << Type << "* obj)\n{\n";
+        ss << "    return Elaine::PropertyDrawer::DrawPropertiesGrouped(obj, " << Type << "::StaticClass());\n";
+        ss << "}\n";
+        return ss.str();
+    }
 
 	// ============================================================
 	// GenerateEditorForClasses — produces .editor.generated.h (declarations)
@@ -608,7 +443,7 @@ namespace ElaineBuildTool
 		content << "// ============================================================\n\n";
 		content << "#include \"" << sourceHeaderName << "\"\n";
 		content << "#include \"" << baseName << ".editor.generated.h\"\n";
-		content << "#include \"imgui.h\"\n";
+		content << "#include \"ElainePropertyDrawer.h\"\n";
 		content << "#include \"ElainePropertyDrawerRegistry.h\"\n";
 		content << "#include <cstring>\n\n";
 

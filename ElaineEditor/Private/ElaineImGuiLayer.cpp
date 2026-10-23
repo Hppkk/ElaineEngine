@@ -7,6 +7,9 @@
 #include "backends/imgui_impl_dx11.h"
 #include "imgui/ImGuizmo/ImGuizmo.h"
 #include <d3d11.h>
+#include <dxgi1_2.h>
+#include <wrl/client.h>
+#include "render/vulkan/ElaineVulkanDX11Interop.h"
 #include <CommCtrl.h>
 #include <vector>
 #include <algorithm>
@@ -86,6 +89,9 @@ namespace Editor
         {
             const auto* window = windows[i];
             if (!window->Active || window->Hidden || (window->Flags & ImGuiWindowFlags_NoMouseInputs)) continue;
+            // The implicit fallback window is hidden at EndFrame unless something was drawn into it.
+            // Routing runs before EndFrame and must not let that invisible window occlude the scene.
+            if (window->IsFallbackWindow && !window->WriteAccessed) continue;
             if (reinterpret_cast<Elaine::InputWindowId>(window->Viewport->PlatformHandleRaw) != event.Window) continue;
             if (window->OuterRectClipped.Contains(ImVec2(event.X, event.Y))) return window->ID == windowId;
         }
@@ -123,12 +129,38 @@ namespace Editor
 			D3D_FEATURE_LEVEL_10_0,
 		};
 
+        Microsoft::WRL::ComPtr<IDXGIAdapter1> SelectedAdapter;
+        VulkanRHI::DX11AdapterId AdapterId;
+        std::string AdapterError;
+        if (VulkanRHI::GetDX11AdapterId(AdapterId, AdapterError))
+        {
+            Microsoft::WRL::ComPtr<IDXGIFactory1> Factory;
+            if (CreateDXGIFactory1(IID_PPV_ARGS(&Factory)) == S_OK)
+            {
+                for (UINT Index = 0; ; ++Index)
+                {
+                    Microsoft::WRL::ComPtr<IDXGIAdapter1> Adapter;
+                    if (Factory->EnumAdapters1(Index, &Adapter) != S_OK) break;
+                    DXGI_ADAPTER_DESC1 Desc{};
+                    if (Adapter->GetDesc1(&Desc) == S_OK && Desc.AdapterLuid.LowPart == AdapterId.Low && Desc.AdapterLuid.HighPart == AdapterId.High)
+                    { SelectedAdapter = Adapter; break; }
+                }
+            }
+        }
 		HRESULT hr = D3D11CreateDeviceAndSwapChain(
-			nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr,
+			SelectedAdapter.Get(), SelectedAdapter ? D3D_DRIVER_TYPE_UNKNOWN : D3D_DRIVER_TYPE_HARDWARE, nullptr,
 			createDeviceFlags, featureLevelArray, 2,
 			D3D11_SDK_VERSION, &sd,
 			&mSwapChain, &mDevice, &featureLevel, &mDeviceContext);
 
+        // A default DX11 adapter may still support the readback fallback.
+        // The interop adapter check below will reject cross-adapter sharing.
+        if (FAILED(hr) && SelectedAdapter)
+        {
+            hr = D3D11CreateDeviceAndSwapChain(nullptr,D3D_DRIVER_TYPE_HARDWARE,nullptr,
+                createDeviceFlags,featureLevelArray,2,D3D11_SDK_VERSION,&sd,
+                &mSwapChain,&mDevice,&featureLevel,&mDeviceContext);
+        }
 		if (FAILED(hr))
 			return false;
 
@@ -231,6 +263,8 @@ namespace Editor
 		io.ConfigFlags |= ImGuiConfigFlags_ViewportsEnable;
         // Both ImGui and the engine process the same complete OS batch this frame.
         io.ConfigInputTrickleEventQueue = false;
+        // Scene image gestures belong to the editor tools, not ImGui window dragging.
+        io.ConfigWindowsMoveFromTitleBarOnly = true;
 
 		SetupImGuiStyle();
 

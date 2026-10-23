@@ -61,18 +61,11 @@ namespace Elaine
 		static bool DrawPropertiesGrouped(void* obj, const TypeDescriptor* desc);
 
 		// Draw a single property widget
-		static bool DrawProperty(void* obj, const PropertyDescriptor& prop);
+		static bool DrawProperty(void* obj, const PropertyDescriptor& prop, const TypeDescriptor* owner);
 
 		// Draw a full ActorComponent inspector (type title + grouped properties)
 		static bool DrawComponentInspector(void* obj, const TypeDescriptor* desc);
 		static bool DrawMaterialParameters(MaterialInstanceDynamic* material);
 
-	private:
-		// Built-in type widget dispatch
-		static bool DrawFloat(const char* label, void* data, const PropertyDescriptor& prop);
-		static bool DrawInt(const char* label, void* data, const PropertyDescriptor& prop);
-		static bool DrawBool(const char* label, void* data, const PropertyDescriptor& prop);
-		static bool DrawString(const char* label, void* data, const PropertyDescriptor& prop);
-		static bool DrawUint8(const char* label, void* data, const PropertyDescriptor& prop);
 	};
 }

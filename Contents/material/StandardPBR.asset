@@ -1,0 +1,133 @@
+{
+  "data": {
+    "derivedParameters": {
+      "HasAO": {
+        "texturePresent": "AO"
+      },
+      "HasEmissive": {
+        "texturePresent": "Emissive"
+      },
+      "HasMetallicRoughness": {
+        "texturePresent": "MetallicRoughness"
+      },
+      "HasNormal": {
+        "texturePresent": "Normal"
+      }
+    },
+    "parameters": {
+      "AO": {
+        "default": "white",
+        "type": "texture"
+      },
+      "AlphaCutoff": {
+        "default": 0.0,
+        "type": "scalar"
+      },
+      "BaseColor": {
+        "default": "white",
+        "type": "texture"
+      },
+      "BaseColorFactor": {
+        "default": [
+          1.0,
+          1.0,
+          1.0,
+          1.0
+        ],
+        "type": "color"
+      },
+      "Emissive": {
+        "default": "black",
+        "type": "texture"
+      },
+      "EmissiveFactor": {
+        "default": [
+          0.0,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "type": "color"
+      },
+      "Metallic": {
+        "default": 0.0,
+        "max": 1.0,
+        "min": 0.0,
+        "type": "scalar"
+      },
+      "MetallicRoughness": {
+        "default": "white",
+        "type": "texture"
+      },
+      "Normal": {
+        "default": "flat_normal",
+        "type": "texture"
+      },
+      "Occlusion": {
+        "default": 1.0,
+        "type": "scalar"
+      },
+      "Roughness": {
+        "default": 0.5,
+        "max": 1.0,
+        "min": 0.0,
+        "type": "scalar"
+      }
+    },
+    "renderQueue": "opaque",
+    "shaderpass": [
+      {
+        "blend": {
+          "enable": false
+        },
+        "depth": {
+          "func": "less_equal",
+          "test": true,
+          "write": true
+        },
+        "name": "GBuffer",
+        "raster": {
+          "cull": "back",
+          "fill": "solid",
+          "frontFace": "ccw"
+        },
+        "renderQueue": "opaque",
+        "shaders": {
+          "ps": {
+            "id": "7fc5ba2d-563b-4a80-a40d-d047102929d4",
+            "path": "shader/vulkan/DeferredGBuffer.ps.shader"
+          },
+          "vs": {
+            "id": "605e3f01-2842-4f86-b42b-c8f029474de6",
+            "path": "shader/vulkan/DeferredGBuffer.vs.shader"
+          }
+        }
+      }
+    ],
+    "textures": {},
+    "version": "2.0.0"
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [
+      {
+        "id": "605e3f01-2842-4f86-b42b-c8f029474de6",
+        "kind": "hard",
+        "path": "shader/vulkan/DeferredGBuffer.vs.shader"
+      },
+      {
+        "id": "7fc5ba2d-563b-4a80-a40d-d047102929d4",
+        "kind": "hard",
+        "path": "shader/vulkan/DeferredGBuffer.ps.shader"
+      }
+    ],
+    "displayName": "StandardPBR",
+    "id": "fea3bfa9-c2e2-430d-89c2-9c40ce1dd019",
+    "sourceFiles": [],
+    "tags": {
+      "Parameters": 11,
+      "Passes": 1
+    },
+    "type": "Material"
+  }
+}

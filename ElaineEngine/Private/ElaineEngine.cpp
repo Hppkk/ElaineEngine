@@ -4,10 +4,11 @@
 #include "ElaineWorldManager.h"
 #include "ElaineComponentSystem.h"
 #include "ElaineRenderCommandQueue.h"
-#include "Resource/ElaineResourcePipeline.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 #include "Resource/ElaineResourceLoader.h"
 #include "ElaineActorInfoMgr.h"
 #include "ElaineFileMonitor.h"
+#include "Resource/ElaineResourceRegistry.h"
 
 namespace Elaine
 {
@@ -42,20 +43,20 @@ namespace Elaine
 
 	void ElaineEngine::RenderOneFrame()
 	{
-		ResourcePipeline::Get().BeginFrame();
+		TaskGraph::TaskGraph::instance()->BeginGameThreadFrame();
         Root::instance()->DispatchFileChanges();
 		TickTime();
 		mWorldManager->RenderOneFrame(mDeltaTime);
-        ResourcePipeline::Get().EndFrame();
+        TaskGraph::TaskGraph::instance()->EndGameThreadFrame();
 	}
 
 	void ElaineEngine::RenderOneFrame(float InDeltaTime)
 	{
-		ResourcePipeline::Get().BeginFrame();
+		TaskGraph::TaskGraph::instance()->BeginGameThreadFrame();
         Root::instance()->DispatchFileChanges();
 		TickTime();
 		mWorldManager->RenderOneFrame(InDeltaTime);
-        ResourcePipeline::Get().EndFrame();
+        TaskGraph::TaskGraph::instance()->EndGameThreadFrame();
 	}
 
 	void ElaineEngine::DestroyEngine()
@@ -63,7 +64,8 @@ namespace Elaine
 		if (!mWorldManager) return;
         LOG_INFO("Elaine Engine Destroy...");
         FileMonitor::instance()->Stop();
-        ResourcePipeline::Get().Shutdown();
+        ResourceRegistry::Get().Stop();
+        ResourceLoader::instance()->Shutdown();
 		delete ComponentSystem::instance();
 		for (auto* View : mViewports) { if (mActiveViewports.count(View)) UnregisterViewport(View); }
         Root::instance()->FlushRenderCommands();

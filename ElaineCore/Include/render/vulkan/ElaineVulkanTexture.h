@@ -1,5 +1,6 @@
 ﻿#pragma once
 #include "render/common/ElaineRHIProtocol.h"
+#include "render/vulkan/ElaineVulkanDX11Interop.h"
 #include "render/vulkan/ElaineVulkanMemory.h"
 #include "render/vulkan/ElaineVulkanCommandContext.h"
 
@@ -30,7 +31,12 @@ namespace VulkanRHI
 		VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc);
 		// 用于包装已有的 VkImage（如 Swapchain 图像）
 		VulkanTexture(VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkImage InExistingImage);
+        // Imports a DXGI NT texture handle; owns the Vulkan image and dedicated memory.
+        VulkanTexture(VulkanDevice* Device, const RHITextureDesc& Desc, void* DX11Handle);
 		~VulkanTexture();
+        bool IsDX11Imported() const { return mImportedAllocation != nullptr; }
+        VkDeviceMemory GetDX11Memory() const { return mImportedAllocation->GetHandle(); }
+        std::shared_ptr<DX11InteropSubmission> mDX11Submission;
 		static void GenerateImageCreateInfo(VulkanImageCreateInfo& OutInfo, VulkanDevice* InDevice, const RHITextureDesc& InDesc, VkFormat* OutStorageFormat,
 			VkFormat* OutViewFormat, bool bForceLinearTexture = false);
 		VkImage getHandle() const { return mHandle; }
@@ -99,6 +105,7 @@ namespace VulkanRHI
 		}
 		VulkanSwapChain* GetOwningSwapchain() const { return mOwningSwapchain; }
 	private:
+        VulkanDeviceMemoryAllocation* mImportedAllocation = nullptr;
 		VkImage						mHandle = VK_NULL_HANDLE;
 		VulkanDevice*				mDevice;
 		VkFormat					mViewFormat;

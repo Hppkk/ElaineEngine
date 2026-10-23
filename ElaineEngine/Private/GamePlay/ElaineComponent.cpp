@@ -16,10 +16,9 @@ namespace Elaine
 
 	void ActorComponentInfo::ExportData(JsonCpp& InJson)
 	{
-		if (InJson.empty())
-			return;
-
-		ExportDataImpl(InJson);
+        InJson = mSerializedJson.is_object() ? mSerializedJson : JsonCpp::object();
+        InJson["Type"] = mType.ToString();
+        ExportDataImpl(InJson);
 	}
 
 	void ActorComponentInfo::ImportData(const JsonCpp& InJson)
@@ -27,6 +26,8 @@ namespace Elaine
 		if (InJson.empty())
 			return;
 
+        mSerializedJson = InJson;
+        if (InJson.contains("Type")) mType = Name(InJson["Type"].get<std::string>().c_str());
 		ImportDataImpl(InJson);
 	}
 
@@ -64,7 +65,14 @@ namespace Elaine
 		OnUnregisterWorldImpl();
 		mWorld = nullptr;
 	}
-	void ActorComponent::SetVisible(bool InVisible)
-	{
-	}
+    void ActorComponent::SetVisible(bool InVisible)
+    {
+        mbVisible = InVisible;
+        ApplyVisibility();
+    }
+    void ActorComponent::PostEditChangeProperty(const PropertyChangedEvent& Event)
+    {
+        if (Event.Type == PropertyChangeType::EditFinished) return;
+        if (Event.IsProperty("mbVisible")) ApplyVisibility();
+    }
 }

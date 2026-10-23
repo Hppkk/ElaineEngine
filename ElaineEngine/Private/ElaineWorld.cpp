@@ -5,6 +5,7 @@
 #include "GamePlay/ElaineActorManager.h"
 #include "ElaineTickManager.h"
 #include "ElaineDataStream.h"
+#include "Resource/ElaineResourceRegistry.h"
 #include "ElaineRenderCommandQueue.h"
 #include "math/ElaineDynamicBVH.h"
 #include "math/ElaineISpatialObject.h"
@@ -23,12 +24,8 @@ namespace Elaine
 
         bool ReadJsonFile(const std::string& InPath, JsonCpp& OutJson)
         {
-            DataStream Stream(Root::instance()->GetResourcePath() + InPath, DataStream::In);
-            Stream.ReadAll();
-            if (Stream.GetDataStream() == nullptr)
-                return false;
-            OutJson = JsonCpp(Stream.GetDataStream());
-            return !OutJson.is_null();
+            try { OutJson = AssetFile::ReadJson(std::filesystem::path(Root::instance()->GetResourcePath()) / InPath, "World"); return true; }
+            catch (const std::exception& Error) { LOG_ERROR("Cannot read World: %s", Error.what()); return false; }
         }
     }
 
@@ -181,7 +178,7 @@ namespace Elaine
 
     bool World::SaveWorld(const std::string& InPath)
     {
-        JsonCpp JsonData;
+        JsonCpp JsonData = mSavedJson.is_object() ? mSavedJson : JsonCpp::object();
         JsonData["Version"] = 1;
         JsonData["Origin"] = JsonCpp::array({ mWorldOrigin.x, mWorldOrigin.y, mWorldOrigin.z });
         JsonData["Streaming"]["LoadRadius"] = mLoadRadius;
@@ -190,33 +187,47 @@ namespace Elaine
         for (const auto& Entry : mChunkRecords)
         {
             const WorldChunkRecord& Record = Entry.second;
-            JsonCpp Chunk;
+            JsonCpp Chunk = JsonCpp::object();
+            for (const auto& Old : mSavedJson.value("Chunks", JsonCpp::array())) if (Old.value("Id", "") == Record.Id) { Chunk = Old; break; }
             Chunk["Id"] = Record.Id;
             Chunk["Coord"] = JsonCpp::array({ Record.X, Record.Y });
             Chunk["Bounds"]["Min"] = JsonCpp::array({ Record.Bounds.getMin().x, Record.Bounds.getMin().y, Record.Bounds.getMin().z });
             Chunk["Bounds"]["Max"] = JsonCpp::array({ Record.Bounds.getMax().x, Record.Bounds.getMax().y, Record.Bounds.getMax().z });
             Chunk["Actors"] = JsonCpp::array();
-            for (const std::string& ActorPath : Record.ActorPaths)
-                Chunk["Actors"].push_back(ActorPath);
-            Chunk["Bundle"] = Record.BundlePath;
+            for (auto Actor : Record.ActorReferences)
+            {
+                try { Actor.Path = ResourceRegistry::Get().Find(Actor.Id).Path; } catch (...) {}
+                Chunk["Actors"].push_back(Actor.ToJson());
+            }
+            if (Record.Bundle.Id.IsValid()) Chunk["Bundle"] = Record.Bundle.ToJson();
             Chunk["LoadOnStart"] = Record.LoadOnStart;
             JsonData["Chunks"].push_back(Chunk);
         }
         JsonData["LoadedChunks"] = JsonCpp::array();
         for (const auto& Entry : mLoadedChunks)
             JsonData["LoadedChunks"].push_back(Entry.first);
-        const std::string FullPath = Root::instance()->GetResourcePath() + InPath;
-        DataStream Out(FullPath, DataStream::Out);
-        const std::string Text = JsonData.dump(4);
-        Out.Write(Text.data(), Text.size());
-        return true;
+        const auto File = std::filesystem::path(Root::instance()->GetResourcePath()) / CanonicalResourcePath(InPath);
+        try
+        {
+            ResourceDescriptor Descriptor;
+            if (std::filesystem::exists(File)) { Descriptor = AssetFile::ReadDescriptor(File); if (Descriptor.Type != "World") throw std::runtime_error("Destination is not a World"); }
+            else { Descriptor.Id = ResourceId::New(); Descriptor.Type = "World"; Descriptor.DisplayName = File.stem().string(); }
+            Descriptor.Tags["Chunks"] = mChunkRecords.size();
+            AssetFile::WriteJson(File, Descriptor, JsonData); mSavedJson = JsonData;
+            ResourceRegistry::Get().Refresh({InPath}); return true;
+        }
+        catch (const std::exception& Error) { LOG_ERROR("Cannot save World: %s", Error.what()); return false; }
     }
+
+    bool World::LoadWorld(const ResourceReference& Reference)
+    { return LoadWorld(ResourceRegistry::Get().Resolve(Reference, "World")); }
 
     bool World::LoadWorld(const std::string& InPath)
     {
         JsonCpp JsonData;
         if (!ReadJsonFile(InPath, JsonData))
             return false;
+        mSavedJson = JsonData;
         for (auto It = mLoadedChunks.begin(); It != mLoadedChunks.end(); )
         {
             const std::string ChunkId = It->first;
@@ -250,12 +261,11 @@ namespace Elaine
                     if (ReadVector3(ChunkNode["Bounds"].value("Min", JsonCpp::array()), Min) && ReadVector3(ChunkNode["Bounds"].value("Max", JsonCpp::array()), Max))
                         Record.Bounds.setExtent(Min, Max);
                 }
-                Record.BundlePath = ChunkNode.value("Bundle", std::string());
+                if (ChunkNode.contains("Bundle") && ChunkNode["Bundle"].is_object()) Record.Bundle = ResourceReference::FromJson(ChunkNode["Bundle"]);
                 Record.LoadOnStart = ChunkNode.value("LoadOnStart", false);
                 if (ChunkNode.contains("Actors") && ChunkNode["Actors"].is_array())
                     for (const JsonCpp& ActorPath : ChunkNode["Actors"])
-                        if (ActorPath.is_string())
-                            Record.ActorPaths.push_back(ActorPath.get<std::string>());
+                        Record.ActorReferences.push_back(ResourceReference::FromJson(ActorPath));
                 if (!Record.Id.empty())
                     mChunkRecords[Record.Id] = Record;
             }

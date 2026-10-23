@@ -52,7 +52,7 @@ namespace Editor
 			if (mCurrentMode == ECameraMode::Orbit)
 			{
 				if (selectedObj)
-					mOrbitPivot = selectedObj->GetPosition();
+                    mOrbitPivot = selectedObj->GetWorldPosition();
 				else
 					mOrbitPivot = camera->GetPosition() + camera->GetForward() * mSettings.focusDistance;
 			}
@@ -80,13 +80,13 @@ namespace Editor
 			// Also rotate camera with mouse delta
 			if (dx != 0.0f || dy != 0.0f)
 			{
-				float yawDeg   = -dx * mSettings.mouseSensitivity;
-				float pitchDeg = -dy * mSettings.mouseSensitivity;
+				float yawDeg   = dx * mSettings.mouseSensitivity;
+				float pitchDeg = dy * mSettings.mouseSensitivity;
 
 				Elaine::Quaternion yawRot(Elaine::Radian(Elaine::Degree(yawDeg)), Elaine::Vector3::UNIT_Y);
-				Elaine::Quaternion pitchRot(Elaine::Radian(Elaine::Degree(pitchDeg)), camera->GetRight());
+				Elaine::Quaternion pitchRot(Elaine::Radian(Elaine::Degree(pitchDeg)), yawRot * camera->GetRight());
 
-				Elaine::Quaternion newRot = yawRot * camera->GetRotation() * pitchRot;
+				Elaine::Quaternion newRot = pitchRot * yawRot * camera->GetRotation();
 				newRot.normalise();
 				camera->SetRotation(newRot);
 			}
@@ -171,8 +171,8 @@ namespace Editor
 	{
 		if (dx == 0.0f && dy == 0.0f) return;
 
-		float yawDeg   = -dx * mSettings.orbitSpeed;
-		float pitchDeg = -dy * mSettings.orbitSpeed;
+		float yawDeg   = dx * mSettings.orbitSpeed;
+		float pitchDeg = dy * mSettings.orbitSpeed;
 
 		Elaine::Vector3 offset = camera->GetPosition() - mOrbitPivot;
 		float distance = offset.length();
@@ -183,7 +183,7 @@ namespace Editor
 		offset = yawRot * offset;
 
 		// Pitch around camera right
-		Elaine::Quaternion pitchRot(Elaine::Radian(Elaine::Degree(pitchDeg)), camera->GetRight());
+		Elaine::Quaternion pitchRot(Elaine::Radian(Elaine::Degree(pitchDeg)), yawRot * camera->GetRight());
 		offset = pitchRot * offset;
 
 		// Prevent flipping at poles
@@ -211,7 +211,7 @@ namespace Editor
 	{
 		if (!selectedObj) return;
 
-		Elaine::Vector3 targetPos = selectedObj->GetPosition();
+		Elaine::Vector3 targetPos = selectedObj->GetWorldPosition();
 		Elaine::Vector3 currentForward = camera->GetForward();
 
 		// Place camera at a distance from the object, looking at it

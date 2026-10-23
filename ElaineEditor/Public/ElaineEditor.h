@@ -2,6 +2,7 @@
 #include "ElaineEditorPrerequirements.h"
 #include "ElainePlatformWindow.h"
 #include "ElaineInputRouter.h"
+#include "ElaineEditorViewportInterop.h"
 
 namespace Elaine
 {
@@ -30,7 +31,7 @@ namespace Editor
 		virtual ~ElaineEditor();
 
 		// Initialize: creates DX11 ImGui on the PlatformWindow's native handle
-		bool Initialize(Elaine::PlatformWindow* window);
+		bool Initialize(Elaine::PlatformWindow* window, ViewportInteropMode Mode = ViewportInteropMode::Auto, ViewportInteropFault Fault = ViewportInteropFault::None);
 		void Destroy();
 		void Run();               // Main loop — polls window events + ticks
 		void Tick();              // Single frame: ImGui BeginFrame → Draw → EndFrame

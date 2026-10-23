@@ -188,6 +188,8 @@ namespace VulkanRHI
 #if ELAINE_PLATFORM == ELAINE_PLATFORM_WINDOWS
 			else if (ExtName == VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME)
 				mDeviceExtensions.push_back(Extension.extensionName);
+            else if (ExtName == VK_KHR_WIN32_KEYED_MUTEX_EXTENSION_NAME)
+            { mDeviceExtensions.push_back(Extension.extensionName); mSupportsDX11KeyedMutex = true; }
 #endif
 		}
 
@@ -200,12 +202,9 @@ namespace VulkanRHI
 		DeviceCreateInfo.enabledExtensionCount = mDeviceExtensions.size();
 		DeviceCreateInfo.ppEnabledExtensionNames = mDeviceExtensions.data();
 
-		//don't care, vulkan the current version has been moved the validation layer to the when the instance creating. 
-		if (Root::instance()->IsEnableVulkanValidationLayer())
-		{
-			DeviceCreateInfo.enabledLayerCount = mVulkanPhyDevice->GetVulkanInstance()->GetLayers().size();
-			DeviceCreateInfo.ppEnabledLayerNames = mVulkanPhyDevice->GetVulkanInstance()->GetLayers().data();
-		}
+		// Validation layers are enabled on the instance; device layers are reserved.
+		DeviceCreateInfo.enabledLayerCount = 0;
+		DeviceCreateInfo.ppEnabledLayerNames = nullptr;
 
 		std::vector<VkDeviceQueueCreateInfo> QueueFamilyInfos;
 		int32 GfxQueueFamilyIndex = -1;

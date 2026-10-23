@@ -65,11 +65,16 @@ namespace VulkanRHI
 		}
 
 		VkResult EResult = vkAcquireNextImageKHR(mDevice->GetDevice(), mSwapChainHandle, UINT64_MAX, InSemaphore->GetHandle(), VK_NULL_HANDLE, &OutImageIndex);
-		if (EResult == VK_ERROR_OUT_OF_DATE_KHR || EResult == VK_SUBOPTIMAL_KHR)
+		if (EResult != VK_SUCCESS && EResult != VK_SUBOPTIMAL_KHR)
 		{
+			mCurrentImageIndex = -1;
+			if (EResult != VK_ERROR_OUT_OF_DATE_KHR)
+				LOG_ERROR("VulkanSwapChain: AcquireImage failed with VkResult {}", EResult);
 			return false;
 		}
 		mCurrentImageIndex = (int32)OutImageIndex;
+		mBackBufferProxy->SetAccess(mBackBufferTextures[OutImageIndex]->GetAccess());
+		mBackBufferProxy->SetImageLayout(static_cast<VulkanTexture*>(mBackBufferTextures[OutImageIndex].get())->GetImageLayout());
 		return true;
 	}
 
@@ -90,17 +95,10 @@ namespace VulkanRHI
 		GetSwapChainImages(Images);
 		mBackBufferImages.resize(Images.size());
 		mBackBufferTextures.resize(Images.size());
-		VulkanCommandContext* CurrentCmdCtx = static_cast<VulkanCommandContext*>(GetVulkanDynamicRHI()->GetDefaultCommandContext());
-		VulkanCommandBuffer* CurrentCmdBuffer = CurrentCmdCtx->GetCommandBufferManager()->GetUploadCmdBuffer();
 		for (int32 Index = 0; Index < Images.size(); ++Index)
 		{
 			mBackBufferImages[Index] = Images[Index];
-			VkImageSubresourceRange Range = VulkanPipelineBarrier::MakeSubresourceRange(VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1);
-			VkClearColorValue ClearColor;
-			Elaine::Memory::MemoryZero(ClearColor);
-			VulkanSetImageLayout(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Range);
-			vkCmdClearColorImage(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &ClearColor, 1, &Range);
-			VulkanSetImageLayout(CurrentCmdBuffer->GetHandle(), Images[Index], VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, Range);
+			// Views may be created now; GPU access must wait until this image is acquired.
 			
 			RHITextureDesc BackBufferDesc;
 			BackBufferDesc.mArraySize = 1;
@@ -115,8 +113,8 @@ namespace VulkanRHI
 			BackBufferDesc.isSRGB = true;
 			
 			VulkanTexture* BackBufferTex = new VulkanTexture(mDevice, BackBufferDesc, Images[Index]);
-			BackBufferTex->SetAccess(ERHIAccess::Present);
-			BackBufferTex->SetImageLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);  // 同步 mImageLayout
+			BackBufferTex->SetAccess(ERHIAccess::Unknown);
+			BackBufferTex->SetImageLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 			BackBufferTex->SetIsSwapchainImage(true);
 			mBackBufferTextures[Index] = BackBufferTex;
 		}
@@ -124,11 +122,12 @@ namespace VulkanRHI
 		if (mBackBufferProxy == nullptr && !mBackBufferTextures.empty())
 		{
 			// Initialize Proxy with the first image's description and handle (handle is just a placeholder)
-			mBackBufferProxy = new VulkanTexture(mDevice, mBackBufferTextures[0]->GetDesc(), mBackBufferTextures[0]->getHandle());
+			mBackBufferProxy = new VulkanTexture(mDevice, mBackBufferTextures[0]->GetDesc(), static_cast<VulkanTexture*>(mBackBufferTextures[0].get())->getHandle());
+			mBackBufferProxyOwner = mBackBufferProxy;
 			mBackBufferProxy->SetProxy(true, this);
 			mBackBufferProxy->SetIsSwapchainImage(true);
-			mBackBufferProxy->SetAccess(ERHIAccess::Present);
-			mBackBufferProxy->SetImageLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			mBackBufferProxy->SetAccess(ERHIAccess::Unknown);
+			mBackBufferProxy->SetImageLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 		}
 		else if(mBackBufferProxy != nullptr && !mBackBufferTextures.empty())
 		{
@@ -139,15 +138,15 @@ namespace VulkanRHI
 			// Since it's a proxy, the handle doesn't matter much for functionality (it's resolved later),
 			// but view properties might. 
 			// Let's just delete and recreate to be safe and consistent.
-			delete mBackBufferProxy;
-			mBackBufferProxy = new VulkanTexture(mDevice, mBackBufferTextures[0]->GetDesc(), mBackBufferTextures[0]->getHandle());
+			mBackBufferProxyOwner.reset();
+			mBackBufferProxy = new VulkanTexture(mDevice, mBackBufferTextures[0]->GetDesc(), static_cast<VulkanTexture*>(mBackBufferTextures[0].get())->getHandle());
+			mBackBufferProxyOwner = mBackBufferProxy;
 			mBackBufferProxy->SetProxy(true, this);
 			mBackBufferProxy->SetIsSwapchainImage(true);
-			mBackBufferProxy->SetAccess(ERHIAccess::Present);
-			mBackBufferProxy->SetImageLayout(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+			mBackBufferProxy->SetAccess(ERHIAccess::Unknown);
+			mBackBufferProxy->SetImageLayout(VK_IMAGE_LAYOUT_UNDEFINED);
 		}
-		CurrentCmdBuffer->End();
-		CurrentCmdCtx->GetCommandBufferManager()->SubmitUploadCmdBuffer();
+		mCurrentImageIndex = -1;
 	}
 
 	void VulkanSwapChain::CreateSwapchain(VulkanSwapChain* InSwapChain)
@@ -216,6 +215,16 @@ namespace VulkanRHI
 		vkGetPhysicalDeviceSurfaceCapabilitiesKHR(GetVulkanDynamicRHI()->GetPhyDevice()->GetPhysicalDeviceHandle(),
 			GetVulkanDynamicRHI()->GetVulkanSurface(),
 			&SurfProperties);
+		if (SurfProperties.currentExtent.width != UINT32_MAX)
+		{
+			mInternalWidth = SurfProperties.currentExtent.width;
+			mInternalHeight = SurfProperties.currentExtent.height;
+		}
+		else
+		{
+			mInternalWidth = Math::max(SurfProperties.minImageExtent.width, Math::min(mInternalWidth, SurfProperties.maxImageExtent.width));
+			mInternalHeight = Math::max(SurfProperties.minImageExtent.height, Math::min(mInternalHeight, SurfProperties.maxImageExtent.height));
+		}
 		VkSurfaceTransformFlagBitsKHR PreTransform;
 		if (SurfProperties.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
 		{
@@ -302,15 +311,14 @@ namespace VulkanRHI
 		{
 			if (mBackBufferTextures[Index])
 			{
-				delete mBackBufferTextures[Index];
-				mBackBufferTextures[Index] = nullptr;
+				mBackBufferTextures[Index].reset();
 			}
 			mBackBufferImages[Index] = VK_NULL_HANDLE;
 		}
 
 		if (mBackBufferProxy)
 		{
-			delete mBackBufferProxy;
+			mBackBufferProxyOwner.reset();
 			mBackBufferProxy = nullptr;
 		}
 
@@ -336,8 +344,9 @@ namespace VulkanRHI
 	void VulkanSwapChain::Destroy()
 	{
         if (!mSwapChainHandle) return;
-        for (auto*& Texture : mBackBufferTextures) { delete Texture; Texture = nullptr; }
-        delete mBackBufferProxy; mBackBufferProxy = nullptr;
+        for (auto& Texture : mBackBufferTextures) Texture.reset();
+        mBackBufferProxyOwner.reset(); mBackBufferProxy = nullptr;
+        FlushRHIResourceReleases();
         mDevice->GetDeferredDeletionQueue().ReleaseResources(true);
 		vkDestroySwapchainKHR(mDevice->GetDevice(), mSwapChainHandle, VULKAN_CPU_ALLOCATOR);
 		mSwapChainHandle = nullptr;
@@ -384,6 +393,8 @@ namespace VulkanRHI
 			
 			if (mCurrentImageIndex >= 0 && mCurrentImageIndex < mBackBufferTextures.size())
 			{
+				mBackBufferProxy->SetAccess(mBackBufferTextures[ImageIndex]->GetAccess());
+				mBackBufferProxy->SetImageLayout(static_cast<VulkanTexture*>(mBackBufferTextures[ImageIndex].get())->GetImageLayout());
 				return mBackBufferProxy;
 			}
 		}
@@ -408,7 +419,7 @@ namespace VulkanRHI
 	{
 		if (mCurrentImageIndex >= 0 && mCurrentImageIndex < mBackBufferTextures.size())
 		{
-			return mBackBufferTextures[mCurrentImageIndex];
+			return static_cast<VulkanTexture*>(mBackBufferTextures[mCurrentImageIndex].get());
 		}
 		return nullptr;
 	}

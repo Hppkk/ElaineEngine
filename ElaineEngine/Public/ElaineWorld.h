@@ -25,6 +25,7 @@ namespace Elaine
         // World-level persist/load
         bool SaveWorld(const std::string& InPath);
         bool LoadWorld(const std::string& InPath);
+        bool LoadWorld(const ResourceReference& Reference);
         bool LoadChunk(const std::string& InChunkId);
         void UnloadChunk(const std::string& InChunkId);
         StreamingObserverId RegisterStreamingObserver(const Vector3& InPosition);
@@ -63,5 +64,6 @@ namespace Elaine
         int mLoadRadius = 1;
         int mUnloadRadius = 2;
         Vector3 mWorldOrigin = Vector3::ZERO;
+        JsonCpp mSavedJson;
     };
 }

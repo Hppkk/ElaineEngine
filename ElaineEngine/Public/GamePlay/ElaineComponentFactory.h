@@ -16,6 +16,7 @@ namespace Elaine
 		
 		virtual ~ComponentFactory();
 		ActorComponent* CreateComponent(Actor* InObject);
+        // Metadata ownership transfers to the caller (load data or ActorInfo).
 		ActorComponentInfo* CreateActorComponentInfo();
 		virtual ActorComponent*				CreateComponentImpl(Actor* InObject) = 0;
 		virtual ActorComponentInfo*			CreateActorComponentInfoImpl() = 0;
@@ -25,7 +26,6 @@ namespace Elaine
 	protected:
 		Name mType;
 		std::set<ActorComponent*> mComponents;
-		std::set<ActorComponentInfo*> mActorComponentInfos;
 	};
 
 	class ElaineEngineExport ComponentFactoryManager :public Singleton<ComponentFactoryManager>

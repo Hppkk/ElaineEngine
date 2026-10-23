@@ -40,7 +40,7 @@ namespace VulkanRHI
 		int32 mSemaphoreIndex = 0;
 		uint32 mInternalWidth = 0;
 		uint32 mInternalHeight = 0;
-		int32 mCurrentImageIndex = 0;
+		int32 mCurrentImageIndex = -1;
 		uint32 mNumSwapChainImages = 0;
 		PixelFormat mFormat;
 		VulkanDevice* mDevice = nullptr;
@@ -51,7 +51,8 @@ namespace VulkanRHI
 		std::vector<VulkanFence*> mImageAcquiredFences;
 		int mAcquiredImageIndex = 0;
 		std::vector<VkImage> mBackBufferImages;
-		std::vector<VulkanTexture*> mBackBufferTextures;
+		std::vector<RHITextureHandle> mBackBufferTextures;
+		RHITextureHandle mBackBufferProxyOwner;
 		VulkanTexture* mBackBufferProxy = nullptr;
 		std::mutex mMtx;
 

@@ -41,23 +41,24 @@ namespace TaskGraph
 
     TaskGraph::~TaskGraph()
     {
-        TaskScheduler* Scheduler;
-        { std::lock_guard<std::mutex> Lock(mDispatchMutex); Scheduler = mTaskScheduler; mTaskScheduler = nullptr; }
-        delete Scheduler;
+        std::shared_ptr<TaskScheduler> Scheduler;
+        { std::lock_guard<std::mutex> Lock(mDispatchMutex); Scheduler = std::move(mTaskScheduler); mTaskScheduler = nullptr; }
+        if (Scheduler) Scheduler->Stop();
+        Scheduler.reset();
         for (int Index = 1; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
-            if (mWorkers[Index]->IsInitialized())
+            if (mWorkers[Index] && mWorkers[Index]->IsInitialized())
             {
                 mWorkers[Index]->Destroy();
             }
             SAFE_DELETE(mWorkers[Index]);
         }
-        SAFE_DELETE(mTaskScheduler);
+        mTaskScheduler.reset();
     }
 
     void TaskGraph::Initialize()
     {
-        mTaskScheduler = new TaskScheduler();
+        mTaskScheduler = std::make_shared<TaskScheduler>();
         for (int Index = 1; Index < (int)Elaine::NamedThread::ThreadCount; ++Index)
         {
             mWorkers[Index] = new Worker((Elaine::NamedThread)Index);
@@ -105,13 +106,15 @@ namespace TaskGraph
         if (InTask == nullptr)
             return;
 
-        std::lock_guard<std::mutex> Lock(mDispatchMutex);
-        if (mTaskScheduler) mTaskScheduler->QueueTask(InTask); else InTask->Cancel();
+        std::shared_ptr<TaskScheduler> Scheduler;
+        { std::lock_guard<std::mutex> Lock(mDispatchMutex); Scheduler = mTaskScheduler; }
+        if (Scheduler) Scheduler->QueueTask(InTask); else InTask->Cancel();
     }
 
     Worker* TaskGraph::GetWorker(Elaine::NamedThread InNamedThread) const
     {
-        return mWorkers[(size_t)InNamedThread];
+        const auto Index = static_cast<size_t>(InNamedThread);
+        return Index < static_cast<size_t>(Elaine::NamedThread::ThreadCount) ? mWorkers[Index] : nullptr;
     }
 
     Worker* TaskGraph::FindIdleWorker()
@@ -135,10 +138,30 @@ namespace TaskGraph
 
     void TaskGraph::ExecuteInThread(Elaine::NamedThread InNamedThread)
     {
-        if (mWorkers[(int)InNamedThread] != nullptr)
-        {
-            mWorkers[(int)InNamedThread]->ExecuteAllTask();
-        }
+        if (auto* Target = GetWorker(InNamedThread)) Target->ExecuteAllTask();
+    }
+
+    void TaskGraph::CancelTasks(TaskCategory Category)
+    {
+        std::shared_ptr<TaskScheduler> Scheduler;
+        { std::lock_guard<std::mutex> Lock(mDispatchMutex); Scheduler = mTaskScheduler; }
+        if (Scheduler) Scheduler->CancelCategory(Category);
+    }
+    void TaskGraph::ExecuteResourceTasks()
+    { GetWorker(Elaine::NamedThread::GameThread)->ExecuteAllTask(true); }
+    void TaskGraph::ExecuteResourceCallbacks()
+    { GetWorker(Elaine::NamedThread::GameThread)->ExecuteAllTask(true, TaskCategory::ResourceCallback); }
+    void TaskGraph::WaitForResourceTasks(const TaskCompletionEventPtr& Event)
+    { GetWorker(Elaine::NamedThread::GameThread)->WaitForResourceTask(Event); }
+    void TaskGraph::SetThreadWakeCallback(Elaine::NamedThread Thread, std::function<void()> Callback)
+    { GetWorker(Thread)->SetWakeCallback(std::move(Callback)); }
+    void TaskGraph::BeginGameThreadFrame()
+    {
+        if (!Elaine::ThreadManager::instance()->CheckThread(Elaine::NamedThread::GameThread))
+            throw std::logic_error("Frame entry requires GameThread");
+        if (mInGameThreadFrame) return;
+        mInGameThreadFrame = true;
+        ExecuteInThread(Elaine::NamedThread::GameThread);
     }
 
     GraphTaskPtr TaskGraph::CreateTaskRecursively(const GraphTaskDesc& InDesc)
@@ -148,7 +171,8 @@ namespace TaskGraph
         for (auto&& SubTask : InDesc.mSubsequentTasks)
         {
             GraphTaskPtr SubTaskPtr = CreateTaskRecursively(SubTask);
-            GraphTaskIns->Subsequent(SubTaskPtr);
+            SubTaskPtr->Dependency(GraphTaskIns);
+            Dispatch(SubTaskPtr);
         }
         return GraphTaskIns;
     }

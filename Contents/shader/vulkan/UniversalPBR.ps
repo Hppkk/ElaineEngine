@@ -1,0 +1,30 @@
+#include "PBRLighting.inl"
+#include "GBufferResources.inl"
+layout(location=0) in vec3 vWorldPosition;
+layout(location=1) in vec2 vUV;
+layout(location=2) in vec3 vWorldNormal;
+layout(location=3) in vec3 vWorldTangent;
+layout(location=4) in vec3 vWorldBitangent;
+layout(location=0) out vec4 outColor;
+void main()
+{
+    // Color textures are sRGB images; sampling already converts them to linear.
+    vec4 base = texture(BaseColor, vUV) * BaseColorFactor;
+    if (AlphaCutoff > 0.0 && base.a < AlphaCutoff) discard;
+    vec3 N = normalize(vWorldNormal);
+    if (HasNormal != 0)
+    {
+        vec3 T = normalize(vWorldTangent - N * dot(N, vWorldTangent));
+        N = normalize(mat3(T, normalize(vWorldBitangent), N) * (texture(Normal, vUV).xyz * 2.0 - 1.0));
+    }
+    vec4 mr = HasMetallicRoughness != 0 ? texture(MetallicRoughness, vUV) : vec4(1.0);
+    float metallic = clamp(Metallic * mr.b, 0.0, 1.0);
+    float roughness = clamp(Roughness * mr.g, 0.04, 1.0);
+    float ao = Occlusion * (HasAO != 0 ? texture(AO,vUV).r : 1.0);
+    vec3 emissive = EmissiveFactor.rgb * EmissiveFactor.a * (HasEmissive != 0 ? texture(Emissive,vUV).rgb : vec3(1.0));
+    vec3 V = normalize(U_CameraPosition.xyz - vWorldPosition);
+    vec3 L = normalize(-U_LightDirection.xyz);
+    vec3 color = PBR_DirectionalLight(N, V, L, base.rgb, metallic, roughness, U_LightColor.rgb);
+    color += base.rgb * (0.08 * ao) + emissive;
+    outColor = vec4(PBR_LinearToSRGB(color), base.a);
+}

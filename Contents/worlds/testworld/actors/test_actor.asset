@@ -1,0 +1,40 @@
+{
+  "data": {
+    "Children": [],
+    "Components": [
+      {
+        "Position": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "Rotation": [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "Scale": [
+          1.0,
+          1.0,
+          1.0
+        ],
+        "Type": "TransformComponent"
+      }
+    ],
+    "GUID": "test-actor-0001",
+    "Name": "TestActor"
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [],
+    "displayName": "test_actor",
+    "id": "6c213b4d-f2ae-4625-b190-5427f2eb9107",
+    "sourceFiles": [],
+    "tags": {
+      "Children": 0,
+      "Components": 1
+    },
+    "type": "Actor"
+  }
+}

@@ -1,67 +1,30 @@
 ﻿#pragma once
 #include "ElaineEditorBase.h"
-#include <string>
-#include <vector>
-#include <filesystem>
-
+#include "Resource/ElaineResourceRegistry.h"
+#include "ElaineResourceImportService.h"
 namespace Editor
 {
-	// ============================================================
-	// ContentBrowserPanel — Windows-Explorer-style file browser
-	// rooted at the engine's Contents/ directory
-	// ============================================================
-	class ContentBrowserPanel : public EditorPanel
-	{
-	public:
-		ContentBrowserPanel();
-		void OnDraw() override;
-
-	private:
-		// Directory entry for display
-		struct DirEntry
-		{
-			std::string Name;
-			std::string FullPath;
-			bool        IsDirectory = false;
-			uintmax_t   FileSize = 0;
-			std::string Extension;
-		};
-
-		// Navigation
-		void NavigateTo(const std::filesystem::path& dir);
-		void NavigateUp();
-		void RefreshEntries();
-
-		// Drawing sub-sections
-		void DrawToolbar();
-		void DrawFolderTree(const std::filesystem::path& root, const std::filesystem::path& currentRelative);
-		void DrawContentArea();
-		void DrawBreadcrumb();
-		void DrawContextMenu();
-		void DrawRenamePopup();
-
-		// Actions
-		void ImportMesh();
-		void CreateNewFolder();
-		void DeleteSelected();
-		void RenameSelected();
-		void OpenInExplorer(const std::string& path);
-		void CopyPathToClipboard(const std::string& path);
-
-		// State
-		std::filesystem::path   mRootDir;          // Contents/ absolute path
-		std::filesystem::path   mCurrentDir;       // Current browsing directory
-		std::vector<DirEntry>   mEntries;          // Cached directory entries
-		int                     mSelectedIndex = -1;
-		char                    mSearchFilter[256] = {};
-
-		// Rename state
-		bool                    mShowRenamePopup = false;
-		char                    mRenameBuffer[256] = {};
-		int                     mRenameIndex = -1;
-
-		// History for back/forward
-		std::vector<std::filesystem::path> mHistory;
-		int                     mHistoryIndex = -1;
-	};
+    class ContentBrowserPanel : public EditorPanel
+    {
+    public:
+        ContentBrowserPanel();
+        void OnDraw() override;
+        void BeginImport(bool Texture);
+    private:
+        void DrawFolders(const std::filesystem::path& Path);
+        void DrawAssetTooltip(const Elaine::ResourceDescriptor& Record);
+        void DrawAssetContextMenu(const Elaine::ResourceDescriptor* Record);
+        void DrawOperations();
+        void Navigate(const std::string& Path);
+        std::filesystem::path mRoot;
+        std::string mDirectory, mSelected, mError, mImportReport;
+        char mSearch[256]{}, mTag[128]{}, mValue[128]{}, mName[256]{};
+        int mType = 0, mDimension = 0;
+        bool mShowSources = false, mRename = false, mDelete = false, mImport = false, mSRGB = true;
+        std::vector<std::filesystem::path> mSources;
+        bool mTextureImport = true;
+        float mMeshScale = 1.0f;
+        std::shared_ptr<Elaine::ResourceImportResult> mImportResult;
+        TaskGraph::TaskCompletionEventPtr mPending;
+    };
 }

@@ -37,7 +37,7 @@ namespace Elaine
 		}
 	};
 
-	struct ViewFrustum
+	struct ElaineCoreExport ViewFrustum
 	{
 		FrustumPlaneData planes[(int)FrustumPlane::Count];
 		
@@ -102,8 +102,8 @@ namespace Elaine
 	class ElaineCoreExport QuadTree
 	{
 	public:
-		QuadTree(const Vector3& InMin = Vector3(-1000, -1000, 0), 
-				 const Vector3& InMax = Vector3(1000, 1000, 0));
+		QuadTree(const Vector3& InMin = Vector3(-1000, -1000, -1000),
+				 const Vector3& InMax = Vector3(1000, 1000, 1000));
 		~QuadTree();
 		
 		void Initialize(const Vector3& InMin, const Vector3& InMax);

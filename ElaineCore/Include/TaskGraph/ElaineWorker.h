@@ -20,7 +20,10 @@ namespace TaskGraph
 		void Destroy();
 		uint32_t GetTaskCount();
 		static void ThreadMain(void* InThis);
-		void ExecuteAllTask();
+		void ExecuteAllTask(bool FilterCategory = false, TaskCategory Category = TaskCategory::ResourceInternal);
+        void WaitForResourceTask(const TaskCompletionEventPtr& Event);
+        void SetWakeCallback(std::function<void()> Callback);
+        void Wake();
 		bool IsInitialized() const { return mbInitialized; }
 	private:
 		GraphTaskPtr RequestTask();
@@ -35,5 +38,7 @@ namespace TaskGraph
 		Elaine::NamedThread mThreadDesc;
 		bool mbInitialized = false;
         bool mStopping = false;
+        std::function<void()> mWakeCallback;
+        size_t mResourceTaskCount = 0;
 	};
 }

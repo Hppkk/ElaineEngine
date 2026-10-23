@@ -46,6 +46,7 @@ namespace Elaine
 
     protected:
         std::unique_ptr<ResourceLoadData> LoadImpl() override;
+        void PrepareDependencies(ResourceLoadData& Data) override;
         virtual	void UnloadImpl() override;
         virtual void SaveResourceImpl() override;
 
@@ -57,6 +58,7 @@ namespace Elaine
         friend struct MaterialParamSnapshot;
         uint64_t mDataRevision = 0;
         struct LoadData;
+        JsonCpp mSavedJson;
         void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
         MaterialPtr mOriginMaterialResource;
         std::unordered_map<std::string, TexturePtr> mOverridedTextures;

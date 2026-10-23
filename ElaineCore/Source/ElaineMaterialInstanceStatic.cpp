@@ -9,7 +9,10 @@ namespace Elaine
 {
     struct MaterialInstanceStatic::LoadData : ResourceLoadData
     {
+        ResourceReference OriginReference;
+        std::unordered_map<std::string, ResourceReference> TextureReferences;
         MaterialPtr mOriginMaterialResource;
+        JsonCpp SavedJson;
         std::unordered_map<std::string, TexturePtr> mOverridedTextures;
         std::unordered_map<uint64_t, float> mOverridedScalars;
         std::unordered_map<uint64_t, Vector4> mOverridedVectors;
@@ -42,9 +45,8 @@ namespace Elaine
     {
         auto Pending = std::make_unique<LoadData>();
         auto& Data = *Pending;
-        DataStream Stream(Root::instance()->GetResourcePath() + mResourceName);
-        Stream.ReadAll();
-        JsonCpp JsonMaterial = JsonCpp::parse(Stream.GetDataStream());
+        JsonCpp JsonMaterial = AssetFile::ReadJson(std::filesystem::path(Root::instance()->GetResourcePath()) / mResourceName, "MaterialInstance");
+        Data.SavedJson = JsonMaterial;
 		if (!JsonMaterial.contains("version") || JsonMaterial["version"] != "2.0.0")
 		{
 			LOG_ERROR("Material instance '%s' requires format version 2.0.0.", mResourceName.c_str());
@@ -59,12 +61,8 @@ namespace Elaine
         //ClearDependencies();
 
         // origin material
-        std::string OriginPath = JsonMaterial.value("origin", "");
-        if (OriginPath.empty()) throw std::runtime_error("Material instance requires an origin material");
-        if (!OriginPath.empty())
-        {
-            Data.mOriginMaterialResource = MaterialManager::instance()->RequestResource<Material>(OriginPath).GetResource();
-        }
+        const auto Origin = ResourceReference::FromJson(JsonMaterial.at("origin"));
+        Data.OriginReference = Origin;
 
         // textures
         const auto& texJson = JsonMaterial["textures"];
@@ -72,10 +70,10 @@ namespace Elaine
         {
             for (auto& it : texJson.items())
             {
-                std::string texPath = it.value();
+                const auto texPath = ResourceReference::FromJson(it.value());
                 
                 const auto TexSem = SemanticsRegister::CanonicalTextureName(it.key());
-                Data.mOverridedTextures[TexSem] = TextureManager::instance()->RequestResource<Texture>(texPath).GetResource();
+                Data.TextureReferences[TexSem] = texPath;
             }
         }
 
@@ -111,10 +109,16 @@ namespace Elaine
             }
         }
 
-		Data.Dependencies.push_back(Data.mOriginMaterialResource);
-        for (const auto& Pair : Data.mOverridedTextures) if (Pair.second) Data.Dependencies.push_back(Pair.second);
         return Pending;
 	}
+
+    void MaterialInstanceStatic::PrepareDependencies(ResourceLoadData& InData)
+    {
+        auto& Data = static_cast<LoadData&>(InData);
+        Data.mOriginMaterialResource = static_pointer_cast<Material>(Data.GetDependency(Data.OriginReference, "Material"));
+        for (const auto& [Name, Reference] : Data.TextureReferences)
+            Data.mOverridedTextures[Name] = static_pointer_cast<Texture>(Data.GetDependency(Reference, "Texture"));
+    }
 
 	float MaterialInstanceStatic::GetScalar(uint64_t InParamHash, float InDefault) const
 	{ auto It = mOverridedScalars.find(InParamHash);
@@ -159,10 +163,25 @@ namespace Elaine
 		mOverridedBools.clear();
 	}
 
-	void MaterialInstanceStatic::SaveResourceImpl()
-	{
-
-	}
+    void MaterialInstanceStatic::SaveResourceImpl()
+    {
+        auto Json = mSavedJson;
+        if (mOriginMaterialResource) Json["origin"] = mOriginMaterialResource->GetReference().ToJson();
+        Json["textures"] = JsonCpp::object();
+        for (const auto& [Key, Texture] : mOverridedTextures) if (Texture) Json["textures"][Key] = Texture->GetReference().ToJson();
+        for (auto& Entry : Json["parameters"].items())
+        {
+            const auto Hash = Name(Entry.key().c_str()).GetHashValue(); auto& Node = Entry.value();
+            auto Set = [&](const JsonCpp& Value) { if (Node.is_object()) Node["value"] = Value; else Node = Value; };
+            if (auto It = mOverridedScalars.find(Hash); It != mOverridedScalars.end()) Set(It->second);
+            if (auto It = mOverridedVectors.find(Hash); It != mOverridedVectors.end()) Set({It->second.x,It->second.y,It->second.z,It->second.w});
+            if (auto It = mOverridedInts.find(Hash); It != mOverridedInts.end()) Set(It->second);
+            if (auto It = mOverridedBools.find(Hash); It != mOverridedBools.end()) Set(It->second);
+            if (auto It = mOverridedMatrices.find(Hash); It != mOverridedMatrices.end())
+            { JsonCpp Value=JsonCpp::array(); for (size_t i=0;i<16;++i) Value.push_back(It->second[i/4][i%4]); Set(Value); }
+        }
+        SaveAssetJson(Json, "MaterialInstance"); mSavedJson = std::move(Json);
+    }
 
 
 
@@ -186,6 +205,7 @@ namespace Elaine
     void MaterialInstanceStatic::ApplyLoadedData(ResourceLoadData& InData) noexcept
     {
         auto& Data = static_cast<LoadData&>(InData);
+        mSavedJson.swap(Data.SavedJson);
         std::swap(mOriginMaterialResource, Data.mOriginMaterialResource);
         std::swap(mOverridedTextures, Data.mOverridedTextures);
         std::swap(mOverridedScalars, Data.mOverridedScalars);

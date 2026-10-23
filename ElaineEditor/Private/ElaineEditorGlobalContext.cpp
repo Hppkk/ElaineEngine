@@ -6,12 +6,14 @@
 #include "ElaineActor.h"
 #include "ElaineCameraComponent.h"
 #include "ElaineSkyComponent.h"
+#include "render/ElaineRenderDocCapture.h"
 #include "ElaineMeshComponent.h"
 #include "ElaineRenderCommandQueue.h"
 #include "ElaineRenderContext.h"
 #include "ElaineRenderSystem.h"
 #include "ElaineLogSystem.h"
 #include "d3d11_1.h"
+#include "TaskGraph/ElaineTask.h"
 
 namespace Editor
 {
@@ -35,18 +37,14 @@ namespace Editor
 		mGizmoManager.Shutdown();
 		mGridManager.Shutdown();
 		mSelectedActor = nullptr;
-		// DX11 共享内存路径
-		if (mSharedSRV)
-		{
-			mSharedSRV->Release();
-			mSharedSRV = nullptr;
-		}
-		if (mSharedTexture)
-		{
-			mSharedTexture->Release();
-			mSharedTexture = nullptr;
-		}
-
+        // Stop producing frames before retiring either API's texture references.
+        if (mSceneViewport && mEngine)
+        {
+            mEngine->UnregisterViewport(mSceneViewport);
+            mEngine->DestroyViewport(mSceneViewport);
+            mSceneViewport = nullptr;
+        }
+        if (mInterop) { mInterop->Shutdown(); mInterop.reset(); }
 		// Staging fallback 路径
 		if (mStagingSRV)
 		{
@@ -60,13 +58,6 @@ namespace Editor
 		}
 		mPixelBuffer.clear();
 		mbStagingReady = false;
-
-		if (mSceneViewport && mEngine)
-		{
-			mEngine->UnregisterViewport(mSceneViewport);
-			mEngine->DestroyViewport(mSceneViewport);
-			mSceneViewport = nullptr;
-		}
 
 		delete mOffscreenRT;
 		mOffscreenRT = nullptr;
@@ -88,10 +79,9 @@ namespace Editor
 		// Camera
 		Elaine::Actor* CameraObj = mDefaultWorld->CreateActor();
 		mDefaultCamera = CameraObj->AddComponentType<Elaine::CameraComponent>("CameraComponent");
-		mDefaultCamera->SetRotation(Elaine::Vector3(30, 180, 30));
-		mDefaultCamera->SetRotation(Elaine::Vector3(30, 60, 30));
-
-		mDefaultCamera->SetRotation(Elaine::Vector3(30, 180, 60));
+        // Euler vector APIs use radians; use an explicit, upright starting view.
+        mDefaultCamera->SetPosition(Elaine::Vector3(0, 3, -8));
+        mDefaultCamera->LookAt(Elaine::Vector3::ZERO);
 
 
 		// Sky
@@ -109,20 +99,6 @@ namespace Editor
 		// --- 创建离屏渲染目标 ---
 		mOffscreenRT = new Elaine::OffscreenRenderTarget(mViewportWidth, mViewportHeight);
 
-        ENQUEUE_RENDER_COMMAND(CreateOffscreenTargets)([this](Elaine::RenderContext&) {
-        for (uint32_t i = 0; i < NUM_OFFSCREEN_BUFFERS; ++i)
-        {
-            Elaine::RHITextureDesc Desc;
-            Desc.mExtent.x = static_cast<float>(mViewportWidth); Desc.mExtent.y = static_cast<float>(mViewportHeight);
-            Desc.mFormat = Elaine::PF_R8G8B8A8; Desc.mNumMips = 1; Desc.mNumSamples = 1;
-            Desc.mDimension = Elaine::TextureDimension::Texture2D; Desc.mArraySize = 1;
-            Desc.mFlags = Elaine::TextureCreateFlags::External | Elaine::TextureCreateFlags::RenderTargetable | Elaine::TextureCreateFlags::ShaderResource;
-            mOffscreenOwners[i] = Elaine::GetDynamicRHI()->GetDefaultCommandContext()->RHICreateTexture(Desc, nullptr);
-        }
-        mOffscreenRT->SetColorTarget(0, mOffscreenOwners[0].get());
-        });
-        Elaine::Root::instance()->FlushRenderCommands();
-
 		// --- 创建场景视口 ---
 		Elaine::ViewportDesc Desc;
 		Desc.ViewName = "EditorSceneViewport";
@@ -130,93 +106,119 @@ namespace Editor
 		mSceneViewport->SetTarget(mOffscreenRT);
 		mSceneViewport->SetWorld(mDefaultWorld);
 		mSceneViewport->SetCamera(mDefaultCamera);
+        auto* View = mSceneViewport->GetRenderView();
+        ENQUEUE_RENDER_COMMAND(PauseUninitializedViewport)([View](Elaine::RenderContext&) { View->mbActive = false; });
 		mEngine->RegisterViewport(mSceneViewport);
 	}
 
-	void EditorGlobalContext::SetupDX11SharedTexture(ID3D11Device* InDevice, void* InSharedHandle, uint32_t InWidth, uint32_t InHeight)
-	{
-		if (!InDevice || !InSharedHandle)
-			return;
+    void EditorGlobalContext::InitializeViewportTransport(ID3D11Device* Device, ID3D11DeviceContext* Context,
+        ViewportInteropMode Mode, ViewportInteropFault Fault)
+    {
+        if (Elaine::RenderDocCapture::GetStatus().VulkanReady)
+        {
+            if (Mode == ViewportInteropMode::Auto)
+            {
+                Mode = ViewportInteropMode::Readback;
+                LOG_INFO("RenderDoc enabled: auto viewport transport uses readback for self-contained Vulkan replay");
+            }
+            else if (Mode == ViewportInteropMode::Shared)
+                LOG_WARN("RenderDoc with explicit shared viewport: external memory/keyed mutex capture and replay require separate validation");
+        }
+        mDX11Device = Device; mDX11Context = Context; mInteropMode = Mode;
+        if (Mode != ViewportInteropMode::Readback && Elaine::Root::instance()->GetRHIType() == Elaine::Vulkan)
+        {
+            auto Interop = std::make_unique<EditorViewportInterop>();
+            std::string Error;
+            if (Interop->Initialize(Device, Context, mViewportWidth, mViewportHeight, Error, Fault))
+            { mInterop = std::move(Interop); return; }
+            LOG_WARN("Viewport shared texture unavailable: {}", Error);
+            if (Mode == ViewportInteropMode::Shared) throw std::runtime_error("Forced shared viewport failed: " + Error);
+        }
+        else if (Mode == ViewportInteropMode::Shared) throw std::runtime_error("Shared viewport requires Vulkan");
+        InitStagingFallback(Device);
+        if (!mbStagingReady) throw std::runtime_error("Viewport readback initialization failed");
+    }
 
-		// 清理旧资源
-		if (mSharedSRV)
-		{
-			mSharedSRV->Release();
-			mSharedSRV = nullptr;
-		}
-		if (mSharedTexture)
-		{
-			mSharedTexture->Release();
-			mSharedTexture = nullptr;
-		}
+    void EditorGlobalContext::PrepareViewportFrame()
+    {
+        if (!mInterop) return;
+        mInterop->BeginFrame();
+        auto Frame = mInterop->ReserveFrame();
+        auto* Target = mOffscreenRT;
+        auto* View = mSceneViewport->GetRenderView();
+        ENQUEUE_RENDER_COMMAND(SelectSharedViewportFrame)([Target, View, Frame](Elaine::RenderContext&) {
+            if (View->mSubmissionEvent) View->mSubmissionEvent->Cancel();
+            View->mSubmissionEvent = Frame.Completion; View->mbActive = static_cast<bool>(Frame);
+            Target->SetColorTarget(0, Frame.Texture.get());
+            View->mOnFrameCaptured = Frame ? std::function<void(const Elaine::CameraState&)>([Data = Frame.ViewData](const Elaine::CameraState& Camera) {
+                Data->Camera = Camera; Data->Matrices = Elaine::BuildCameraMatrices(Camera); Data->Valid = true;
+            }) : std::function<void(const Elaine::CameraState&)>();
+            if (Frame) VulkanRHI::SetDX11TextureSubmission(Frame.Texture, Frame.Submission);
+        });
+    }
 
-		// 通过 ID3D11Device1 打开 Vulkan 导出的共享内存
-		ID3D11Device1* Device1 = nullptr;
-		HRESULT hr = InDevice->QueryInterface(__uuidof(ID3D11Device1), (void**)&Device1);
-		if (SUCCEEDED(hr) && Device1)
-		{
-			hr = Device1->OpenSharedResource1((HANDLE)InSharedHandle, __uuidof(ID3D11Texture2D), (void**)&mSharedTexture);
-			if (FAILED(hr))
-			{
-				LOG_WARN("EditorGlobalContext: OpenSharedResource1 failed with HRESULT: 0x{:08x}, trying OpenSharedResource...", (unsigned)hr);
-			}
-			Device1->Release();
-		}
+    void EditorGlobalContext::EndViewportUIFrame()
+    { if (mInterop) mInterop->EndUIFrame(); }
 
-		if (FAILED(hr) || !mSharedTexture)
-		{
-			hr = InDevice->OpenSharedResource((HANDLE)InSharedHandle, __uuidof(ID3D11Texture2D), (void**)&mSharedTexture);
-			if (FAILED(hr))
-			{
-				LOG_WARN("EditorGlobalContext: OpenSharedResource also failed with HRESULT: 0x{:08x}", (unsigned)hr);
-			}
-		}
-
-		if (SUCCEEDED(hr) && mSharedTexture)
-		{
-			D3D11_SHADER_RESOURCE_VIEW_DESC SrvDesc = {};
-			SrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-			SrvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-			SrvDesc.Texture2D.MipLevels = 1;
-			SrvDesc.Texture2D.MostDetailedMip = 0;
-			InDevice->CreateShaderResourceView(mSharedTexture, &SrvDesc, &mSharedSRV);
-		}
-	}
-
-	bool EditorGlobalContext::TrySetupSharedMemory(ID3D11Device* InDevice)
-	{
-		mbSharedMemoryAttempted = true;
-
-		// 使用第一个纹理尝试共享内存
-		Elaine::RHITexture* ColorTex = mOffscreenOwners[0].get();
-		if (!ColorTex) { mbSharedMemoryAttempted = false; return false; }
-
-		void* SharedHandle = ColorTex->GetSharedMemoryHandle();
-		if (!SharedHandle)
-		{
-			LOG_WARN("EditorGlobalContext: GetSharedMemoryHandle() returned null, falling back to staging buffer.");
-			mbSharedMemoryFailed = true;
-			return false;
-		}
-
-		SetupDX11SharedTexture(InDevice, SharedHandle, mViewportWidth, mViewportHeight);
-		if (!mSharedSRV)
-		{
-			LOG_WARN("EditorGlobalContext: SetupDX11SharedTexture failed, falling back to staging buffer.");
-			mbSharedMemoryFailed = true;
-			return false;
-		}
-
-		LOG_INFO("EditorGlobalContext: Shared memory path established successfully.");
-		return true;
-	}
+    bool EditorGlobalContext::RecreateViewportTransport(uint32_t Width, uint32_t Height)
+    {
+        auto* View = mSceneViewport->GetRenderView(); auto* Target = mOffscreenRT;
+        ENQUEUE_RENDER_COMMAND(PauseViewportForResize)([View, Target](Elaine::RenderContext&) {
+            View->mbActive = false;
+            if (View->mSubmissionEvent) { View->mSubmissionEvent->Cancel(); View->mSubmissionEvent.reset(); }
+            Target->SetColorTarget(0, nullptr);
+        });
+        Elaine::Root::instance()->FlushRenderCommands();
+        mViewportWidth = Width; mViewportHeight = Height;
+        if (mInterop)
+        {
+            std::string Error;
+            if (mInterop->Recreate(Width, Height, Error))
+            { Target->SetSize(Width, Height); if (Width && Height) mSceneViewport->OnTargetResized(Width, Height); return true; }
+            LOG_ERROR("Shared viewport recreation failed: {}", Error);
+            if (mInteropMode == ViewportInteropMode::Shared) throw std::runtime_error(Error);
+            mInterop->Shutdown(); mInterop.reset();
+        }
+        if (!Width || !Height) return true;
+        if (mStagingSRV) { mStagingSRV->Release(); mStagingSRV = nullptr; }
+        if (mStagingD3D11Texture) { mStagingD3D11Texture->Release(); mStagingD3D11Texture = nullptr; }
+        for (auto& Texture : mOffscreenOwners) Texture.reset();
+        Target->SetSize(Width, Height); mSceneViewport->OnTargetResized(Width, Height);
+        InitStagingFallback(mDX11Device); return mbStagingReady;
+    }
 
 	void EditorGlobalContext::InitStagingFallback(ID3D11Device* InDevice)
 	{
 		if (!InDevice)
 			return;
 
+        mbStagingReady = false;
+        mReadback = std::make_shared<ReadbackPacket>();
+        mReadbackHistory = std::make_shared<ReadbackFrameHistory>();
+        mDisplayedReadbackFrame = {};
 		LOG_INFO("EditorGlobalContext: Initializing staging buffer fallback (double-buffered readback).");
+        auto Textures = std::make_shared<std::array<Elaine::RHITextureHandle, NUM_OFFSCREEN_BUFFERS>>();
+        const auto Width = mViewportWidth, Height = mViewportHeight;
+        auto* Target = mOffscreenRT; auto* View = mSceneViewport->GetRenderView();
+        ENQUEUE_RENDER_COMMAND(CreateReadbackTargets)([Textures, Width, Height, Target, View, History = mReadbackHistory](Elaine::RenderContext&) {
+            for (auto& Texture : *Textures)
+            {
+                Elaine::RHITextureDesc Desc;
+                Desc.mExtent.x = static_cast<float>(Width); Desc.mExtent.y = static_cast<float>(Height);
+                Desc.mFormat = Elaine::PF_R8G8B8A8; Desc.mNumMips = 1; Desc.mNumSamples = 1;
+                Desc.mDimension = Elaine::TextureDimension::Texture2D; Desc.mArraySize = 1;
+                Desc.mFlags = Elaine::TextureCreateFlags::RenderTargetable | Elaine::TextureCreateFlags::ShaderResource;
+                Texture = Elaine::GetDynamicRHI()->GetDefaultCommandContext()->RHICreateTexture(Desc, nullptr);
+            }
+            Target->SetColorTarget(0, (*Textures)[0].get()); View->mbActive = true;
+            View->mOnFrameCaptured = [History](const Elaine::CameraState& Camera) {
+                auto& Frame = History->Rendered[0]; Frame.Camera = Camera;
+                Frame.Matrices = Elaine::BuildCameraMatrices(Camera); Frame.FrameNumber = History->NextFrame++; Frame.Valid = true;
+            };
+        });
+        Elaine::Root::instance()->FlushRenderCommands();
+        mWriteIndex = 0;
+        for (uint32_t Index = 0; Index < NUM_OFFSCREEN_BUFFERS; ++Index) mOffscreenOwners[Index] = (*Textures)[Index];
 
         for (auto Texture : mOffscreenOwners)
             ENQUEUE_RENDER_COMMAND(InitViewportReadback)([Texture](Elaine::RenderContext&) { Texture->InitReadbackResources(); });
@@ -259,16 +261,23 @@ namespace Editor
 
     void EditorGlobalContext::EnqueueCopyToReadbackBuffer()
     {
+        ++mReadbackCount;
         auto Texture = mOffscreenOwners[mWriteIndex]; auto Packet = mReadback;
         if (!Texture) return;
         { std::lock_guard<std::mutex> Lock(Packet->Mutex); if (Packet->Pending) return; Packet->Pending = true; }
         // Runs after the previous RHI batch in the RenderThread synchronization window.
-        ENQUEUE_RENDER_COMMAND(ReadbackViewport)([Texture, Packet](Elaine::RenderContext&) {
+        ENQUEUE_RENDER_COMMAND(ReadbackViewport)([Texture, Packet, Index = mWriteIndex, History = mReadbackHistory](Elaine::RenderContext&) {
                 std::vector<uint8_t> Pixels(Texture->GetWidth() * Texture->GetHeight() * 4); uint32_t Pitch = 0;
-                bool Ready = Texture->ReadbackPixels(Pixels.data(), Pitch);
-                Texture->CopyToReadbackBuffer();
+                const bool Ready = Texture->ReadbackPixels(Pixels.data(), Pitch);
+                const auto CompletedFrame = History->Copied[Index];
+                if ((!History->Copied[Index].Valid || Ready) && History->Rendered[Index].Valid)
+                {
+                    Texture->CopyToReadbackBuffer();
+                    History->Copied[Index] = History->Rendered[Index];
+                }
                 std::lock_guard<std::mutex> Lock(Packet->Mutex);
-                if (Ready) { Packet->Pixels = std::move(Pixels); Packet->Pitch = Pitch; Packet->Ready = true; }
+                if (Ready && CompletedFrame.Valid && CompletedFrame.FrameNumber > Packet->Frame.FrameNumber)
+                { Packet->Pixels = std::move(Pixels); Packet->Pitch = Pitch; Packet->Frame = CompletedFrame; Packet->Ready = true; }
                 Packet->Pending = false;
         });
     }
@@ -278,6 +287,7 @@ namespace Editor
         std::lock_guard<std::mutex> Lock(mReadback->Mutex);
         if (!mReadback->Ready) return;
         Context->UpdateSubresource(mStagingD3D11Texture, 0, nullptr, mReadback->Pixels.data(), mReadback->Pitch, 0);
+        mDisplayedReadbackFrame = mReadback->Frame;
         mReadback->Ready = false;
     }
 
@@ -288,15 +298,24 @@ namespace Editor
 		// 切换 OffscreenRT 使用的 color target
 		if (mOffscreenRT && mOffscreenOwners[mWriteIndex].get())
 		{
-			mOffscreenRT->SetColorTarget(0, mOffscreenOwners[mWriteIndex].get());
+            auto Texture = mOffscreenOwners[mWriteIndex]; auto* Target = mOffscreenRT;
+            ENQUEUE_RENDER_COMMAND(SwapReadbackTarget)([Target, Texture, View = mSceneViewport->GetRenderView(), Index = mWriteIndex, History = mReadbackHistory](Elaine::RenderContext&) {
+                Target->SetColorTarget(0, Texture.get());
+                View->mOnFrameCaptured = [History, Index](const Elaine::CameraState& Camera) {
+                    auto& Frame = History->Rendered[Index]; Frame.Camera = Camera;
+                    Frame.Matrices = Elaine::BuildCameraMatrices(Camera); Frame.FrameNumber = History->NextFrame++; Frame.Valid = true;
+                };
+            });
 		}
 	}
+
+    ViewportFrameData EditorGlobalContext::GetDisplayedViewportFrame() const
+    { return mInterop ? mInterop->GetDisplayViewData() : mDisplayedReadbackFrame; }
 
 	ID3D11ShaderResourceView* EditorGlobalContext::GetViewportSRV() const
 	{
 		// 优先使用共享内存路径
-		if (mSharedSRV)
-			return mSharedSRV;
+        if (mInterop) return mInterop->GetDisplaySRV();
 
 		// 其次使用 staging fallback 路径
 		if (mStagingSRV)

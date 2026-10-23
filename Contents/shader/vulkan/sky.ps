@@ -1,16 +1,8 @@
-layout(location = 0) in vec4 inColor;
-layout(location = 1) in vec3 inUV;
-
-layout(location = 0) out vec4 outColor;
 #include "SkyResources.inl"
+layout(location = 0) in vec3 sampleDirection;
+layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    outColor = inColor;
-    outColor.x = 0.0;
-    outColor.y = 1.0;
-    outColor.z = 0.0;
-    outColor.w = 1.0;
-    outColor = gl_FrontFacing ? vec4(0, 1, 0, 1) : vec4(1, 0, 0, 1);
-    outColor.rgb = texture(CubeMap, inUV).rgb * Exposure;
+    outColor = vec4(texture(CubeMap, sampleDirection).rgb * Exposure, 1.0);
 }

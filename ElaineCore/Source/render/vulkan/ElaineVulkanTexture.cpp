@@ -167,8 +167,8 @@ namespace VulkanRHI
 		mStorageFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAllFlags(InDesc.mFlags, TextureCreateFlags::SRGB));
 		mViewFormat = EngineToVkTextureFormat(InDesc.mFormat, EnumHasAllFlags(InDesc.mFlags, TextureCreateFlags::SRGB));
 		
-		// 设置初始布局（Swapchain 图像通常初始为 UNDEFINED 或 COLOR_ATTACHMENT_OPTIMAL）
-		mImageLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		// Newly created swapchain images have not been acquired or transitioned yet.
+		mImageLayout = VK_IMAGE_LAYOUT_UNDEFINED;
 		mAccess = ERHIAccess::Unknown;
 		
 		// 创建 View
@@ -509,7 +509,12 @@ namespace VulkanRHI
 		if (mbOwnsImage && mHandle != VK_NULL_HANDLE)
 		{
 			mDevice->GetDeferredDeletionQueue().EnqueueResource(DeferredDeletionQueue::EType::Image, mHandle);
-			mDevice->GetMemoryManager()->FreeVulkanAllocation(mAllocation);
+            if (mImportedAllocation)
+            {
+                mDevice->GetDeferredDeletionQueue().EnqueueDeviceAllocation(mImportedAllocation);
+                mImportedAllocation = nullptr;
+            }
+            else mDevice->GetMemoryManager()->FreeVulkanAllocation(mAllocation);
 			mHandle = VK_NULL_HANDLE;
 		}
 	}

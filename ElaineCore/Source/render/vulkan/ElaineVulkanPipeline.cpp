@@ -183,6 +183,10 @@ namespace VulkanRHI
 
         vkCreatePipelineLayout(mDevice->GetDevice(), &LayoutCreateInfo, VULKAN_CPU_ALLOCATOR, &NewPipeline->mLayout->mPipelineLayout);
         CreateInfo.layout = NewPipeline->mLayout->mPipelineLayout;
+        // A material without attachment formats is specialized by RHIPrepareGfxPipeline
+        // in the RenderThread window, once the actual render pass is known.
+        if (InState.mRenderTargetFormats[0] == PF_Unknown && InState.mDepthStencilTargetFormat == PF_Unknown)
+            return PipelineOwner.release();
         VkPipelineVertexInputStateCreateInfo VertexInputStateCreateInfo;
         Elaine::Memory::MemoryZero(VertexInputStateCreateInfo);
         VertexInputStateCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -345,6 +349,10 @@ namespace VulkanRHI
             PipelineRenderPassKey.ColorFinalLayouts[0] = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
             PipelineRenderPassKey.ColorSamples[0] = VK_SAMPLE_COUNT_1_BIT;
         }
+
+        std::vector<VkPipelineColorBlendAttachmentState> BlendAttachments(PipelineRenderPassKey.NumColorTargets, ColorBlendAttachmentState);
+        ColorBlendStateCreateInfo.attachmentCount = static_cast<uint32>(BlendAttachments.size());
+        ColorBlendStateCreateInfo.pAttachments = BlendAttachments.data();
 
         // 深度格式
         if (InState.mDepthStencilTargetFormat != PF_Unknown)

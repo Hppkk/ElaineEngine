@@ -64,6 +64,7 @@ namespace Elaine
 	private:
         friend struct MaterialParamSnapshot;
         struct LoadData;
+        JsonCpp mSavedJson;
         void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
 		Version mVersion;
 		std::unordered_map<std::string, TexturePtr> mTextures;

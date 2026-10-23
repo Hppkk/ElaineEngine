@@ -5,10 +5,10 @@
 #include "ElaineThreadManager.h"
 #include "ElaineFileManager.h"
 #include "ElaineMemoryMap.h"
-#include "ElaineTextureUtils.h"
 #include "TaskGraph/ElaineTaskGraph.h"
 #include "ElaineModuleManager.h"
 #include "ElaineFileMonitor.h"
+#include "Resource/ElaineResourceRegistry.h"
 #include "common/ElaineRenderModule.h"
 #include "ElaineForwardRenderPipeline.h"
 #include "ElaineDeferredRenderPipeline.h"
@@ -19,7 +19,7 @@
 #include "ElaineMaterialInstanceStaticManager.h"
 #include "ElaineMeshManager.h"
 #include "ElaineShaderManager.h"
-#include "Resource/ElaineResourcePipeline.h"
+#include "Resource/ElaineResourceLoader.h"
 #include "render/common/ElaineRHI.h"
 #include <filesystem>
 
@@ -41,8 +41,6 @@ namespace Elaine
 
 	void Root::Initialize(const RHI_PARAM_DESC& InDesc)
 	{
-        ResourcePipeline::Get().Start();
-		TextureUtils::Initialize();
 		SystemInfo::LogSystemInfo();
 		new FileManager();
 		mTimer = new Timer();
@@ -71,6 +69,7 @@ namespace Elaine
 		// 文件监控只产生事件，所有资源重载都在逻辑线程的 TickTime 中执行。
 		FileMonitor::instance()->RegisterCallback([this](const std::string& ChangedPath)
 		{
+            ResourceRegistry::Get().Refresh({ChangedPath});
 			ShaderManager::instance()->ReloadIfFileChanged(ChangedPath);
 			TextureManager::instance()->ReloadIfFileChanged(ChangedPath);
 			MeshManager::instance()->ReloadIfFileChanged(ChangedPath);
@@ -90,6 +89,9 @@ namespace Elaine
 		mRenderPipeline[RP_Defferred] = new DeferredRenderPipeline();
 		mRenderPipeline[RP_Defferred]->Initialize();
 
+        LogicToRender_Barrier->SetWakeCallback([this] { WakeRenderThread(); });
+        TaskGraph::TaskGraph::instance()->SetThreadWakeCallback(NamedThread::RenderThread, [this] { WakeRenderThread(); });
+        WakeRenderThread();
 		mRenderThread = ThreadManager::instance()->GetOrCreateThread(NamedThread::RenderThread, &Root::RenderOneFrame, this);
 	}
 
@@ -147,12 +149,23 @@ namespace Elaine
 
 	}
 
+    void Root::WakeRenderThread()
+    {
+        { std::lock_guard<std::mutex> Lock(mRenderWakeMutex); mRenderWorkPending = true; }
+        mRenderWakeCondition.notify_one();
+    }
+
     void Root::RenderOneFrame()
     {
         RenderToLogic_Barrier->Signal();
         while (!mStopping)
         {
-            const bool HasFrame = LogicToRender_Barrier->WaitFor(2);
+            {
+                std::unique_lock<std::mutex> Lock(mRenderWakeMutex);
+                mRenderWakeCondition.wait(Lock, [this] { return mRenderWorkPending || mStopping; });
+                mRenderWorkPending = false;
+            }
+            const bool HasFrame = LogicToRender_Barrier->WaitFor(0);
             if (mStopping) break;
             // The original RHI frame barrier also protects immediate resource creation.
             WaitForRenderThread_Gfx();
@@ -175,7 +188,10 @@ namespace Elaine
                 CalculateDeltaTime(); CalculateFPS(mDeltaTime);
                 RenderToLogic_Barrier->Signal();
                 for (auto* View : mRenderViews)
+                {
                     if (View->IsValid() && View->IsActive()) mRenderPipeline[RP_Forward]->Render(View);
+                    else if (View->mSubmissionEvent) { View->mSubmissionEvent->Cancel(); View->mSubmissionEvent.reset(); }
+                }
             }
             // Resource lists progress even during startup or with no active viewport.
             NotifyForRHIThread_Gfx();
@@ -260,8 +276,14 @@ namespace Elaine
         if (!mRenderThread || CheckThread(NamedThread::RenderThread)) return;
         auto Done = std::make_shared<std::promise<void>>();
         auto Ready = Done->get_future();
-        ENQUEUE_RENDER_COMMAND(FlushCommands)([Done](RenderContext&) { Done->set_value(); });
-        LogicToRender_Barrier->Signal();
+        TaskGraph::TaskGraph::instance()->CreateAndDispatchWhenReady([Done] {
+            try
+            {
+                RenderSystem::instance()->GetRenderCommandQueue()->Execute();
+                Done->set_value();
+            }
+            catch (...) { Done->set_exception(std::current_exception()); }
+        }, NamedThread::RenderThread);
         Ready.get();
     }
 
@@ -269,7 +291,8 @@ namespace Elaine
     {
         if (!mRenderThread) return;
         if (FileMonitor::instance()->IsRunning()) FileMonitor::instance()->Stop();
-        ResourcePipeline::Get().Shutdown();
+        ResourceRegistry::Get().Stop();
+        ResourceLoader::instance()->Shutdown();
         mShutdownRender = true;
         LogicToRender_Barrier->Signal();
         while (!mRenderStopped) std::this_thread::sleep_for(std::chrono::milliseconds(1));
@@ -278,6 +301,8 @@ namespace Elaine
         delete RenderSystem::instance();
         mStopping = true; LogicToRender_Barrier->Signal();
         ThreadManager::instance()->DestroyThread(mRenderThread); mRenderThread = nullptr;
+        LogicToRender_Barrier->SetWakeCallback({});
+        TaskGraph::TaskGraph::instance()->SetThreadWakeCallback(NamedThread::RenderThread, {});
         delete TaskGraph::TaskGraph::instance();
         delete ThreadManager::instance();
         SAFE_DELETE(mTimer);

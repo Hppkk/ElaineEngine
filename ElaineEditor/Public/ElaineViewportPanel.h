@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "ElaineEditorBase.h"
 #include "ElaineEditorCameraController.h"
+#include "ElaineViewportFrame.h"
 #include "ElaineInputSystem.h"
 #include <d3d11.h>
 
@@ -26,6 +27,8 @@ namespace Editor
         bool ContainsInput(const Elaine::InputEvent& event) const;
         bool WantsKeyboard() const { return mImageVisible && mWindowFocused; }
         bool IsDragging() const;
+        const Elaine::InputState& GetSceneInputState() const { return Elaine::InputSystem::instance()->GetState(mSceneInput); }
+        const Elaine::InputRect& GetImageRect() const { return mImageRect; }
         Elaine::InputWindowId GetInputWindow() const { return mInputWindow; }
 
 		// Set the texture to display (from engine RTT readback)
@@ -44,12 +47,15 @@ namespace Editor
         ImDrawList* mDrawList = nullptr;
         unsigned int mImageWindowId = 0;
         bool mImageVisible = false, mWindowFocused = false, mGizmoHit = false;
+        Elaine::Actor* mGizmoActor = nullptr; // Identity only; never dereferenced across frames.
+        bool mGizmoBlocked = false;
         bool mSelectionActive = false, mAltDown = false, mRightDown = false;
 		ID3D11ShaderResourceView* mViewportSRV = nullptr;
 		int mTexWidth = 0;
 		int mTexHeight = 0;
 
 		// Structured camera controller
+		ViewportFrameData mDisplayedFrame;
 		EditorCameraController mCameraController;
 
 		// Box selection state

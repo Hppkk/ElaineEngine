@@ -1,5 +1,6 @@
 #include "ElainePrecompiledHeader.h"
 #include "render/vulkan/ElaineVulkanInstance.h"
+#include "../RenderDoc/ElaineRenderDocCaptureInternal.h"
 
 namespace VulkanRHI
 {
@@ -31,6 +32,7 @@ namespace VulkanRHI
 
     void VulkanInstance::Destroy()
     {
+        Elaine::RenderDocInternal::DetachVulkan();
         DestroyDebugUtilsMessengerEXT(mHandle, mDebugMessenger, nullptr);
         vkDestroyInstance(mHandle, nullptr);
     }
@@ -96,6 +98,25 @@ namespace VulkanRHI
         instance_create_info.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
         instance_create_info.ppEnabledExtensionNames = extensions.data();
 
+        if (Elaine::RenderDocInternal::IsConnected())
+        {
+            uint32_t Count = 0;
+            vkEnumerateInstanceLayerProperties(&Count, nullptr);
+            std::vector<VkLayerProperties> Layers(Count);
+            vkEnumerateInstanceLayerProperties(&Count, Layers.data());
+            const bool Found = std::any_of(Layers.begin(), Layers.end(), [](const auto& Layer) {
+                return strcmp(Layer.layerName, "VK_LAYER_RENDERDOC_Capture") == 0;
+            });
+            if (!Found)
+            {
+                const std::string Error = "RenderDoc DLL connected but VK_LAYER_RENDERDOC_Capture is unavailable; check installation and Vulkan layer environment";
+                Elaine::RenderDocInternal::VulkanUnavailable(Error);
+                throw std::runtime_error(Error);
+            }
+            // RenderDoc must be activated implicitly by its manifest environment, never in enabledLayerNames.
+
+        }
+
         VkDebugUtilsMessengerCreateInfoEXT debugCreateInfo{};
         if (Elaine::Root::instance()->IsEnableVulkanValidationLayer())
         {
@@ -113,7 +134,9 @@ namespace VulkanRHI
 
         if (vkCreateInstance(&instance_create_info, nullptr, &mHandle) != VK_SUCCESS)
         {
-            LOG_ERROR("VulkanRHI: vulkan create instance failed!");
+            const std::string Error = "VulkanRHI: Vulkan instance creation failed";
+            if (Elaine::RenderDocInternal::IsConnected()) Elaine::RenderDocInternal::VulkanUnavailable(Error);
+            throw std::runtime_error(Error);
         }
 
 #ifdef USE_VOLK

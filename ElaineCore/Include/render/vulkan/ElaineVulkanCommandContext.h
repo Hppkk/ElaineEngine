@@ -292,6 +292,7 @@ namespace VulkanRHI
 		VulkanRenderPassCache* mRenderPassCache = nullptr;
 		VulkanFramebufferCache* mFramebufferCache = nullptr;
 		VkRenderPass mCurrentRenderPass = VK_NULL_HANDLE;
+        bool mPassDebugLabel = false;
 		RenderPassKey mCurrentRenderPassKey;  // 当前 RenderPass 的 Key，用于 Pipeline 变体选择
 
 		// 动态资源描述符分配器

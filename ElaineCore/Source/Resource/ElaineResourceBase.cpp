@@ -2,11 +2,23 @@
 #include "ElaineResourceBase.h"
 #include "ElaineResourceManager.h"
 #include "ElaineDataStream.h"
-#include "Resource/ElaineResourcePipeline.h"
+#include "Resource/ElaineResourceLoader.h"
 #include "ElaineThreadManager.h"
+#include "Resource/ElaineResourceRegistry.h"
+#include "TaskGraph/ElaineTask.h"
 
 namespace Elaine
 {
+    ResourceBasePtr ResourceLoadData::GetDependency(const ResourceReference& Reference, const std::string& ExpectedType) const
+    {
+        auto It = RequiredResources.find(Reference.Id);
+        if (It == RequiredResources.end() || !It->second || !It->second->IsReady())
+            throw std::runtime_error("Required dependency was not provided: " + Reference.Id.ToString());
+        if (It->second->GetDescriptor().Type != ExpectedType)
+            throw std::runtime_error("Dependency type mismatch for " + Reference.Id.ToString() + ": expected " + ExpectedType);
+        return It->second;
+    }
+
 	ResourceListener::ResourceListener()
 	{
 
@@ -26,7 +38,18 @@ namespace Elaine
 		: mResourceName(InResourceName)
 		, mOwner(InManager)
 	{
-
+        const auto Extension = std::filesystem::path(InResourceName).extension();
+        if (Extension == ".asset" || Extension == ".shader")
+        {
+            const auto File = std::filesystem::path(Root::instance()->GetResourcePath()) / InResourceName;
+            if (std::filesystem::is_regular_file(File))
+                mDescriptor = InManager ? ResourceRegistry::Get().FindByPath(InResourceName) : AssetFile::ReadDescriptor(File);
+            else mDescriptor.Id = ResourceId::New();
+        }
+        else mDescriptor.Id = ResourceId::New();
+        mId = mDescriptor.Id;
+        mDescriptor.Path = InResourceName;
+        if (mDescriptor.Type.empty() && InManager) mDescriptor.Type = ResourceTypeName(InManager->GetResourceType());
 	}
 
 	ResourceBase::~ResourceBase()
@@ -38,7 +61,7 @@ namespace Elaine
     {
         if (!ThreadManager::instance()->CheckThread(NamedThread::GameThread))
             throw std::logic_error("Resource unload requires GameThread");
-        ResourcePipeline::Get().Cancel(this);
+        ResourceLoader::instance()->Cancel(this);
         const bool WasLoaded = IsReady();
         UnloadImpl();
         SetMemoryUsage(0);
@@ -47,7 +70,7 @@ namespace Elaine
         if (mOwner)
         {
             auto Resource = mOwner->FindCachedResource(mResourceName);
-            if (Resource) NotifyChanged({Resource, ResourceRequestState::Cancelled, "Resource unloaded"}, mLoadSerial.load());
+            if (Resource) NotifyChanged({Resource, ResourceLoadState::Cancelled, "Resource unloaded"}, mLoadSerial.load());
         }
     }
     void ResourceBase::ReloadResource()
@@ -58,10 +81,43 @@ namespace Elaine
 
 	void ResourceBase::SaveResource()
 	{
-		SaveResourceImpl();
+        if (!ThreadManager::instance()->CheckThread(NamedThread::GameThread)) throw std::logic_error("Resource save requires GameThread");
+        auto Gate = std::make_shared<TaskGraph::TaskCompletionEvent>();
+        const auto Waits = ResourceLoader::instance()->GateResources({GetId()}, Gate);
+        try
+        {
+            for (const auto& Event : Waits) if (!Event->IsComplete()) throw std::runtime_error("Save requires the current load to finish: " + mResourceName);
+            SaveResourceImpl();
+            mDescriptor = AssetFile::ReadDescriptor(std::filesystem::path(Root::instance()->GetResourcePath()) / mResourceName);
+            ResourceRegistry::Get().Refresh({mResourceName});
+            ResourceLoader::instance()->ReleaseResources(Gate); Gate->Succeed();
+        }
+        catch (...) { ResourceLoader::instance()->ReleaseResources(Gate); Gate->Succeed(); throw; }
 	}
 
 
+
+    void ResourceBase::SaveAssetJson(JsonCpp Json, const std::string& Type)
+    {
+        std::function<void(JsonCpp&)> UpdatePaths = [&](JsonCpp& Node) {
+            if (Node.is_object())
+            {
+                if (Node.contains("id") && Node.contains("path"))
+                {
+                    auto Ref = ResourceReference::FromJson(Node);
+                    try { Node["path"] = ResourceRegistry::Get().Find(Ref.Id).Path; } catch (...) {}
+                    return;
+                }
+                for (auto& Entry : Node.items()) UpdatePaths(Entry.value());
+            }
+            else if (Node.is_array()) for (auto& Entry : Node) UpdatePaths(Entry);
+        };
+        UpdatePaths(Json);
+        mDescriptor.Type = Type; mDescriptor.Path = mResourceName;
+        mDescriptor.Id = mId;
+        if (mDescriptor.DisplayName.empty()) mDescriptor.DisplayName = std::filesystem::path(mResourceName).stem().string();
+        AssetFile::WriteJson(std::filesystem::path(Root::instance()->GetResourcePath()) / mResourceName, mDescriptor, Json);
+    }
 
 	ResourceBase::LoadState ResourceBase::GetLoadState() const
 	{
@@ -126,32 +182,39 @@ namespace Elaine
 	//	}
 	//}
 
-    ResourceSubscription ResourceBase::RegisterLoadCompleteCallback(LoadCompleteCallback Callback)
+    ResourceLoadResult ResourceBase::GetLastLoadResult() const
     {
-        if (!mOwner) throw std::logic_error("Resource has no manager");
-        return mOwner->RequestResource(mResourceName).OnComplete(std::move(Callback));
+        std::lock_guard<std::mutex> Lock(mChangeMutex);
+        return {mOwner ? mOwner->FindCachedResource(mResourceName) : ResourceBasePtr{}, mLastAttemptState.load(), mLastLoadError};
     }
+    ResourceSubscription ResourceBase::OnLoaded(LoadCompleteCallback Callback)
+    { return ResourceLoader::instance()->Subscribe(this, std::move(Callback)); }
     ResourceSubscription ResourceBase::ObserveChanges(LoadCompleteCallback Callback)
     {
-        if (!mOwner) throw std::logic_error("Resource has no manager");
-        auto Request = mOwner->RequestResource(mResourceName);
         auto Active = std::make_shared<std::atomic_bool>(true);
-        ResourceRequestData::Listener Listener{Active, std::move(Callback)};
-        std::lock_guard<std::mutex> Lock(mChangeMutex);
-        const auto Result = Request.GetResult();
-        const bool Complete = Result.State == ResourceRequestState::Succeeded || Result.State == ResourceRequestState::Failed || Result.State == ResourceRequestState::Cancelled;
-        const uint64_t Stamp = Request.mData->LoadSerial * 8 + static_cast<uint64_t>(Result.State) + 1;
-        mChangeListeners.push_back({Listener, Complete ? Stamp : 0});
-        if (Complete)
-            QueueResourceCallback([Listener, Result] { if (Listener.Active->load()) Listener.Callback(Result); });
+        ResourceLoadListener Listener{Active, std::move(Callback)};
+        ResourceLoadResult Result;
+        bool Complete;
+        {
+            std::lock_guard<std::mutex> Lock(mChangeMutex);
+            Result = {mOwner ? mOwner->FindCachedResource(mResourceName) : ResourceBasePtr{}, mLastAttemptState.load(), mLastLoadError};
+            Complete = Result.State == ResourceLoadState::Succeeded || Result.State == ResourceLoadState::Failed || Result.State == ResourceLoadState::Cancelled;
+            const uint64_t Stamp = mLastResultSerial * 8 + static_cast<uint64_t>(Result.State) + 1;
+            mChangeListeners.push_back({Listener, Complete ? Stamp : 0});
+        }
+        if (Complete) QueueResourceCallback([Listener, Result] { if (Listener.Active->load()) Listener.Callback(Result); });
         return ResourceSubscription(Active);
     }
     void ResourceBase::NotifyChanged(const ResourceLoadResult& Result, uint64_t LoadSerial)
     {
-        std::vector<ResourceRequestData::Listener> Listeners;
+        std::vector<ResourceLoadListener> Listeners;
         const uint64_t Stamp = LoadSerial * 8 + static_cast<uint64_t>(Result.State) + 1;
         {
             std::lock_guard<std::mutex> Lock(mChangeMutex);
+            if (LoadSerial != mLoadSerial.load()) return;
+            mLastAttemptState = Result.State;
+            mLastLoadError = Result.Error;
+            mLastResultSerial = LoadSerial;
             std::erase_if(mChangeListeners, [](const auto& Entry) { return !Entry.Listener.Active->load(); });
             for (auto& Entry : mChangeListeners)
                 if (Stamp > Entry.LastStamp) { Entry.LastStamp = Stamp; Listeners.push_back(Entry.Listener); }

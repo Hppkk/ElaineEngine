@@ -14,7 +14,7 @@ namespace Elaine
 		Texture(ResourceManager* InManager, const std::string& InResName);
 		virtual ~Texture() override;
 		std::vector<std::string> GetSourceFiles() const override;
-        const std::string& GetCubeMapPath(TextureCubeMapFace InFace);
+        const TextureDesc& GetTextureDesc() const { return mTextureDesc; }
 		RHITexture* GetTextureRHI() const { return mTextureRHI.get(); }
 	protected:
 		void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
@@ -26,10 +26,8 @@ namespace Elaine
 	private:
         struct LoadData;
 
-		Version mVersion;
 		TextureDesc mTextureDesc;
 		TextureData mTextureData;
-		std::vector<std::string> mTexturePath;
 		RHITextureHandle mTextureRHI;
         RHITextureDesc mPendingRHIDesc;
 	};

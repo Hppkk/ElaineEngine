@@ -36,9 +36,9 @@ namespace Elaine
 
     Actor* ActorManager::CreateActorByInfo(const std::string& Path)
     {
-        auto Request = ActorInfoMgr::instance()->RequestResource<ActorInfo>(Path);
-        if (!Request.IsComplete() || !Request.GetResult().Succeeded()) return nullptr;
-        return CreateActorByInfo(static_pointer_cast<ActorInfo>(Request.GetResult().Resource));
+        auto Info = ActorInfoMgr::instance()->GetResource(Path);
+        if (!Info || !Info->IsReady()) return nullptr;
+        return CreateActorByInfo(Info);
     }
 
 	void ActorManager::DestroyActor(Actor* InObject)

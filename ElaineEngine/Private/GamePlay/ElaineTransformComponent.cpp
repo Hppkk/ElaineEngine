@@ -2,6 +2,8 @@
 #include "GamePlay/ElaineTransformComponent.h"
 #include "math/ElaineTransform.h"
 #include "ElaineWorld.h"
+#include "ElaineCameraState.h"
+#include "math/ElaineDynamicBVH.h"
 #include "GamePlay/ElaineMeshComponent.h"
 #include "GamePlay/ElaineActor.h"
 
@@ -19,9 +21,9 @@ namespace Elaine
 
 	void TransformComponentInfo::ExportDataImpl(JsonCpp& InJson)
 	{
-		InJson["Position"].array({ m_pTransform->mPosition.x,m_pTransform->mPosition.y,m_pTransform->mPosition.z });
-		InJson["Scale"].array({ m_pTransform->mScale.x, m_pTransform->mScale.y, m_pTransform->mScale.z });
-		InJson["Rotation"].array({ m_pTransform->mRotation.x, m_pTransform->mRotation.y, m_pTransform->mRotation.z, m_pTransform->mRotation.w });
+		InJson["Position"] = JsonCpp::array({ m_pTransform->mPosition.x,m_pTransform->mPosition.y,m_pTransform->mPosition.z });
+		InJson["Scale"] = JsonCpp::array({ m_pTransform->mScale.x, m_pTransform->mScale.y, m_pTransform->mScale.z });
+		InJson["Rotation"] = JsonCpp::array({ m_pTransform->mRotation.x, m_pTransform->mRotation.y, m_pTransform->mRotation.z, m_pTransform->mRotation.w });
 	}
 
 	void TransformComponentInfo::ImportDataImpl(const JsonCpp& InJson)
@@ -54,102 +56,42 @@ namespace Elaine
 		
 	}
 
-	const Matrix4x4& TransformComponent::GetWorldMatrix() const
-	{
-		return mWorldTransform.GetMatrix();
-	}
-
-	const Vector3& TransformComponent::GetWorldScale() const
-	{
-		return mTransform.mScale;
-	}
-
-	const Vector3& TransformComponent::GetWorldPosition() const
-	{
-		return mWorldTransform.mPosition;
-	}
-
-	const Quaternion& TransformComponent::GetWorldRotation() const
-	{
-		return mWorldTransform.mRotation;
-	}
-
-	const Vector3& TransformComponent::GetScale() const
-	{
-		return mTransform.mScale;
-	}
-
-	const Vector3& TransformComponent::GetPosition() const
-	{
-		return mTransform.mPosition;
-	}
-
-	const Quaternion& TransformComponent::GetRotation() const
-	{
-		return mTransform.mRotation;
-	}
-
-	void TransformComponent::SetScale(const Vector3& InScale)
-	{
-		mTransform.mScale = InScale;
-	}
-	void TransformComponent::SetPosition(const Vector3& InPosition)
-	{
-		mTransform.mPosition = InPosition;
-	}
-	void TransformComponent::SetRotation(const Quaternion& InRotation)
-	{
-		mTransform.mRotation = InRotation;
-	}
-
-	void TransformComponent::NodeTick(float InDeltaTime)
-	{
-		// Update world transform based on parent Actor's transform (no SceneNode)
-		if (mParent == nullptr)
-			return;
-
-		Matrix4x4 localMat = mTransform.GetMatrix();
-		Matrix4x4 worldMat = localMat;
-
-		Actor* owner = mParent;
-		Actor* parentGO = owner->GetParent();
-		if (parentGO)
-		{
-			ActorComponent* pcom = parentGO->GetComponentByName(Name("TransformComponent"));
-			if (pcom)
-			{
-				TransformComponent* parentTransform = static_cast<TransformComponent*>(pcom);
-				worldMat = parentTransform->GetWorldMatrix() * localMat;
-			}
-		}
-
-		// Decompose world matrix to components
-		Vector3 pos;
-		Vector3 scale;
-		Quaternion rot;
-		worldMat.decomposition(pos, scale, rot);
-
-		mWorldTransform.mMatrix = worldMat;
-		mWorldTransform.mDirty = false;
-		mWorldTransform.mPosition = pos;
-		mWorldTransform.mScale = scale;
-		mWorldTransform.mRotation = rot;
-
-		// Notify mesh-like components on this Actor that transform changed
-		auto& comps = mParent->GetComponents();
-		for (auto& kv : comps)
-		{
-			ActorComponent* com = kv.second;
-			if (com == nullptr) continue;
-			// dynamic_cast may be used to identify mesh components
-			StaticMeshComponent* meshCom = nullptr;
-			meshCom = dynamic_cast<StaticMeshComponent*>(com);
-			if (meshCom)
-			{
-				meshCom->MarkTransformDirty();
-			}
-		}
-	}
+    void TransformComponent::UpdateWorldTransform() const
+    {
+        Matrix4x4 World = mTransform.GetMatrix();
+        if (mParent && mParent->GetParent()) World = mParent->GetParent()->GetWorldMatrix() * World;
+        World.decomposition(mWorldTransform.mPosition, mWorldTransform.mScale, mWorldTransform.mRotation);
+        mWorldTransform.mMatrix = World; mWorldTransform.mDirty = false;
+    }
+    const Matrix4x4& TransformComponent::GetWorldMatrix() const { UpdateWorldTransform(); return mWorldTransform.mMatrix; }
+    const Vector3& TransformComponent::GetWorldScale() const { UpdateWorldTransform(); return mWorldTransform.mScale; }
+    const Vector3& TransformComponent::GetWorldPosition() const { UpdateWorldTransform(); return mWorldTransform.mPosition; }
+    const Quaternion& TransformComponent::GetWorldRotation() const { UpdateWorldTransform(); return mWorldTransform.mRotation; }
+    const Vector3& TransformComponent::GetScale() const { return mTransform.mScale; }
+    const Vector3& TransformComponent::GetPosition() const { return mTransform.mPosition; }
+    const Quaternion& TransformComponent::GetRotation() const { return mTransform.mRotation; }
+    void TransformComponent::SetScale(const Vector3& Value) { mTransform.mScale = Value; ApplyTransformChange(); }
+    void TransformComponent::SetPosition(const Vector3& Value) { mTransform.mPosition = Value; ApplyTransformChange(); }
+    void TransformComponent::SetRotation(const Quaternion& Value) { mTransform.mRotation = NormalizeCameraRotation(Value); ApplyTransformChange(); }
+    void TransformComponent::ApplyTransformChange()
+    {
+        mTransform.mRotation = NormalizeCameraRotation(mTransform.mRotation);
+        mTransform.mDirty = true;
+        if (mParent) mParent->UpdateNode(true, false);
+    }
+    void TransformComponent::PostEditChangeProperty(const PropertyChangedEvent& Event)
+    {
+        ActorComponent::PostEditChangeProperty(Event);
+        if (Event.IsProperty("mTransform") && Event.Type != PropertyChangeType::EditFinished) ApplyTransformChange();
+    }
+    void TransformComponent::NodeTick(float)
+    {
+        UpdateWorldTransform();
+        if (!mParent) return;
+        for (const auto& Pair : mParent->GetComponents())
+            if (auto* Mesh = dynamic_cast<StaticMeshComponent*>(Pair.second)) Mesh->MarkTransformDirty();
+        if (mWorld && mWorld->GetSceneBVH()) mWorld->GetSceneBVH()->UpdateObject(mParent);
+    }
 
 	void TransformComponent::OnRegisterWorldImpl(World* InWorld)
 	{

@@ -27,21 +27,25 @@ vec4 grid(vec3 fragPos3D, float scale) {
     vec2 derivative = max(fwidth(coord), vec2(0.0001));
     vec2 grid = abs(fract(coord - 0.5) - 0.5) / derivative;
     float line = min(grid.x, grid.y);
-    float minimumz = min(derivative.y, 1.0);
-    float minimumx = min(derivative.x, 1.0);
 
     vec4 color = GridColor;
     color.a *= 1.0 - min(line, 1.0);
 
+    // Axis coverage is measured in screen pixels, independent of grid scale.
+    vec2 axisCoverage = 1.0 - clamp(abs(fragPos3D.xz) / max(fwidth(fragPos3D.xz), vec2(0.0001)), 0.0, 1.0);
     // Z axis (blue) — when X is near 0
-    if (fragPos3D.x > -0.1 * minimumx && fragPos3D.x < 0.1 * minimumx)
+    if (axisCoverage.x > 0.0)
+    {
         color = ZAxisColor;
-        color.a *= 1.0 - min(grid.x, 1.0);
+        color.a *= axisCoverage.x;
+    }
 
     // X axis (red) — when Z is near 0
-    if (fragPos3D.z > -0.1 * minimumz && fragPos3D.z < 0.1 * minimumz)
+    if (axisCoverage.y > 0.0)
+    {
         color = XAxisColor;
-        color.a *= 1.0 - min(grid.y, 1.0);
+        color.a *= axisCoverage.y;
+    }
 
     return color;
 }

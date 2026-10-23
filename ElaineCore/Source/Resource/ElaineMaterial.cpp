@@ -13,6 +13,8 @@ namespace Elaine
     struct Material::LoadData : ResourceLoadData
     {
         Version mVersion;
+        JsonCpp SavedJson;
+        std::unordered_map<std::string, ResourceReference> TextureReferences;
         std::unordered_map<std::string, TexturePtr> mTextures;
         std::unordered_map<Name, ShaderPass*> mPassMap;
         std::unordered_map<uint64_t, float> mScalarDefaults;
@@ -95,9 +97,8 @@ namespace Elaine
     {
         auto Pending = std::make_unique<LoadData>();
         auto& Data = *Pending;
-		DataStream Stream(Root::instance()->GetResourcePath() + mResourceName);
-		Stream.ReadAll();
-		JsonCpp JsonMaterial = JsonCpp::parse(Stream.GetDataStream());
+        JsonCpp JsonMaterial = AssetFile::ReadJson(std::filesystem::path(Root::instance()->GetResourcePath()) / mResourceName, "Material");
+        Data.SavedJson = JsonMaterial;
 		if (!JsonMaterial.contains("version") || JsonMaterial["version"] != "2.0.0")
 		{
 			LOG_ERROR("Material '%s' requires format version 2.0.0.", mResourceName.c_str());
@@ -193,15 +194,14 @@ namespace Elaine
 		{
 			for (auto&& tex : TextureListJson.items())
 			{
-				std::string TexPath = tex.value();
+                const auto TexPath = ResourceReference::FromJson(tex.value());
 				
 				const auto TS = SemanticsRegister::CanonicalTextureName(tex.key());
-				Data.mTextures[TS] = TextureManager::instance()->RequestResource(TexPath).GetResult().Resource;
-				ResourceBasePtr BasePtr = Data.mTextures[TS];
+				Data.TextureReferences[TS] = TexPath;
 			}
 		}
 
-		// 解析ShaderPass (内部会加载Shader)
+		// 解析ShaderPass引用；资源由加载操作统一请求
 		JsonCpp ShaderPassJson = JsonMaterial["shaderpass"];
 		if (!ShaderPassJson.empty())
 		{
@@ -215,15 +215,15 @@ namespace Elaine
 			}
 		}
 
-		for (const auto& Pair : Data.mTextures) if (Pair.second) Data.Dependencies.push_back(Pair.second);
-        for (const auto& Pair : Data.mPassMap) Pair.second->GetDependentResources(Data.Dependencies);
         return Pending;
 	}
 
     void Material::PrepareDependencies(ResourceLoadData& InData)
     {
         auto& Data = static_cast<LoadData&>(InData);
-        for (auto& Pair : Data.mPassMap) Pair.second->PrepareDependencies();
+        for (const auto& [Name, Reference] : Data.TextureReferences)
+            Data.mTextures[Name] = static_pointer_cast<Texture>(Data.GetDependency(Reference, "Texture"));
+        for (auto& Pair : Data.mPassMap) Pair.second->PrepareDependencies(Data);
     }
     bool Material::InitializeGPU(ResourceLoadData& InData)
     {
@@ -304,10 +304,36 @@ namespace Elaine
 		mTextures.clear(); mReadOnlyBuffers.clear();
 	}
 
-	void Material::SaveResourceImpl()
-	{
-
-	}
+    void Material::SaveResourceImpl()
+    {
+        auto Json = mSavedJson;
+        Json["textures"] = JsonCpp::object();
+        for (const auto& [Key, Texture] : mTextures) if (Texture) Json["textures"][Key] = Texture->GetReference().ToJson();
+        for (const auto& Parameter : mParameterLayout)
+        {
+            if (!Parameter.TexturePresence.empty() || Parameter.Kind == MaterialParameterKind::Unknown) continue;
+            auto& Node = Json["parameters"][Parameter.Name];
+            static const char* Kinds[] = {"scalar","vector","color","int","bool","texture","buffer","matrix"};
+            Node["type"] = Kinds[static_cast<size_t>(Parameter.Kind)];
+            if (Parameter.HasRange) { Node["min"] = Parameter.Min; Node["max"] = Parameter.Max; }
+            const auto Hash = Parameter.Hash;
+            if (auto It = mScalarDefaults.find(Hash); It != mScalarDefaults.end()) Node["default"] = It->second;
+            if (auto It = mVectorDefaults.find(Hash); It != mVectorDefaults.end()) Node["default"] = {It->second.x, It->second.y, It->second.z, It->second.w};
+            if (auto It = mIntDefaults.find(Hash); It != mIntDefaults.end()) Node["default"] = It->second;
+            if (auto It = mBoolDefaults.find(Hash); It != mBoolDefaults.end()) Node["default"] = It->second;
+            if (auto It = mMatrixDefaults.find(Hash); It != mMatrixDefaults.end())
+            { Node["default"] = JsonCpp::array(); for (size_t i=0; i<16; ++i) Node["default"].push_back(It->second[i/4][i%4]); }
+        }
+        JsonCpp Passes = JsonCpp::array();
+        for (const auto& [PassName, Pass] : mPassMap)
+        {
+            JsonCpp Saved = JsonCpp::object();
+            for (const auto& Original : mSavedJson.value("shaderpass", JsonCpp::array())) if (Original.value("name", "") == PassName.ToString()) { Saved = Original; break; }
+            ShaderPassManager::instance()->UnloadShaderPass(Pass, Saved); Passes.push_back(std::move(Saved));
+        }
+        Json["shaderpass"] = std::move(Passes);
+        SaveAssetJson(Json, "Material"); mSavedJson = std::move(Json);
+    }
 
 
 
@@ -350,6 +376,7 @@ namespace Elaine
             if (It == mPassMap.end() || It->second->GetPipelineRHI()->GetResourceLayout() != Pair.second->GetPipelineRHI()->GetResourceLayout())
                 LayoutChanged = true;
         }
+        mSavedJson.swap(Data.SavedJson);
         std::swap(mVersion, Data.mVersion);
         mTextures.swap(Data.mTextures);
         std::swap(mPassMap, Data.mPassMap);

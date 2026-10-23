@@ -18,22 +18,25 @@ namespace Elaine
         // 创建默认的材质实例（逻辑线程）
         mMaterial = new MaterialInstanceDynamic();
         mMaterialSubscription = mMaterial->ObserveParameterChanges([this] { UpdateMaterialSnapshot(); });
-        mMaterial->ChangeMaterial("material_instance/SkyBox.mi");
+        mMaterial->ChangeMaterial("material_instance/SkyBox.asset");
 
         SetExposure(mExposure);
 
         // 在逻辑线程捕获独立的材质参数与 RHI 句柄。
         MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();
 
-        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([self = this, Snapshot = std::move(Snapshot)](RenderContext& InContext)
+        auto* Scene = GetActor()->GetSceneManager();
+        auto Result = std::make_shared<SkyRenderProxy*>(nullptr);
+        ENQUEUE_RENDER_COMMAND(CreateSkyRenderProxy)([Scene, Result, Visible = mbVisible, Snapshot = std::move(Snapshot)](RenderContext& InContext)
             {
-                RenderProxy* NewProxy = self->GetActor()->GetSceneManager()->CreateRenderProxy(EProxyType::Sky);
+                RenderProxy* NewProxy = Scene->CreateRenderProxy(EProxyType::Sky);
                 SkyRenderProxy* SkyProxy = static_cast<SkyRenderProxy*>(NewProxy);
                 if (SkyProxy)
                 {
                     // 用快照更新渲染线程的 RenderMaterialProxy（不再传递 MaterialInstanceDynamic*）
                     SkyProxy->UpdateMaterial(Snapshot, InContext);
-                    self->mProxy = SkyProxy;
+                    *Result = SkyProxy;
+                    SkyProxy->SetVisible(Visible);
 
                     // ========== 资源依赖追踪 ==========
                     // 追踪材质资源（会递归追踪 MaterialInstanceStatic -> Material -> Texture/Shader）
@@ -46,6 +49,7 @@ namespace Elaine
                 }
             });
         Root::instance()->FlushRenderCommands();
+        mProxy = *Result;
     }
 
     SkyComponent::~SkyComponent()
@@ -85,13 +89,13 @@ namespace Elaine
 
     void SkyComponent::SetCubeTexture(const std::string& InPath)
     {
-        SetCubeTexture(TextureManager::instance()->RequestResource(InPath).GetResult().Resource);
+        SetCubeTexture(TextureManager::instance()->GetResource(InPath));
     }
 
     void SkyComponent::SetExposure(float InExposure)
     {
-        mExposure = InExposure;
-        mMaterial->SetScalar(MaterialParameterNames::SkyExposure(), InExposure);
+        mExposure = std::isfinite(InExposure) ? std::max(0.0f, InExposure) : 1.0f;
+        if (mMaterial) mMaterial->SetScalar(MaterialParameterNames::SkyExposure(), mExposure);
     }
 
     void SkyComponent::SetMaterial(const std::string& InMaterialPath)
@@ -104,6 +108,17 @@ namespace Elaine
         mMaterial->ChangeMaterial(InMaterialPath);
         if (mCubeTexture) mMaterial->SetTexture(MaterialParameterNames::SkyTexture(), mCubeTexture);
         SetExposure(mExposure);
+    }
+
+    void SkyComponent::PostEditChangeProperty(const PropertyChangedEvent& Event)
+    {
+        ActorComponent::PostEditChangeProperty(Event);
+        if (Event.IsProperty("mExposure") && Event.Type != PropertyChangeType::EditFinished) SetExposure(mExposure);
+    }
+    void SkyComponent::ApplyVisibility()
+    {
+        if (auto* Proxy = mProxy)
+            ENQUEUE_RENDER_COMMAND(UpdateSkyVisibility)([Proxy, Visible = mbVisible](RenderContext&) { Proxy->SetVisible(Visible); });
     }
 
     const Name& SkyComponent::GetType() const

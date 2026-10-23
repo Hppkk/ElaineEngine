@@ -23,13 +23,16 @@ namespace TaskGraph
         if (InTask == nullptr)
             return;
 
+        std::function<void()> WakeCallback;
+        bool Stopping;
         {
             std::lock_guard<std::mutex> LockGuard(mMtx);
-            if (mStopping) { InTask->Cancel(); return; }
-            mTaskQueue.push(InTask);
-            ++mTaskCount;
-            mConditionVariable.notify_one();
+            Stopping = mStopping;
+            if (!Stopping) { mTaskQueue.push(InTask); ++mTaskCount; if (InTask->GetCategory() == TaskCategory::ResourceInternal) ++mResourceTaskCount; WakeCallback = mWakeCallback; }
         }
+        if (Stopping) { InTask->Cancel(); return; }
+        mConditionVariable.notify_all();
+        if (WakeCallback) WakeCallback();
 
     }
 
@@ -40,6 +43,9 @@ namespace TaskGraph
         Elaine::ThreadManager::instance()->DestroyThread(mThreadHandle);
         mThreadHandle = nullptr;
         mbInitialized = false;
+        TaskPriorityQueue Abandoned;
+        { std::lock_guard<std::mutex> Lock(mMtx); Abandoned.swap(mTaskQueue); mTaskCount = 0; mResourceTaskCount = 0; mWakeCallback = {}; }
+        while (!Abandoned.empty()) { Abandoned.front()->Cancel(); Abandoned.pop(); }
     }
 
     uint32_t Worker::GetTaskCount()
@@ -59,15 +65,25 @@ namespace TaskGraph
                 continue;
 
             CurrentTask->Execute();
-            //TODO: Add event notice.
             CurrentTask->DispatchSubsequents();
         }
     }
 
-    void Worker::ExecuteAllTask()
+    void Worker::ExecuteAllTask(bool FilterCategory, TaskCategory Category)
     {
         TaskPriorityQueue Batch;
-        { std::lock_guard<std::mutex> LockGuard(mMtx); Batch.swap(mTaskQueue); }
+        {
+            std::lock_guard<std::mutex> LockGuard(mMtx);
+            TaskPriorityQueue Deferred;
+            while (!mTaskQueue.empty())
+            {
+                auto Task = mTaskQueue.front(); mTaskQueue.pop();
+                if (!FilterCategory || Task->GetCategory() == Category)
+                { Batch.push(Task); if (Task->GetCategory() == TaskCategory::ResourceInternal) --mResourceTaskCount; }
+                else Deferred.push(Task);
+            }
+            mTaskQueue.swap(Deferred);
+        }
         while (!Batch.empty())
         {
             GraphTaskPtr CurrentTask = Batch.front();
@@ -83,6 +99,19 @@ namespace TaskGraph
         }
     }
 
+    void Worker::SetWakeCallback(std::function<void()> Callback)
+    { std::lock_guard<std::mutex> Lock(mMtx); mWakeCallback = std::move(Callback); }
+    void Worker::Wake()
+    { std::lock_guard<std::mutex> Lock(mMtx); mConditionVariable.notify_all(); }
+    void Worker::WaitForResourceTask(const TaskCompletionEventPtr& Event)
+    {
+        std::unique_lock<std::mutex> Lock(mMtx);
+        mConditionVariable.wait(Lock, [&] {
+            if (mStopping || Event->IsComplete()) return true;
+            return mResourceTaskCount != 0;
+        });
+    }
+
     GraphTaskPtr Worker::RequestTask()
     {
         std::unique_lock<std::mutex> UniqueLock(mMtx);
@@ -90,6 +119,7 @@ namespace TaskGraph
         if (mTaskQueue.empty()) return {};
         GraphTaskPtr PopTask = mTaskQueue.front();
         mTaskQueue.pop();
+        if (PopTask->GetCategory() == TaskCategory::ResourceInternal) --mResourceTaskCount;
         UniqueLock.unlock();
         --mTaskCount;
         return PopTask;

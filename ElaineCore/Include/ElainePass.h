@@ -35,7 +35,7 @@ namespace Elaine
 		void AppendVsMacros(const std::string& InMacrosString);
 		void AppendPsMacros(const std::string& InMacrosString);
 		void CompilePipeline();
-        void PrepareDependencies();
+        void PrepareDependencies(const ResourceLoadData& Data);
         ShaderPass CreateSnapshot() const;
         ~ShaderPass();
 		GRAPHICS_PIPELINE_STATE_DESC& GetGfxState() { return mRHIDesc; }

@@ -77,7 +77,11 @@ namespace Elaine
             {"src_color", RHI_BLEND_FACTOR_SRC_COLOR}, {"one_minus_src_color", RHI_BLEND_FACTOR_ONE_MINUS_SRC_COLOR},
             {"dst_color", RHI_BLEND_FACTOR_DST_COLOR}, {"one_minus_dst_color", RHI_BLEND_FACTOR_ONE_MINUS_DST_COLOR},
             {"src_alpha", RHI_BLEND_FACTOR_SRC_ALPHA}, {"one_minus_src_alpha", RHI_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA},
-            {"dst_alpha", RHI_BLEND_FACTOR_DST_ALPHA}, {"one_minus_dst_alpha", RHI_BLEND_FACTOR_ONE_MINUS_DST_ALPHA}
+            {"dst_alpha", RHI_BLEND_FACTOR_DST_ALPHA}, {"one_minus_dst_alpha", RHI_BLEND_FACTOR_ONE_MINUS_DST_ALPHA},
+            {"constant_color", RHI_BLEND_FACTOR_CONSTANT_COLOR}, {"one_minus_constant_color", RHI_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR},
+            {"constant_alpha", RHI_BLEND_FACTOR_CONSTANT_ALPHA}, {"one_minus_constant_alpha", RHI_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA},
+            {"src_alpha_saturate", RHI_BLEND_FACTOR_SRC_ALPHA_SATURATE}, {"src1_color", RHI_BLEND_FACTOR_SRC1_COLOR},
+            {"one_minus_src1_color", RHI_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR}, {"src1_alpha", RHI_BLEND_FACTOR_SRC1_ALPHA}, {"one_minus_src1_alpha", RHI_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA}
         };
         auto It = Map.find(value);
         return It == Map.end() ? RHI_BLEND_FACTOR_ONE : It->second;
@@ -114,10 +118,35 @@ namespace Elaine
 		return true;
 	}
 
-	void ShaderPassManager::UnloadShaderPass(ShaderPass* InShaderPass, JsonCpp& OutJson)
-	{
-
-	}
+	void ShaderPassManager::UnloadShaderPass(ShaderPass* Pass, JsonCpp& Json)
+    {
+        if (!Pass) return;
+        const auto& D = Pass->mRHIDesc;
+        static const char* Compare[] = {"never","less","equal","less_equal","greater","not_equal","greater_equal","always"};
+        static const char* Cull[] = {"none","front","back","all"};
+        static const char* Fill[] = {"solid","line","point"};
+        static const char* Factors[] = {"zero","one","src_color","one_minus_src_color","dst_color","one_minus_dst_color","src_alpha","one_minus_src_alpha","dst_alpha","one_minus_dst_alpha","constant_color","one_minus_constant_color","constant_alpha","one_minus_constant_alpha","src_alpha_saturate","src1_color","one_minus_src1_color","src1_alpha","one_minus_src1_alpha"};
+        static const char* Ops[] = {"add","subtract","reverse_subtract","min","max"};
+        if (static_cast<size_t>(D.mDepthOp) >= std::size(Compare) || static_cast<size_t>(D.mCullMode) >= std::size(Cull) ||
+            static_cast<size_t>(D.mPolygonMode) >= std::size(Fill) || static_cast<size_t>(D.mColorBlendOp) >= std::size(Ops) || static_cast<size_t>(D.mAlphaBlendOp) >= std::size(Ops))
+            throw std::runtime_error("Unsupported serialized material render state");
+        auto Factor = [&](RHIBlendFactor V) { if (static_cast<size_t>(V) >= std::size(Factors)) throw std::runtime_error("Unsupported serialized blend factor"); return Factors[V]; };
+        Json["name"] = Pass->mPassName.ToString(); Json["renderQueue"] = Pass->mRenderQueueName;
+        Json["depth"]["test"] = D.mbDepthTestEnable; Json["depth"]["write"] = D.mbDepthWriteEnable; Json["depth"]["func"] = Compare[D.mDepthOp];
+        Json["raster"]["cull"] = Cull[D.mCullMode]; Json["raster"]["fill"] = Fill[D.mPolygonMode];
+        Json["raster"]["frontFace"] = D.mFrontFace == FRONT_FACE_CLOCKWISE ? "cw" : "ccw";
+        Json["multi_sample_count"] = static_cast<unsigned>(D.mMultiSampleCount);
+        auto& Blend = Json["blend"]; Blend["enable"] = D.mbEnableColorBlend;
+        Blend["srcColor"] = Factor(D.mSrcColorBlendFactor); Blend["dstColor"] = Factor(D.mDstColorBlendFactor); Blend["colorOp"] = Ops[D.mColorBlendOp];
+        Blend["srcAlpha"] = Factor(D.mSrcAlphaBlendFactor); Blend["dstAlpha"] = Factor(D.mDstAlphaBlendFactor); Blend["alphaOp"] = Ops[D.mAlphaBlendOp]; Blend["writeMask"] = D.mColorWriteMask;
+        Json["shaders"] = JsonCpp::object();
+        for (const auto& Entry : Pass->mShaders)
+        {
+            const char* Key = Entry.mStage == EShaderStage::VertexShader ? "vs" : Entry.mStage == EShaderStage::FragmentShader ? "ps" : Entry.mStage == EShaderStage::GeometryShader ? "gs" : "cs";
+            Json["shaders"][Key] = Entry.mShader->GetReference().ToJson();
+        }
+        Json["macros"] = JsonCpp::object(); for (const auto& Macro : Pass->mMacros) Json["macros"][Macro] = 1;
+    }
 
 	void ShaderPassManager::CalculatePassStateHash(ShaderPass* InShaderPass)
 	{
@@ -168,46 +197,10 @@ namespace Elaine
         // ---------- Shaders ----------
         const JsonCpp& JsonShaders = InJson["shaders"];
 
-        if (JsonShaders.contains("vs"))
-        {
-            std::string ShaderPath = JsonShaders["vs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
-            NewPass->mShaders.push_back({
-                EShaderStage::VertexShader,
-                ShaderPtr
-                });
-
-        }
-
-        if (JsonShaders.contains("ps"))
-        {
-            std::string ShaderPath = JsonShaders["ps"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
-            NewPass->mShaders.push_back({
-                EShaderStage::FragmentShader,
-                ShaderPtr
-                });
-        }
-
-        if (JsonShaders.contains("gs"))
-        {
-            std::string ShaderPath = JsonShaders["gs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
-            NewPass->mShaders.push_back({
-                EShaderStage::GeometryShader,
-                ShaderPtr
-                });
-        }
-
-        if (JsonShaders.contains("cs"))
-        {
-            std::string ShaderPath = JsonShaders["cs"];
-            ResourceBasePtr ShaderPtr = ShaderManager::instance()->RequestResource(ShaderPath).GetResult().Resource;
-            NewPass->mShaders.push_back({
-                EShaderStage::ComputeShader,
-                ShaderPtr
-                });
-        }
+        for (const auto& [Key, Stage] : std::initializer_list<std::pair<const char*, EShaderStage>>{
+            {"vs", EShaderStage::VertexShader}, {"ps", EShaderStage::FragmentShader},
+            {"gs", EShaderStage::GeometryShader}, {"cs", EShaderStage::ComputeShader}})
+            if (JsonShaders.contains(Key)) NewPass->mShaders.push_back({Stage, {}, ResourceReference::FromJson(JsonShaders[Key])});
 
         // ---------- Macros ----------
         if (InJson.contains("macros"))
@@ -248,6 +241,7 @@ namespace Elaine
         {
             const JsonCpp& b = InJson["blend"];
             NewPass->mRHIDesc.mbEnableColorBlend = b.value("enable", false);
+            NewPass->mRHIDesc.mColorWriteMask = b.value("writeMask", 15u);
             NewPass->mRHIDesc.mSrcColorBlendFactor = ParseBlendFactor(b.value("srcColor", "src_alpha"));
             NewPass->mRHIDesc.mDstColorBlendFactor = ParseBlendFactor(b.value("dstColor", "one_minus_src_alpha"));
             NewPass->mRHIDesc.mColorBlendOp = ParseBlendOp(b.value("colorOp", "add"));

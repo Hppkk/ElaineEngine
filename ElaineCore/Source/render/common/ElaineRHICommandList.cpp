@@ -1,10 +1,12 @@
 ﻿#include "ElainePrecompiledHeader.h"
+#include "TaskGraph/ElaineTask.h"
 #include "render/ElaineShaderParameters.h"
 #include "render/common/ElaineRHICommandList.h"
 #include "render/common/ElaineRHICommandContext.h"
 #include "render/common/ElaineRHI.h"
 #include "render/ElaineRenderSystem.h"
 #include <cstring>
+#include "../RenderDoc/ElaineRenderDocCaptureInternal.h"
 
 namespace Elaine
 {
@@ -26,6 +28,11 @@ namespace Elaine
         }
         mCommandLinkEnd = nullptr; mCommandNum = 0;
         mUniformCache.clear(); mRecordingPipeline.reset(); mFrameParameters = {};
+        if (mSubmissionEvent)
+        {
+            auto Event = std::move(mSubmissionEvent);
+            if (Failure) Event->Fail(Failure); else Event->Cancel();
+        }
         if (mCompletion)
         {
             try { mCompletion->set_exception(Failure ? Failure : std::make_exception_ptr(std::runtime_error("RHI command batch abandoned"))); } catch (...) {}
@@ -77,11 +84,13 @@ namespace Elaine
             }
             mCommandLinkEnd = nullptr;
             mUniformCache.clear(); mRecordingPipeline.reset(); mFrameParameters = {};
+            if (mSubmissionEvent) { auto Event = std::move(mSubmissionEvent); Event->Succeed(); }
             if (mCompletion) { mCompletion->set_value(); mCompletion.reset(); }
         }
         catch (...)
         {
             auto Failure = std::current_exception();
+            RenderDocInternal::AbortFrame("RHI command batch failed");
             // Submit any partially recorded work so its fence can retire references.
             try { if (mGraphicsContext) mGraphicsContext->RHIEndFrame(); } catch (...) {}
             DiscardCommands(Failure);

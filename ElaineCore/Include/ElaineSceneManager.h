@@ -27,6 +27,7 @@ namespace Elaine
 		void findVisibleObject();
 		RenderProxy* CreateRenderProxy(EProxyType InType);
 		void DestroyRenderProxy(RenderProxy* InProxy);
+        void UpdateRenderProxyBounds(RenderProxy* Proxy);
 		void RenderScene();
 		void RenderThreadMain();
 		void UpdateCommonUniformBuffer(RenderFrameData& FrameData, Camera* InCamera);

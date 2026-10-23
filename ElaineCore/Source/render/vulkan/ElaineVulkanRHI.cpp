@@ -12,6 +12,7 @@
 #include "render/vulkan/ElaineVulkanSwapChain.h"
 #include "render/vulkan/ElaineVulkanShader.h"
 #include "render/vulkan/ElaineVulkanTexture.h"
+#include "../RenderDoc/ElaineRenderDocCaptureInternal.h"
 #ifdef USE_VOLK
 #ifdef WIN32
 #include "vulkan_win32.h"
@@ -84,6 +85,31 @@ namespace VulkanRHI
 
 		mPhyDevice = new VulkanPhysicalDevice(mInstance);
 		mPhyDevice->Initialize();
+        if (Elaine::RenderDocInternal::IsConnected())
+        {
+            // Confirm the implicit layer actually intercepted this instance, not merely that a DLL exists.
+            auto GetTools = reinterpret_cast<PFN_vkGetPhysicalDeviceToolProperties>(
+                vkGetInstanceProcAddr(mInstance->GetInstance(), "vkGetPhysicalDeviceToolProperties"));
+            if (!GetTools) GetTools = reinterpret_cast<PFN_vkGetPhysicalDeviceToolProperties>(
+                vkGetInstanceProcAddr(mInstance->GetInstance(), "vkGetPhysicalDeviceToolPropertiesEXT"));
+            uint32_t Count = 0;
+            bool Hooked = false;
+            if (GetTools && GetTools(mPhyDevice->GetPhysicalDeviceHandle(), &Count, nullptr) == VK_SUCCESS)
+            {
+                std::vector<VkPhysicalDeviceToolProperties> Tools(Count);
+                for (auto& Tool : Tools) Tool.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_TOOL_PROPERTIES;
+                if (GetTools(mPhyDevice->GetPhysicalDeviceHandle(), &Count, Tools.data()) == VK_SUCCESS)
+                    Hooked = std::any_of(Tools.begin(), Tools.end(), [](const auto& Tool) { return strstr(Tool.name, "RenderDoc") != nullptr; });
+            }
+            if (!Hooked)
+            {
+                const std::string Error = "RenderDoc DLL loaded but Vulkan tooling reports no active RenderDoc capture layer; check implicit-layer activation/disable environment";
+                Elaine::RenderDocInternal::VulkanUnavailable(Error);
+                throw std::runtime_error(Error);
+            }
+            Elaine::RenderDocInternal::VulkanReady();
+            LOG_INFO("RenderDoc Vulkan capture layer is active on the selected physical device");
+        }
 
 		mDevice = new VulkanDevice(mPhyDevice);
 		mDevice->Initialize();

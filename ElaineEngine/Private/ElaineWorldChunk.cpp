@@ -5,6 +5,7 @@
 #include "GamePlay/ElaineActorManager.h"
 #include "ElaineDataStream.h"
 #include "ElaineActorInfoMgr.h"
+#include "Resource/ElaineResourceRegistry.h"
 
 namespace Elaine
 {
@@ -19,32 +20,30 @@ namespace Elaine
             return mState == WorldChunkState::Loaded;
 
         mState = WorldChunkState::Loading;
-        std::vector<std::string> ActorPaths = mRecord.ActorPaths;
-        if (ActorPaths.empty() && !mRecord.BundlePath.empty())
+        std::vector<ResourceReference> ActorReferences = mRecord.ActorReferences;
+        if (ActorReferences.empty() && mRecord.Bundle.Id.IsValid())
         {
-            DataStream Bundle(Root::instance()->GetResourcePath() + mRecord.BundlePath, DataStream::In);
-            Bundle.ReadAll();
-            if (Bundle.GetDataStream())
+            const auto BundlePath = ResourceRegistry::Get().Resolve(mRecord.Bundle);
             {
-                JsonCpp BundleJson(Bundle.GetDataStream());
+                JsonCpp BundleJson = AssetFile::ReadJson(std::filesystem::path(Root::instance()->GetResourcePath()) / BundlePath, "ActorBundle");
                 if (BundleJson.contains("Actors") && BundleJson["Actors"].is_array())
                     for (const JsonCpp& ActorPath : BundleJson["Actors"])
-                        if (ActorPath.is_string())
-                            ActorPaths.push_back(ActorPath.get<std::string>());
+                        ActorReferences.push_back(ResourceReference::FromJson(ActorPath));
             }
         }
         // A chunk is instantiated only after all actor descriptions have published.
         bool Waiting = false;
-        for (const auto& Path : ActorPaths)
+        for (const auto& Path : ActorReferences)
         {
-            auto Request = ActorInfoMgr::instance()->RequestResource(Path);
-            if (!Request.IsComplete()) Waiting = true;
-            else if (!Request.GetResult().Succeeded()) { mState = WorldChunkState::Failed; return false; }
+            auto Info = ActorInfoMgr::instance()->GetResource(Path);
+            if (!Info || Info->GetLoadingState() == ResourceLoadState::Failed || Info->GetLoadingState() == ResourceLoadState::Cancelled)
+            { mState = WorldChunkState::Failed; return false; }
+            if (!Info->IsReady()) Waiting = true;
         }
         if (Waiting) return false;
-        for (const std::string& ActorPath : ActorPaths)
+        for (const auto& ActorPath : ActorReferences)
         {
-            Actor* NewActor = InWorld->GetActorManager()->CreateActorByInfo(ActorPath);
+            Actor* NewActor = InWorld->GetActorManager()->CreateActorByInfo(ActorInfoMgr::instance()->GetResource(ActorPath));
             if (NewActor == nullptr)
             {
                 mState = WorldChunkState::Failed;

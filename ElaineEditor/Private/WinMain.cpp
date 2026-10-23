@@ -1,7 +1,12 @@
 ﻿#include "ElaineEditor.h"
 #include "ElaineEngine.h"
+#include "render/ElaineRenderDocCapture.h"
+#include <iostream>
 #include "ElainePlatformWindow.h"
 #include "ElaineBarrier.h"
+#include "ElaineEditorGlobalContext.h"
+#include "ElaineLogSystem.h"
+#include "imgui.h"
 
 namespace Editor
 {
@@ -60,11 +65,30 @@ extern "C" {
 
 	int main(int argc, char** argv)
 	{
-        bool Smoke = false, DedicatedRHI = true;
+        std::string CaptureError;
+        if (!Elaine::RenderDocCapture::InitializeFromCommandLine(argc, argv, CaptureError))
+        { std::cerr << "RenderDoc initialization failed: " << CaptureError << std::endl; return 2; }
+        struct CaptureLifetime { ~CaptureLifetime() { Elaine::RenderDocCapture::Shutdown(); } } CaptureGuard;
+        try
+        {
+        bool Smoke = false, DedicatedRHI = true, InteropStress = false;
+        ViewportInteropMode Mode = ViewportInteropMode::Auto;
+        ViewportInteropFault Fault = ViewportInteropFault::None;
         for (int i = 1; i < argc; ++i)
         {
             if (std::string(argv[i]) == "--resource-smoke") Smoke = true;
+            if (std::string(argv[i]) == "--viewport-interop-stress") { Smoke = true; InteropStress = true; }
             if (std::string(argv[i]) == "--rhi-inline") DedicatedRHI = false;
+            const std::string Arg(argv[i]);
+            if (Arg == "--viewport-interop=shared") Mode = ViewportInteropMode::Shared;
+            else if (Arg == "--viewport-interop=readback") Mode = ViewportInteropMode::Readback;
+            else if (Arg == "--viewport-interop=auto") Mode = ViewportInteropMode::Auto;
+            else if (Arg == "--viewport-interop-fault=adapter") Fault = ViewportInteropFault::Adapter;
+            else if (Arg == "--viewport-interop-fault=capability") Fault = ViewportInteropFault::Capability;
+            else if (Arg == "--viewport-interop-fault=import") Fault = ViewportInteropFault::Import;
+            else if (Arg == "--viewport-interop-fault=mutex") Fault = ViewportInteropFault::MutexAbandoned;
+            else if (Arg == "--viewport-interop-fault=timeout") Fault = ViewportInteropFault::MutexTimeout;
+            else if (Arg.find("--viewport-interop=") == 0 || Arg.find("--viewport-interop-fault=") == 0) return 2;
         }
 		// --- Create window using PlatformWindow ---
 		Elaine::WindowDesc CreateDesc{};
@@ -87,18 +111,50 @@ extern "C" {
 
 		// --- Create editor (场景/视口/离屏渲染 由 EditorGlobalContext 管理) ---
 		ElaineEditor* NewEditor = new ElaineEditor(NewEngine);
-		NewEditor->Initialize(NewWindow);
+        int ExitCode = 0;
+        try
+        {
+        if (!NewEditor->Initialize(NewWindow, Mode, Fault)) throw std::runtime_error("Editor initialization failed");
         if (Smoke)
         {
+            ImGui::GetIO().IniFilename = nullptr; // Automated runs must not overwrite the user's layout.
             for (int Frame = 0; Frame < 180 && !NewWindow->shouldClose(); ++Frame)
-            { NewWindow->pollEvents(); NewEditor->Tick(); }
+            {
+                if (InteropStress)
+                {
+                    auto* Context = EditorGlobalContext::instance();
+                    if (Frame == 30) Context->RecreateViewportTransport(640,480);
+                    if (Frame == 60) Context->RecreateViewportTransport(0,0);
+                    if (Frame == 70) Context->RecreateViewportTransport(1280,720);
+                    if (Frame == 100) Context->RecreateViewportTransport(800,600);
+                    if (Frame == 120) ShowWindow(static_cast<HWND>(NewWindow->getNativeHandle()),SW_MINIMIZE);
+                    if (Frame == 130) ShowWindow(static_cast<HWND>(NewWindow->getNativeHandle()),SW_RESTORE);
+                    if (Frame == 145) Context->RecreateViewportTransport(1280,720);
+                }
+                NewWindow->pollEvents(); NewEditor->Tick();
+            }
         }
         else NewEditor->Run();
+        auto* Context = EditorGlobalContext::instance();
+        if (const auto* Stats = Context->GetInteropStatistics())
+        {
+            LOG_INFO("Viewport interop smoke: submitted={} displayed={} dropped={} skipped={} readbacks={}",
+                Stats->Submitted, Stats->Displayed, Stats->Dropped, Stats->Skipped, Context->GetReadbackCount());
+            if (Smoke && (!Stats->Displayed || Context->GetReadbackCount())) ExitCode = 1;
+        }
+        else if (Mode == ViewportInteropMode::Shared) ExitCode = 1;
+        }
+        catch (const std::exception& Error) { LOG_ERROR("Editor failed: {}", Error.what()); ExitCode = 1; }
 
 		delete NewEditor;
 		delete NewEngine;
         delete NewWindow;
-        return Smoke && Elaine::GetRHIValidationErrorCount() != 0 ? 1 : 0;
+        const auto CaptureResult = Elaine::RenderDocCapture::GetStatus();
+        if (CaptureResult.AutomaticCapture && CaptureResult.Phase != Elaine::RenderDocCapturePhase::Succeeded)
+        { std::cerr << "Requested Vulkan capture did not complete: " << CaptureResult.Message << std::endl; return 1; }
+        return ExitCode ? ExitCode : (Smoke && Elaine::GetRHIValidationErrorCount() != 0 ? 1 : 0);
+        }
+        catch (const std::exception& Error) { std::cerr << "Editor startup failed: " << Error.what() << std::endl; return 1; }
 	}
 
 #ifdef __cplusplus

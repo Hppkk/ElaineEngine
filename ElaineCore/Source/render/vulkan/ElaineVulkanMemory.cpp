@@ -1795,7 +1795,7 @@ namespace VulkanRHI
 	}
 
 	// bCanFail means an allocation failing is not a fatal error, just returns nullptr
-	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType)
+	VulkanDeviceMemoryAllocation* VulkanDeviceMemoryManager::Alloc(bool bCanFail, VkDeviceSize AllocationSize, uint32 MemoryTypeIndex, void* DedicatedAllocateInfo, float Priority, bool bExternal, const char* File, uint32 Line, VkExternalMemoryHandleTypeFlagBits externalHandleType, const void* ImportInfo)
 	{
 		std::lock_guard<std::recursive_mutex> lock(mMtx);
 		if (!DedicatedAllocateInfo)
@@ -1879,13 +1879,21 @@ namespace VulkanRHI
 			Info.pNext = &VulkanExportMemoryAllocateInfoKHR;
 		}
 
-		VkDeviceMemory Handle;
+        VkImportMemoryWin32HandleInfoKHR Import{};
+        if (ImportInfo)
+        {
+            Import = *static_cast<const VkImportMemoryWin32HandleInfoKHR*>(ImportInfo);
+            Import.pNext = Info.pNext; Info.pNext = &Import;
+        }
+		VkDeviceMemory Handle = VK_NULL_HANDLE;
 		VkResult Result;
 
 		{
 			Result = vkAllocateMemory(mDeviceHandle, &Info, VULKAN_CPU_ALLOCATOR, &Handle);
 		}
 
+        if (ImportInfo && Result != VK_SUCCESS)
+            throw std::runtime_error("D3D11 memory import failed: " + std::to_string(Result));
 		if (Result == VK_ERROR_OUT_OF_DEVICE_MEMORY || Result == VK_ERROR_OUT_OF_HOST_MEMORY)
 		{
 			if (bCanFail)

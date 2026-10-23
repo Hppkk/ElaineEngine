@@ -1,9 +1,12 @@
 ﻿#include "ElaineEditorUI.h"
+#include "ElaineContentBrowserPanel.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 #include "Windows.h"
 #include "ElaineMesh.h"
 #include "ElaineRoot.h"
+#include "ElaineLogSystem.h"
+#include "render/ElaineRenderDocCapture.h"
 #include <commdlg.h>
 #include <filesystem>
 
@@ -100,27 +103,9 @@ namespace Editor
 				ImGui::Separator();
 				if (ImGui::MenuItem("Import Mesh..."))
 				{
-					char szFile[MAX_PATH] = {};
-					OPENFILENAMEA ofn = {};
-					ofn.lStructSize = sizeof(ofn);
-					ofn.hwndOwner = NULL;
-					ofn.lpstrFile = szFile;
-					ofn.nMaxFile = sizeof(szFile);
-					ofn.lpstrFilter = "3D Models\0*.obj;*.fbx;*.gltf;*.glb;*.dae;*.ply;*.stl\0All Files\0*.*\0";
-					ofn.nFilterIndex = 1;
-					ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST | OFN_NOCHANGEDIR;
-					if (GetOpenFileNameA(&ofn))
-					{
-						std::string srcPath = szFile;
-						std::filesystem::path srcFs(srcPath);
-						std::string destRelPath = "model/" + srcFs.stem().string() + ".emesh";
-						std::filesystem::path modelDir = std::filesystem::path(Elaine::Root::instance()->GetResourcePath()) / "model";
-						if (!std::filesystem::exists(modelDir))
-							std::filesystem::create_directories(modelDir);
-#ifdef _HAS_EDITOR_
-						Elaine::ImportMeshFromFile(srcPath, destRelPath);
-#endif
-					}
+                    for (auto* Panel : mPanels)
+                        if (auto* Browser = dynamic_cast<ContentBrowserPanel*>(Panel)) { Browser->BeginImport(false); break; }
+
 				}
 				ImGui::Separator();
 				if (ImGui::MenuItem("Exit"))
@@ -151,6 +136,26 @@ namespace Editor
 				ImGui::EndMenu();
 			}
 
+            if (ImGui::BeginMenu("Tools"))
+            {
+                if (ImGui::BeginMenu("RenderDoc"))
+                {
+                    const auto Capture = Elaine::RenderDocCapture::GetStatus();
+                    ImGui::TextWrapped("%s", Capture.Message.empty() ? "RenderDoc is not enabled" : Capture.Message.c_str());
+                    if (!Capture.Connected)
+                        ImGui::TextWrapped("Launch through RenderDoc or use --renderdoc before graphics initialization.");
+                    const bool Busy = Capture.Phase == Elaine::RenderDocCapturePhase::Pending ||
+                        Capture.Phase == Elaine::RenderDocCapturePhase::Capturing;
+                    if (ImGui::MenuItem("Capture Next Vulkan Frame", nullptr, false, Capture.VulkanReady && !Busy))
+                        Elaine::RenderDocCapture::RequestCapture();
+                    if (ImGui::MenuItem("Open Last Capture", nullptr, false, !Capture.CapturePath.empty()))
+                        { if (!Elaine::RenderDocCapture::OpenLastCapture()) { LOG_ERROR("RenderDoc replay UI could not be launched"); } }
+                    if (!Capture.CapturePath.empty()) ImGui::TextWrapped("%s", Capture.CapturePath.c_str());
+                    ImGui::EndMenu();
+                }
+                ImGui::EndMenu();
+            }
+
 			if (ImGui::BeginMenu("Help"))
 			{
 				if (ImGui::MenuItem("About Elaine Engine")) {}
@@ -172,8 +177,8 @@ namespace Editor
 		{
 			if (panel->IsVisible())
 			{
-				ImGui::Begin(panel->GetTitle(), panel->GetVisiblePtr());
-				panel->OnDraw();
+				const bool ContentsVisible = ImGui::Begin(panel->GetTitle(), panel->GetVisiblePtr());
+				if (ContentsVisible && panel->IsVisible()) panel->OnDraw();
 				ImGui::End();
 			}
 		}

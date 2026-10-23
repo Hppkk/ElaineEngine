@@ -4,6 +4,7 @@
 #include "render/vulkan/ElaineVulkanCommandBuffer.h"
 #include "render/vulkan/ElaineVulkanUtil.h"
 #include "render/vulkan/ElaineVulkanPhysicalDevice.h"
+#include "render/vulkan/ElaineVulkanTexture.h"
 
 namespace VulkanRHI
 {
@@ -71,7 +72,24 @@ namespace VulkanRHI
 		}
 
 
-		if (vkQueueSubmit(mQueueHandle, 1, &SubmitInfo, Fence->GetHandle()) != VK_SUCCESS) throw std::runtime_error("Graphics submission failed");
+        std::vector<VkDeviceMemory> MutexMemories;
+        for (const auto& Access : CmdBuffer->GetDX11Accesses())
+            MutexMemories.push_back(static_cast<VulkanTexture*>(Access.Texture.get())->GetDX11Memory());
+        std::vector<uint64_t> AcquireKeys(MutexMemories.size(), 0), ReleaseKeys(MutexMemories.size(), 1);
+        std::vector<uint32_t> Timeouts(MutexMemories.size(), UINT32_MAX);
+        VkWin32KeyedMutexAcquireReleaseInfoKHR Keyed{};
+        if (!MutexMemories.empty())
+        {
+            Keyed.sType = VK_STRUCTURE_TYPE_WIN32_KEYED_MUTEX_ACQUIRE_RELEASE_INFO_KHR;
+            Keyed.acquireCount = static_cast<uint32>(MutexMemories.size());
+            Keyed.pAcquireSyncs = MutexMemories.data(); Keyed.pAcquireKeys = AcquireKeys.data();
+            Keyed.pAcquireTimeouts = Timeouts.data();
+            Keyed.releaseCount = Keyed.acquireCount; Keyed.pReleaseSyncs = MutexMemories.data();
+            Keyed.pReleaseKeys = ReleaseKeys.data(); SubmitInfo.pNext = &Keyed;
+        }
+        const VkResult Result = vkQueueSubmit(mQueueHandle, 1, &SubmitInfo, Fence->GetHandle());
+        CmdBuffer->NotifyDX11Submission(Result == VK_SUCCESS);
+        if (Result != VK_SUCCESS) throw std::runtime_error("Graphics submission failed: " + std::to_string(Result));
 	
 
 		CmdBuffer->mState = VulkanCommandBuffer::EState::Submitted;

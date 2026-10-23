@@ -19,6 +19,8 @@
 #include "vulkan/ElaineVulkanCommandContext.h"
 #include "vulkan/ElaineVulkanPhysicalDevice.h"
 #include "common/ElaineRHI.h"
+#include "../RenderDoc/ElaineRenderDocCaptureInternal.h"
+#include "RenderDoc/renderdoc_app.h"
 #ifdef WIN32
 #include "vulkan_win32.h"
 #elif ELAINE_PLATFORM == ELAINE_PLATFORM_ANDROID 
@@ -59,6 +61,8 @@ namespace VulkanRHI
 
 	void VulkanCommandContext::Deinitilize()
 	{
+        if (GetVulkanDynamicRHI() && this == GetVulkanDynamicRHI()->GetDefaultCommandContext())
+            Elaine::RenderDocInternal::DetachVulkan();
         mUniformPages.clear();
 
         mDrawSets.clear(); mDrawPools.clear();
@@ -303,6 +307,8 @@ namespace VulkanRHI
             if (Previous.Buffer->GetCompletedFenceCounter() <= Previous.Counter)
                 mCmdBufferManager->WaitForCmdBuffer(Previous.Buffer, UINT64_MAX);
         }
+        if (this == GetVulkanDynamicRHI()->GetDefaultCommandContext())
+            Elaine::RenderDocInternal::BeginFrame(RENDERDOC_DEVICEPOINTER_FROM_VKINSTANCE(mInstance->GetInstance()));
         mHasAcquiredSwapchain = false;
         mDrawPools.clear(); mDrawSets.clear();
 
@@ -339,11 +345,12 @@ namespace VulkanRHI
 		if (mCurrentRenderPass) RHIEndRenderPass();
         if (CurrentCmdBuffer->IsInsideRenderPass()) CurrentCmdBuffer->EndRenderPass();
         CurrentCmdBuffer->End();
-        if (mHasAcquiredSwapchain) CurrentCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, mImageAvailableSemaphores[mCurrentFrameIndex]);
+        if (mHasAcquiredSwapchain) CurrentCmdBuffer->AddWaitSemaphore(VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, mImageAvailableSemaphores[mCurrentFrameIndex]);
         for (auto& Set : mDrawSets) CurrentCmdBuffer->KeepDescriptorSet(std::move(Set));
         for (auto& Pool : mDrawPools) CurrentCmdBuffer->KeepDescriptorPool(std::move(Pool));
         mFrameSubmissions[mCurrentFrameIndex] = {CurrentCmdBuffer, CurrentCmdBuffer->GetCompletedFenceCounter()};
         mCmdBufferManager->SubmitActiveCmdBuffer(mHasAcquiredSwapchain ? std::vector<VulkanSemaphore*>{mRenderFinishedSemaphores[mCurrentFrameIndex]} : std::vector<VulkanSemaphore*>{});
+        if (this == GetVulkanDynamicRHI()->GetDefaultCommandContext()) Elaine::RenderDocInternal::EndFrame();
         mDrawPools.clear(); mDrawSets.clear();
         mPresentFrameIndex = mCurrentFrameIndex;
         mCurrentFrameIndex = (mCurrentFrameIndex + 1) % MAX_FRAMES_IN_FLIGHT;
@@ -441,6 +448,15 @@ namespace VulkanRHI
 	void VulkanRHI::VulkanCommandContext::RHIBeginRenderPass(const RHIRenderPassInfo& InRenderPassInfo, const char * InName)
 	{
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
+        for (const auto& Color : InRenderPassInfo.ColorRenderTargets)
+        {
+            if (!Color.RenderTarget) break;
+            auto* Texture = static_cast<VulkanTexture*>(Color.RenderTarget);
+            if (!Texture->IsDX11Imported() || Texture->GetImageLayout() == VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL) continue;
+            RHIResourceBarrierDesc Barrier;
+            Barrier.Texture = Texture; Barrier.StateBefore = Texture->GetAccess(); Barrier.StateAfter = ERHIAccess::RTV;
+            RHIResourceBarrier(Barrier);
+        }
 
 		VkRenderPass CachedRenderPass = mRenderPassCache->GetOrCreateRenderPass(InRenderPassInfo);
 
@@ -522,6 +538,13 @@ namespace VulkanRHI
 		BeginInfo.clearValueCount = static_cast<uint32>(ClearValues.size());
 		BeginInfo.pClearValues = ClearValues.data();
 
+        if (vkCmdBeginDebugUtilsLabelEXT && InName && *InName)
+        {
+            VkDebugUtilsLabelEXT Label{VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT};
+            Label.pLabelName = InName;
+            vkCmdBeginDebugUtilsLabelEXT(CurrentCmdBuffer->GetHandle(), &Label);
+            mPassDebugLabel = true;
+        }
 		vkCmdBeginRenderPass(CurrentCmdBuffer->GetHandle(), &BeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
 		mCurrentRenderPass = CachedRenderPass;
@@ -532,6 +555,9 @@ namespace VulkanRHI
 	{
 		VulkanCommandBuffer* CurrentCmdBuffer = mCmdBufferManager->GetActiveCmdBuffer();
 		vkCmdEndRenderPass(CurrentCmdBuffer->GetHandle());
+        if (mPassDebugLabel && vkCmdEndDebugUtilsLabelEXT)
+            vkCmdEndDebugUtilsLabelEXT(CurrentCmdBuffer->GetHandle());
+        mPassDebugLabel = false;
 
 		mCurrentRenderPass = VK_NULL_HANDLE;
 		mCurrentRenderPassKey = RenderPassKey();
@@ -666,8 +692,10 @@ namespace VulkanRHI
 				}
 			}
 			
+            CurrentCmdBuffer->AcquireDX11Texture(VkTexture);
 			VkImageLayout OldLayout = VkTexture->GetImageLayout();
 			VkImageLayout NewLayout = ERHIAccessToVkImageLayout(Barrier.StateAfter);
+			const ERHIAccess StateBefore = OldLayout == VK_IMAGE_LAYOUT_UNDEFINED ? ERHIAccess::Unknown : Barrier.StateBefore;
 
 			// 如果布局相同，只需要内存屏障
 			if (OldLayout == NewLayout && OldLayout != VK_IMAGE_LAYOUT_UNDEFINED)
@@ -675,12 +703,12 @@ namespace VulkanRHI
 				// 只需要访问同步，不需要布局转换
 				VkMemoryBarrier MemoryBarrier = {};
 				MemoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
-				MemoryBarrier.srcAccessMask = ERHIAccessToVkAccessFlags(Barrier.StateBefore);
+				MemoryBarrier.srcAccessMask = ERHIAccessToVkAccessFlags(StateBefore);
 				MemoryBarrier.dstAccessMask = ERHIAccessToVkAccessFlags(Barrier.StateAfter);
 
 				vkCmdPipelineBarrier(
 					CurrentCmdBuffer->GetHandle(),
-					ERHIAccessToVkPipelineStageFlags(Barrier.StateBefore),
+					ERHIAccessToVkPipelineStageFlags(StateBefore),
 					ERHIAccessToVkPipelineStageFlags(Barrier.StateAfter),
 					0,
 					1, &MemoryBarrier,
@@ -691,7 +719,7 @@ namespace VulkanRHI
 			{
 				VkImageMemoryBarrier ImageBarrier = {};
 				ImageBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-				ImageBarrier.srcAccessMask = ERHIAccessToVkAccessFlags(Barrier.StateBefore);
+				ImageBarrier.srcAccessMask = ERHIAccessToVkAccessFlags(StateBefore);
 				ImageBarrier.dstAccessMask = ERHIAccessToVkAccessFlags(Barrier.StateAfter);
 				ImageBarrier.oldLayout = OldLayout;
 				ImageBarrier.newLayout = NewLayout;
@@ -707,7 +735,7 @@ namespace VulkanRHI
 
 				vkCmdPipelineBarrier(
 					CurrentCmdBuffer->GetHandle(),
-					ERHIAccessToVkPipelineStageFlags(Barrier.StateBefore),
+					ERHIAccessToVkPipelineStageFlags(StateBefore),
 					ERHIAccessToVkPipelineStageFlags(Barrier.StateAfter),
 					0,
 					0, nullptr,
@@ -778,7 +806,9 @@ namespace VulkanRHI
 		}
 		
 		mCurrentGfxPipeline = VkGfxPipeline;
-		vkCmdBindPipeline(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, VkGfxPipeline->GetHandle());
+		// Outside a render pass this may only supply reflected bindings for validation.
+		if (VkGfxPipeline->GetHandle() != VK_NULL_HANDLE)
+			vkCmdBindPipeline(CurrentCmdBuffer->GetHandle(), VK_PIPELINE_BIND_POINT_GRAPHICS, VkGfxPipeline->GetHandle());
 	}
 
     RHIBufferHandle VulkanCommandContext::RHICreateBuffer(uint32 InSize, BufferUsageFlags Usage, uint32 Stride, ERHIAccess ResourceState, void* InData)

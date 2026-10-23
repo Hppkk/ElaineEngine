@@ -5,6 +5,7 @@
 #include <d3d11.h>
 #include "render/common/ElaineRHICommandContext.h"
 #include <mutex>
+#include "ElaineEditorViewportInterop.h"
 
 namespace Elaine
 {
@@ -42,10 +43,11 @@ namespace Editor
 		Elaine::World* GetActiveWorld() const { return mActiveWorld; }
 
 		//=====================================================================
-		// 离屏渲染视口（双缓冲，类似 Swapchain 2 张 image）
+		// 离屏渲染视口（共享三缓冲，回读双缓冲）
 		//=====================================================================
 		Elaine::Viewport* GetSceneViewport() const { return mSceneViewport; }
 		Elaine::OffscreenRenderTarget* GetOffscreenRT() const { return mOffscreenRT; }
+        // Readback path only; shared targets are leased through PrepareViewportFrame.
 		Elaine::RHITexture* GetOffscreenColorTexture() const { return mOffscreenOwners[mWriteIndex].get(); }
 		EditorGizmoManager& GetGizmoManager() { return mGizmoManager; }
 		EditorGridManager& GetGridManager() { return mGridManager; }
@@ -53,27 +55,30 @@ namespace Editor
 		//=====================================================================
 		// DX11 共享纹理 (共享内存路径)
 		//=====================================================================
-		ID3D11ShaderResourceView* GetSharedSRV() const { return mSharedSRV; }
-		void SetupDX11SharedTexture(ID3D11Device* InDevice, void* InSharedHandle, uint32_t InWidth, uint32_t InHeight);
+        void InitializeViewportTransport(ID3D11Device* Device, ID3D11DeviceContext* Context, ViewportInteropMode Mode, ViewportInteropFault Fault);
+        void PrepareViewportFrame();
+        void EndViewportUIFrame();
+        bool RecreateViewportTransport(uint32_t Width, uint32_t Height);
+        const EditorViewportInterop::Statistics* GetInteropStatistics() const { return mInterop ? &mInterop->GetStatistics() : nullptr; }
+        uint64_t GetReadbackCount() const { return mReadbackCount; }
 
 		//=====================================================================
 		// Staging Buffer Fallback (CPU readback 路径)
 		//=====================================================================
-		bool TrySetupSharedMemory(ID3D11Device* InDevice);
 		void InitStagingFallback(ID3D11Device* InDevice);
 		void EnqueueCopyToReadbackBuffer();
 		void UpdateDX11TextureFromReadback(ID3D11DeviceContext* InCtx);
 		void SwapOffscreenBuffers();
-		ID3D11ShaderResourceView* GetViewportSRV() const;
+        ID3D11ShaderResourceView* GetViewportSRV() const;
+        ViewportFrameData GetDisplayedViewportFrame() const;
 
-		bool IsUsingSharedMemory() const { return !mbSharedMemoryFailed && mSharedSRV != nullptr; }
+
+		bool IsUsingSharedMemory() const { return mInterop != nullptr; }
 		bool IsStagingReady() const { return mbStagingReady; }
 
 		uint32_t GetViewportWidth() const { return mViewportWidth; }
 		uint32_t GetViewportHeight() const { return mViewportHeight; }
 
-		// 允许 ElaineEditor::Tick() 访问
-		bool mbSharedMemoryAttempted = false;
 
 	private:
 		Elaine::ElaineEngine*           mEngine = nullptr;
@@ -89,18 +94,28 @@ namespace Editor
 		Elaine::Viewport*               mSceneViewport = nullptr;
 		Elaine::OffscreenRenderTarget*   mOffscreenRT = nullptr;
         Elaine::RHITextureHandle mOffscreenOwners[NUM_OFFSCREEN_BUFFERS];
-        struct ReadbackPacket { std::mutex Mutex; std::vector<uint8_t> Pixels; uint32_t Pitch = 0; bool Ready = false; bool Pending = false; };
+        struct ReadbackPacket { std::mutex Mutex; std::vector<uint8_t> Pixels; uint32_t Pitch = 0; bool Ready = false; bool Pending = false; ViewportFrameData Frame; };
+        struct ReadbackFrameHistory
+        {
+            // RenderThread owns history; publication is through ReadbackPacket::Mutex.
+            std::array<ViewportFrameData, NUM_OFFSCREEN_BUFFERS> Rendered, Copied;
+            uint64_t NextFrame = 1;
+        };
+        std::shared_ptr<ReadbackFrameHistory> mReadbackHistory = std::make_shared<ReadbackFrameHistory>();
+        ViewportFrameData mDisplayedReadbackFrame;
         std::shared_ptr<ReadbackPacket> mReadback = std::make_shared<ReadbackPacket>();
 		uint32_t                         mWriteIndex = 0;
 		uint32_t                         mViewportWidth = 1280;
 		uint32_t                         mViewportHeight = 720;
 
 		// DX11 共享内存路径
-		ID3D11Texture2D*                 mSharedTexture = nullptr;
-		ID3D11ShaderResourceView*        mSharedSRV = nullptr;
+        std::unique_ptr<EditorViewportInterop> mInterop;
+        ID3D11Device* mDX11Device = nullptr;
+        ID3D11DeviceContext* mDX11Context = nullptr;
+        ViewportInteropMode mInteropMode = ViewportInteropMode::Auto;
+        uint64_t mReadbackCount = 0;
 
 		// Staging fallback 路径
-		bool                             mbSharedMemoryFailed = false;
 		bool                             mbStagingReady = false;
 		bool                             mbFirstStagingFrame = true;
 		ID3D11Texture2D*                 mStagingD3D11Texture = nullptr;

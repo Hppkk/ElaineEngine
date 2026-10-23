@@ -388,8 +388,7 @@ vec3 PBR_ReconstructWorldPosition(vec2 uv, float depth, vec4 invViewProj[4])
 {
     // Convert UV to NDC [-1, 1]
     vec4 clipPos = vec4(uv * 2.0 - 1.0, depth, 1.0);
-    // Flip Y for Vulkan
-    clipPos.y = -clipPos.y;
+    // invViewProj already contains the render-view Y conversion.
     
     // Transform to world space
     vec4 worldPos;

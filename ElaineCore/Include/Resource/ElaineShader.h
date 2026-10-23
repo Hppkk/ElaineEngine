@@ -14,6 +14,7 @@ namespace Elaine
 		std::string GetShaderCode() const;
         std::vector<std::string> GetSourceFiles() const override;
         std::shared_ptr<const RHIShaderCompileResult> GetPreparedShader() const;
+        EShaderStage GetStage() const;
 	protected:
 		void ApplyLoadedData(ResourceLoadData& Data) noexcept override;
         std::unique_ptr<ResourceLoadData> LoadImpl() override;
@@ -21,6 +22,8 @@ namespace Elaine
 		virtual void SaveResourceImpl() override;
 	private:
         struct LoadData;
+        JsonCpp mSavedJson;
+        std::string mSourcePath;
 
 		std::string mShaderCode;
         std::shared_ptr<const RHIShaderCompileResult> mPrepared;
@@ -34,5 +37,6 @@ namespace Elaine
 	{
 		EShaderStage mStage;
 		ResourcePtr<Shader> mShader;
+        ResourceReference mReference;
 	};
 }

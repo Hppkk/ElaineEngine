@@ -1,5 +1,7 @@
-﻿#include "ElaineEditor.h"
-#include "Resource/ElaineResourcePipeline.h"
+#include "ElaineEditor.h"
+#include "ElaineResourceImportService.h"
+#include "ElaineEditorInput.h"
+#include "TaskGraph/ElaineTaskGraph.h"
 #include "ElaineImGuiLayer.h"
 #include "ElaineRoot.h"
 #include "ElaineSceneHierarchyPanel.h"
@@ -26,7 +28,7 @@ namespace Editor
 		Destroy();
 	}
 
-	bool ElaineEditor::Initialize(Elaine::PlatformWindow* window)
+	bool ElaineEditor::Initialize(Elaine::PlatformWindow* window, ViewportInteropMode Mode, ViewportInteropFault Fault)
 	{
 		mMainWindow = window;
 
@@ -44,6 +46,7 @@ namespace Editor
 		new EditorGlobalContext();
 		EditorGlobalContext::instance()->Initialize(mEngineImpl);
 		EditorGlobalContext::instance()->CreateDefaultScene();
+        EditorGlobalContext::instance()->InitializeViewportTransport(mImGuiLayer->GetDevice(), mImGuiLayer->GetDeviceContext(), Mode, Fault);
 
 		// --- Create EditorUI ---
 		mEditorUI = new EditorUI();
@@ -80,8 +83,9 @@ namespace Editor
 
 	void ElaineEditor::Destroy()
 	{
+        Elaine::ResourceImportService::Get().Shutdown();
         mUIInputLayer.Reset();
-		EditorGlobalContext::instance()->Destroy();
+		if (EditorGlobalContext::instance()) EditorGlobalContext::instance()->Destroy();
 
 		delete mHierarchyPanel;  mHierarchyPanel = nullptr;
 		delete mInspectorPanel;  mInspectorPanel = nullptr;
@@ -97,35 +101,18 @@ namespace Editor
 		if (!mImGuiLayer) return;
 
 		Elaine::RenderToLogic_Barrier->Wait();
-        Elaine::ResourcePipeline::Get().BeginFrame();
+        TaskGraph::TaskGraph::instance()->BeginGameThreadFrame();
 		auto* Ctx = EditorGlobalContext::instance();
 
-		// ============================================================
-		// 1. 延迟初始化传输路径（共享内存优先，失败后 fallback 到 staging）
-		// ============================================================
-		if (Ctx->GetOffscreenColorTexture() && !Ctx->mbSharedMemoryAttempted)
-		{
-			if (!Ctx->TrySetupSharedMemory(mImGuiLayer->GetDevice()))
-			{
-				Ctx->InitStagingFallback(mImGuiLayer->GetDevice());
-			}
-		}
+        Ctx->PrepareViewportFrame();
 
-		// ============================================================
-		// 2. Staging 路径：读取上一帧 readIndex 纹理的 readback buffer
-		// ============================================================
 		if (Ctx->IsStagingReady())
 		{
 			Ctx->UpdateDX11TextureFromReadback(mImGuiLayer->GetDeviceContext());
 		}
 
 		ID3D11ShaderResourceView* srv = Ctx->GetViewportSRV();
-		if (srv)
-		{
-			mViewportPanel->SetViewportTexture(srv,
-				Ctx->GetViewportWidth(),
-				Ctx->GetViewportHeight());
-		}
+        mViewportPanel->SetViewportTexture(srv, Ctx->GetViewportWidth(), Ctx->GetViewportHeight());
 
         auto* input = Elaine::InputSystem::instance();
         input->BeginFrame();
@@ -133,23 +120,7 @@ namespace Editor
         const bool popupBeforeFrame = ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
         mImGuiLayer->BeginFrame();
         mEditorUI->Draw();
-        mViewportPanel->UpdateInputLayers();
-
-        const auto& io = ImGui::GetIO();
-        // Closing an overlay must not send its closing click through to the scene.
-        const bool popup = popupBeforeFrame || ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel);
-        const bool widgetActive = ImGui::IsAnyItemActive() && !ImGuizmo::IsUsing();
-        Elaine::InputLayerDesc ui;
-        ui.Name = "EditorUI";
-        ui.Priority = 1000;
-        ui.Modal = popup;
-        ui.KeyboardFocused = popup || io.WantTextInput || widgetActive ||
-            (!mViewportPanel->WantsKeyboard() && !mViewportPanel->IsDragging());
-        ui.Propagation.fill(Elaine::InputPropagation::Block);
-        ui.HitTest = [this, popup, widgetActive](const Elaine::InputEvent& e) {
-            return popup || widgetActive || !mViewportPanel->ContainsInput(e);
-        };
-        input->UpdateLayer(mUIInputLayer, std::move(ui));
+        UpdateEditorInputRouting(*mViewportPanel, mUIInputLayer, popupBeforeFrame);
         input->DispatchEvents();
         mViewportPanel->ProcessInput();
 
@@ -162,6 +133,7 @@ namespace Editor
         }
         Elaine::LogicToRender_Barrier->Signal();
 		mImGuiLayer->EndFrame();
+        Ctx->EndViewportUIFrame();
 	}
 
 	void ElaineEditor::Run()

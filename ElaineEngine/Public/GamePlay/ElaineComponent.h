@@ -1,6 +1,8 @@
 #pragma once
 #include "ElaineEnginePrerequirements.h"
+#include "nlohmann/json.hpp"
 #include "ElaineReflectionDefines.h"
+#include "ElaineTypeDescriptor.h"
 #include "ElaineComponent.generated.h"
 
 namespace Elaine
@@ -15,6 +17,7 @@ namespace Elaine
 		virtual void		ExportDataImpl(JsonCpp& InJson);
 		virtual void		ImportDataImpl(const JsonCpp& InJson);
 	public:
+        JsonCpp mSerializedJson;
 		Name		mType;
 		std::string	mGUID;
 	};
@@ -38,6 +41,8 @@ namespace Elaine
 		bool				GetVisible() const { return mbVisible; }
 		EFUNCTION()
 		void				SetVisible(bool InVisible);
+        virtual void PostEditChangeProperty(const PropertyChangedEvent& Event);
+        virtual void ApplyVisibility() {}
 		virtual const Name& GetType() const = 0;
 		//--------------- ActorComponent Virtual Functions--------------------
 		virtual void		OnCreate() { };

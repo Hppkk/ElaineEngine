@@ -16,7 +16,7 @@ namespace Editor
 	// 
 	// Creates and owns the editor's infinite ground-plane grid.
 	// The grid is rendered via a GridRenderProxy on the render thread,
-	// using the grid.material / Grid.mi assets.
+	// using the grid.asset / Grid.asset assets.
 	//
 	// MaterialInstanceDynamic 由逻辑线程创建和持有。
 	// 通过 CreateSnapshot() 生成参数快照，经 ENQUEUE_RENDER_COMMAND

@@ -1,6 +1,7 @@
 ﻿#pragma once
 #include "ElaineRHIObjectPool.h"
 #include "ElaineRHI.h"
+namespace TaskGraph { class TaskCompletionEvent; }
 
 namespace Elaine
 {
@@ -47,6 +48,7 @@ namespace Elaine
         void* AllocCommand(size_t InSize, size_t InAlignment);
         void DiscardCommands(std::exception_ptr Failure = {}) noexcept;
         void SetCompletion(std::shared_ptr<std::promise<void>> Completion) { mCompletion = std::move(Completion); }
+        void SetSubmissionEvent(std::shared_ptr<TaskGraph::TaskCompletionEvent> Event) { mSubmissionEvent = std::move(Event); }
 
 		RHICommand* PopCommand();
 		void ExecuteCommands();
@@ -96,6 +98,7 @@ namespace Elaine
         std::unordered_map<std::string, RHIUniformBufferView> mUniformCache;
         bool mHasRecordingPass = false;
         std::shared_ptr<std::promise<void>> mCompletion;
+        std::shared_ptr<TaskGraph::TaskCompletionEvent> mSubmissionEvent;
 		RHICommand* mCommandLinkBegin = nullptr;
 		RHICommand* mCommandLinkEnd = nullptr;
 		size_t	mCommandNum = 0u;

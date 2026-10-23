@@ -5,6 +5,8 @@
 #include <cstddef>
 #include <functional>
 #include <cstring>
+#include <memory>
+#include <utility>
 
 #ifdef ELAINEREFLECTION_EXPORTS
 	#define ELAINE_REFLECTION_API __declspec(dllexport)
@@ -22,6 +24,16 @@ namespace Elaine
 	// ============================================================
 	// PropertyDescriptor — describes a single reflected property
 	// ============================================================
+    struct PropertyDescriptor;
+    enum class PropertyChangeType { ValueSet, Interactive, EditFinished };
+    struct PropertyChangedEvent
+    {
+        const PropertyDescriptor* Property = nullptr;
+        std::string MemberPath;
+        PropertyChangeType Type = PropertyChangeType::ValueSet;
+        bool IsProperty(const char* Name) const;
+    };
+
 	struct ELAINE_REFLECTION_API PropertyDescriptor
 	{
 		const char* Name		= nullptr;
@@ -29,6 +41,23 @@ namespace Elaine
 		size_t		Offset		= 0;
 		size_t		Size		= 0;
 		MetaMap		Meta;		// Metadata from EPROPERTY(...) arguments
+
+        // Generated typed operations: never byte-copy strings or nested objects.
+        void* (*CopyValue)(const void*) = nullptr;
+        void (*DestroyValue)(void*) = nullptr;
+        void (*AssignValue)(void*, const void*) = nullptr;
+        bool (*EqualValue)(const void*, const void*) = nullptr;
+        template<class T> void SetValueOperations()
+        {
+            CopyValue = [](const void* Value) -> void* { return new T(*static_cast<const T*>(Value)); };
+            DestroyValue = [](void* Value) { delete static_cast<T*>(Value); };
+            AssignValue = [](void* To, const void* From) { *static_cast<T*>(To) = *static_cast<const T*>(From); };
+            EqualValue = [](const void* A, const void* B) {
+                if constexpr (requires(const T& X, const T& Y) { X == Y; })
+                    return *static_cast<const T*>(A) == *static_cast<const T*>(B);
+                else return false;
+            };
+        }
 
 		// Read/write helpers using void* base pointer
 		void* GetPtrIn(void* obj) const
@@ -117,6 +146,24 @@ namespace Elaine
 		}
 	};
 
+    inline bool PropertyChangedEvent::IsProperty(const char* Name) const
+    { return Property && Property->Name && std::strcmp(Property->Name, Name) == 0; }
+
+    // Owns a typed editor copy. The live object is changed only at commit.
+    class PropertyEditValue
+    {
+    public:
+        PropertyEditValue(const PropertyDescriptor& Property, const void* Object)
+            : mProperty(Property), mValue(Property.CopyValue ? Property.CopyValue(Property.GetPtrIn(Object)) : nullptr) {}
+        ~PropertyEditValue() { if (mValue) mProperty.DestroyValue(mValue); }
+        PropertyEditValue(const PropertyEditValue&) = delete;
+        PropertyEditValue& operator=(const PropertyEditValue&) = delete;
+        void* Get() const { return mValue; }
+    private:
+        const PropertyDescriptor& mProperty;
+        void* mValue;
+    };
+
 	// ============================================================
 	// FunctionParameter — a parameter in a reflected function
 	// ============================================================
@@ -166,6 +213,27 @@ namespace Elaine
 	class ELAINE_REFLECTION_API TypeDescriptor
 	{
 	public:
+        template<class T> void SetEditNotifier()
+        {
+            mEditNotifier = [](void* Object, const PropertyChangedEvent& Event) {
+                if constexpr (requires(T& Value) { Value.PostEditChangeProperty(Event); })
+                    static_cast<T*>(Object)->PostEditChangeProperty(Event);
+            };
+        }
+        void NotifyPropertyChanged(void* Object, const PropertyChangedEvent& Event) const
+        { if (mEditNotifier) mEditNotifier(Object, Event); }
+
+        bool CommitPropertyEdit(void* Object, const PropertyDescriptor& Property, const void* Value,
+            const std::string& MemberPath = {}, PropertyChangeType Change = PropertyChangeType::ValueSet) const
+        {
+            if (!Object || !Value || Property.IsReadOnly() || !Property.AssignValue) return false;
+            void* Destination = Property.GetPtrIn(Object);
+            if (Property.EqualValue && Property.EqualValue(Destination, Value)) return false;
+            Property.AssignValue(Destination, Value);
+            NotifyPropertyChanged(Object, {&Property, MemberPath.empty() ? Property.Name : MemberPath, Change});
+            return true;
+        }
+
 		TypeDescriptor() = default;
 		~TypeDescriptor() = default;
 
@@ -259,6 +327,7 @@ namespace Elaine
 		}
 
 	private:
+		void (*mEditNotifier)(void*, const PropertyChangedEvent&) = nullptr;
 		const char*						mClassName		= nullptr;
 		const char*						mParentClassName = nullptr;
 		std::vector<PropertyDescriptor>	mProperties;

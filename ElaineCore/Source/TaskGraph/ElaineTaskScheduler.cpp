@@ -1,104 +1,62 @@
 #include "ElainePrecompiledHeader.h"
 #include "TaskGraph/ElaineTaskScheduler.h"
-#include "TaskGraph/ElaineTask.h"
 #include "TaskGraph/ElaineTaskGraph.h"
 #include "TaskGraph/ElaineWorker.h"
-
 namespace TaskGraph
 {
     TaskScheduler::TaskScheduler()
+    { mThreadHandle = Elaine::ThreadManager::instance()->GetOrCreateThread(Elaine::NamedThread::ScheduleThread, ThreadMain, this); }
+    TaskScheduler::~TaskScheduler() { Stop(); }
+    void TaskScheduler::Stop()
     {
-        mThreadHandle = Elaine::ThreadManager::instance()->GetOrCreateThread(Elaine::NamedThread::ScheduleThread,
-            TaskScheduler::ThreadMain, this);
+        std::map<TaskUUID, GraphTaskPtr> Active;
+        { std::lock_guard<std::mutex> Lock(mMtx); mStopping = true; Active.swap(mActive); }
+        mConditionVariable.notify_all();
+        Elaine::ThreadManager::instance()->DestroyThread(mThreadHandle); mThreadHandle = nullptr;
+        for (auto& Entry : Active) Entry.second->Cancel();
     }
-
-    TaskScheduler::~TaskScheduler()
+    void TaskScheduler::CancelCategory(TaskCategory Category)
     {
-        mStopping = true; mConditionVariable.notify_all();
-        Elaine::ThreadManager::instance()->DestroyThread(mThreadHandle);
-        for (auto& Task : mWaitForDispatch) Task->Cancel();
+        std::vector<GraphTaskPtr> Tasks;
+        { std::lock_guard<std::mutex> Lock(mMtx); for (auto& Entry : mActive)
+              if (Entry.second->GetCategory() == Category) Tasks.push_back(Entry.second); }
+        for (auto& Task : Tasks) Task->Cancel();
     }
-
-    void TaskScheduler::QueueTask(GraphTaskPtr InTask)
+    void TaskScheduler::QueueTask(GraphTaskPtr Task)
     {
-        std::lock_guard<std::mutex> LockGuard(mMtx);
-        if (mStopping) { InTask->Cancel(); return; }
-        auto Expected = TaskState::None;
-        if (!InTask->mTaskState.compare_exchange_strong(Expected, TaskState::Pending)) return;
-        mWaitForDispatch.push_back(InTask);
-        mConditionVariable.notify_one();
+        bool Stopping;
+        { std::lock_guard<std::mutex> Lock(mMtx); Stopping = mStopping;
+          if (!Stopping && !mActive.emplace(Task->GetTaskID(), Task).second) return; }
+        if (Stopping) { Task->Cancel(); return; }
+        std::weak_ptr<TaskScheduler> Weak = shared_from_this();
+        Task->GetCompletionEvent()->Subscribe([Weak, ID = Task->GetTaskID()](TaskState) {
+            if (auto Scheduler = Weak.lock()) { std::lock_guard<std::mutex> Lock(Scheduler->mMtx); Scheduler->mActive.erase(ID); }
+        });
+        Task->Arm(shared_from_this());
     }
-
+    void TaskScheduler::EnqueueReady(GraphTaskPtr Task)
+    {
+        bool Stopping;
+        { std::lock_guard<std::mutex> Lock(mMtx); Stopping = mStopping; if (!Stopping) mReadyForDispatch.push(Task); }
+        if (Stopping) Task->Cancel(); else mConditionVariable.notify_one();
+    }
+    void TaskScheduler::ThreadMain(void* Self) { static_cast<TaskScheduler*>(Self)->ScheduleTask(); }
     void TaskScheduler::ScheduleTask()
     {
-        std::unique_lock<std::mutex> UniqueLock(mMtx);
-        mConditionVariable.wait_for(UniqueLock, std::chrono::milliseconds(2), [&]() { return mStopping || !mWaitForDispatch.empty(); });
-        if (mStopping) return;
-        for (auto&& Iter = mWaitForDispatch.begin(); Iter!= mWaitForDispatch.end();)
+        for (;;)
         {
-            if ((*Iter)->Cancelled()) { Iter = mWaitForDispatch.erase(Iter); continue; }
-            if ((*Iter)->CanExecute())
-            {
-                auto Expected = TaskState::Pending;
-                if ((*Iter)->mTaskState.compare_exchange_strong(Expected, TaskState::Ready)) mReadyForDispatch.push((*Iter));
-                Iter = mWaitForDispatch.erase(Iter);
-            }
-            else
-            {
-                ++Iter;
-            }
-        }
-
-        UniqueLock.unlock();
-        while (!mReadyForDispatch.empty())
-        {
-            GraphTaskPtr CurrentTask = mReadyForDispatch.front();
-            mReadyForDispatch.pop();
-            DispatchTaskInThread(CurrentTask);
+            GraphTaskPtr Task;
+            { std::unique_lock<std::mutex> Lock(mMtx);
+              mConditionVariable.wait(Lock, [&] { return mStopping || !mReadyForDispatch.empty(); });
+              if (mStopping) return;
+              Task = mReadyForDispatch.front(); mReadyForDispatch.pop(); }
+            DispatchTaskInThread(Task);
         }
     }
-
-    void TaskScheduler::ThreadMain(void* InThis)
+    void TaskScheduler::DispatchTaskInThread(GraphTaskPtr Task)
     {
-        TaskScheduler* This = static_cast<TaskScheduler*>(InThis);
-        while (!This->mStopping)
-        {
-            {
-                This->ScheduleTask();
-            }
-        }
-    }
-
-    void TaskScheduler::DispatchTaskInThread(GraphTaskPtr InTask)
-    {
-        Worker* SuitableWorker = nullptr;
-        if (InTask->mExecutedThread == Elaine::NamedThread::AnyThread)
-        {
-            SuitableWorker = TaskGraph::instance()->FindIdleWorker();
-        }
-        else
-        {
-            SuitableWorker = TaskGraph::instance()->GetWorker(InTask->mExecutedThread);
-        }
-
-        if (SuitableWorker == nullptr)
-        {
-            LOG_ERROR("TaskGraph find no worker.");
-            InTask->Cancel(); return;
-        }
-
-        SuitableWorker->EnqueueTask(InTask);
-    }
-
-    GraphTaskPtr TaskScheduler::PrepareNextTask()
-    {
-        GraphTaskPtr ResultTask = nullptr;
-        while (!mReadyForDispatch.empty())
-        {
-            ResultTask = mReadyForDispatch.front();
-            mReadyForDispatch.pop();
-        }
-
-        return ResultTask;
+        auto* Graph = TaskGraph::instance();
+        auto* Target = Task->mExecutedThread == Elaine::NamedThread::AnyThread ? Graph->FindIdleWorker() : Graph->GetWorker(Task->mExecutedThread);
+        if (Target) Target->EnqueueTask(Task); else Task->Cancel();
     }
 }

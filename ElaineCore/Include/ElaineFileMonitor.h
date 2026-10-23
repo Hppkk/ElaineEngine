@@ -7,6 +7,7 @@
 #include <mutex>
 #include <unordered_map>
 #include <vector>
+#include <set>
 
 namespace Elaine
 {
@@ -18,6 +19,7 @@ namespace Elaine
 		void Start(const std::string& InRootPath, uint32_t InIntervalMs = 250);
 		void Stop();
 		void DispatchChanges();
+        void DeferChanges(const std::vector<std::string>& Paths, bool Defer);
 		using ChangeCallback = std::function<void(const std::string&)>;
 		void RegisterCallback(ChangeCallback InCallback);
 		bool IsRunning() const { return mRunning.load(); }
@@ -36,6 +38,7 @@ namespace Elaine
 		};
 		std::unordered_map<std::string, FileStamp> mFileStamps;
 		std::vector<std::string> mPendingChanges;
+        std::set<std::string> mDeferredPaths;
 		std::vector<ChangeCallback> mCallbacks;
 	};
 }

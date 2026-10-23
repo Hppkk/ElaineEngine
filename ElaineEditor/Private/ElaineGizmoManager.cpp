@@ -1,4 +1,5 @@
 ﻿#include "ElaineGizmoManager.h"
+#include "ElaineViewportFrame.h"
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -165,10 +166,10 @@ namespace Editor
             return false;
 
         float ViewData[16], ProjectionData[16], ModelData[16];
-        View.toData(ViewData);
-        Projection.toData(ProjectionData);
+        ToImGuizmoMatrix(View, ViewData);
+        ToImGuizmoMatrix(Projection, ProjectionData);
         Elaine::Matrix4x4 World = Actor->GetWorldMatrix();
-        World.toData(ModelData);
+        ToImGuizmoMatrix(World, ModelData);
         ImGuizmo::SetRect(X, Y, Width, Height);
         ImGuizmo::SetGizmoSizeClipSpace(mSize);
         ImGuizmo::OPERATION Operation = IsVisible(GizmoType::Transform) ? mOperation : ImGuizmo::BOUNDS;
@@ -197,13 +198,20 @@ namespace Editor
             LocalBounds[3] = LocalMax.x; LocalBounds[4] = LocalMax.y; LocalBounds[5] = LocalMax.z;
             Operation = static_cast<ImGuizmo::OPERATION>(Operation | ImGuizmo::BOUNDS);
         }
-        ImGuizmo::Manipulate(ViewData, ProjectionData, Operation, mMode, ModelData, nullptr, nullptr,
+        const bool Changed = ImGuizmo::Manipulate(ViewData, ProjectionData, Operation, mMode, ModelData, nullptr, nullptr,
             IsVisible(GizmoType::Bounds) ? LocalBounds : nullptr);
-        if (!ImGuizmo::IsUsing()) return false;
+        // Manipulate may return its final change on the release frame after IsUsing became false.
+        if (!ImGuizmo::IsUsing() && !Changed) return false;
 
         mPendingActor = Actor;
         std::copy(ModelData, ModelData + 16, mPendingWorld.begin());
         return true;
+    }
+
+    void EditorGizmoManager::CancelTransform()
+    {
+        mPendingActor = nullptr;
+        ImGuizmo::Enable(false);
     }
 
     bool EditorGizmoManager::CommitTransform(bool AllowCommit)
@@ -212,7 +220,7 @@ namespace Editor
         mPendingActor = nullptr;
         if (!AllowCommit || !Actor) return false;
 
-        Elaine::Matrix4x4 NewWorld(mPendingWorld.data());
+        Elaine::Matrix4x4 NewWorld = FromImGuizmoMatrix(mPendingWorld.data());
         Elaine::Vector3 Position, Scale;
         Elaine::Quaternion Rotation;
         NewWorld.decomposition(Position, Scale, Rotation);

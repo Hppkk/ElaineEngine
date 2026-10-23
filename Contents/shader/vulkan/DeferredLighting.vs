@@ -17,6 +17,5 @@ void main()
     vUV = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
     gl_Position = vec4(vUV * 2.0 - 1.0, 0.0, 1.0);
 
-    // Flip Y for Vulkan
-    gl_Position.y = -gl_Position.y;
+    // UV and framebuffer NDC share the render-view projection convention.
 }

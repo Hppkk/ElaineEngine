@@ -26,10 +26,13 @@ namespace Elaine
         mSingaled = false;
         return true;
     }
+    void EBarrier::SetWakeCallback(std::function<void()> Callback)
+    { std::lock_guard<std::mutex> Lock(mMtx); mWakeCallback = std::move(Callback); }
 	void EBarrier::Signal()
 	{
-		std::unique_lock<std::mutex> UniqueLocker(mMtx);
-		mSingaled = true;
-		mConditionVariable.notify_one();
+        std::function<void()> Callback;
+        { std::lock_guard<std::mutex> Lock(mMtx); mSingaled = true; Callback = mWakeCallback; }
+        mConditionVariable.notify_one();
+        if (Callback) Callback();
 	}
 }

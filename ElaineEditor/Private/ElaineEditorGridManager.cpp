@@ -23,7 +23,7 @@ namespace Editor
 		mWorld = InWorld;
 		mState = std::make_shared<ProxyState>();
 		mState->Visible.store(mVisible);
-		mMaterial->ChangeMaterial("material_instance/Grid.mi");
+		mMaterial->ChangeMaterial("material_instance/Grid.asset");
 
 		// 在逻辑线程生成材质参数快照（不含 RHI 资源）
 		Elaine::MaterialParamSnapshot Snapshot = mMaterial->CreateSnapshot();

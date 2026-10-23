@@ -5,6 +5,8 @@
 namespace VulkanRHI
 {
 	class VulkanDevice;
+    class VulkanTexture;
+    struct DX11InteropSubmission;
 	class VulkanCommandBufferManager;
 	class VulkanCommandPool;
 	class VulkanFence;
@@ -43,6 +45,15 @@ namespace VulkanRHI
         void KeepDescriptorPool(std::unique_ptr<VulkanDescriptorPool> Pool);
         void KeepDescriptorSet(std::unique_ptr<VulkanDescriptorSet> Set);
         void ReleaseCompletedReferences();
+        void AcquireDX11Texture(VulkanTexture* Texture);
+        void ReleaseDX11Textures();
+        void NotifyDX11Submission(bool Succeeded);
+        struct DX11Access
+        {
+            Elaine::RHITextureHandle Texture;
+            std::shared_ptr<DX11InteropSubmission> Submission;
+        };
+        const std::vector<DX11Access>& GetDX11Accesses() const { return mDX11Accesses; }
 		void Begin();
 		void End();
 		void BeginUniformUpdateBarrier();
@@ -105,6 +116,8 @@ namespace VulkanRHI
 		void AllocMemory(VkCommandBufferLevel InBufferLevel = VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 		void FreeMemory();
 	private:
+        std::vector<DX11Access> mDX11Accesses;
+        bool mDX11Released = false;
         std::vector<Elaine::RHIHandle> mResources;
         std::vector<std::unique_ptr<VulkanDescriptorPool>> mDescriptorPools;
         std::vector<std::unique_ptr<VulkanDescriptorSet>> mDescriptorSets;

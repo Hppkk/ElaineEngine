@@ -1,0 +1,82 @@
+{
+  "data": {
+    "macros": [
+      "USE_SKYBOX"
+    ],
+    "parameters": {
+      "Exposure": {
+        "default": 1.0,
+        "max": 8.0,
+        "min": 0.0,
+        "type": "scalar"
+      }
+    },
+    "renderQueue": "background",
+    "shaderpass": [
+      {
+        "blend": {
+          "enable": false
+        },
+        "depth": {
+          "func": "less_equal",
+          "test": true,
+          "write": false
+        },
+        "macros": {
+          "PASS_SKY": 1
+        },
+        "name": "Sky",
+        "raster": {
+          "cull": "none",
+          "fill": "solid",
+          "frontFace": "cw"
+        },
+        "shaders": {
+          "ps": {
+            "id": "8a520aa4-f36b-46c8-99ed-ad7dace9677d",
+            "path": "shader/vulkan/sky.ps.shader"
+          },
+          "vs": {
+            "id": "568095be-37e5-4515-837f-ec2a5d280596",
+            "path": "shader/vulkan/sky.vs.shader"
+          }
+        }
+      }
+    ],
+    "textures": {
+      "CubeMap": {
+        "id": "879921c6-e0b4-4399-b7c7-3628465c7db5",
+        "path": "texture/sky/sky.asset"
+      }
+    },
+    "version": "2.0.0"
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [
+      {
+        "id": "568095be-37e5-4515-837f-ec2a5d280596",
+        "kind": "hard",
+        "path": "shader/vulkan/sky.vs.shader"
+      },
+      {
+        "id": "879921c6-e0b4-4399-b7c7-3628465c7db5",
+        "kind": "hard",
+        "path": "texture/sky/sky.asset"
+      },
+      {
+        "id": "8a520aa4-f36b-46c8-99ed-ad7dace9677d",
+        "kind": "hard",
+        "path": "shader/vulkan/sky.ps.shader"
+      }
+    ],
+    "displayName": "skybox",
+    "id": "12ebbd8d-0489-4086-8005-f41ae952481d",
+    "sourceFiles": [],
+    "tags": {
+      "Parameters": 1,
+      "Passes": 1
+    },
+    "type": "Material"
+  }
+}

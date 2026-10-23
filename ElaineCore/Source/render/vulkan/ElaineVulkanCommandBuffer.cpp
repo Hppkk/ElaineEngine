@@ -7,6 +7,7 @@
 #include "vulkan/ElaineVulkanPipeline.h"
 #include "vulkan/ElaineVulkanDescriptorSet.h"
 #include "vulkan/ElaineVulkanCommandContext.h"
+#include "vulkan/ElaineVulkanTexture.h"
 
 namespace VulkanRHI
 {
@@ -195,6 +196,7 @@ namespace VulkanRHI
 	{
 		if (IsOutsideRenderPass())
 		{
+			ReleaseDX11Textures();
 			vkEndCommandBuffer(mHandle);
 			mState = EState::HasEnded;
 		}
@@ -420,6 +422,13 @@ namespace VulkanRHI
     void VulkanCommandBuffer::KeepDescriptorSet(std::unique_ptr<VulkanDescriptorSet> Set) { mDescriptorSets.push_back(std::move(Set)); }
     void VulkanCommandBuffer::ReleaseCompletedReferences()
     {
+        for (auto& Access : mDX11Accesses)
+        {
+            auto Expected = DX11SubmissionState::Recording;
+            Access.Submission->State.compare_exchange_strong(Expected, DX11SubmissionState::Abandoned);
+            Access.Submission->GPUComplete = true;
+        }
+        mDX11Accesses.clear(); mDX11Released = false;
         mDescriptorSets.clear(); mDescriptorPools.clear(); mResources.clear();
     }
 

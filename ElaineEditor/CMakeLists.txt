@@ -1,6 +1,7 @@
 
 set(lib 
  ElaineCore
+ ElaineAssetImport
  ElaineEngine
  ElaineReflection
  d3d11

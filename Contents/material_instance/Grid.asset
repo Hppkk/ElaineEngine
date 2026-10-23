@@ -1,0 +1,51 @@
+{
+  "data": {
+    "origin": {
+      "id": "da1aa248-1394-4ece-8799-0103a021ee40",
+      "path": "material/grid.asset"
+    },
+    "parameters": {
+      "FadeFar": 150.0,
+      "FadeNear": 20.0,
+      "GridColor": [
+        0.3,
+        0.3,
+        0.3,
+        1.0
+      ],
+      "LargeGridScale": 0.1,
+      "SmallGridScale": 1.0,
+      "XAxisColor": [
+        1.0,
+        0.2,
+        0.2,
+        1.0
+      ],
+      "ZAxisColor": [
+        0.0,
+        0.3,
+        1.0,
+        1.0
+      ]
+    },
+    "textures": {},
+    "version": "2.0.0"
+  },
+  "resource": {
+    "dataVersion": 1,
+    "dependencies": [
+      {
+        "id": "da1aa248-1394-4ece-8799-0103a021ee40",
+        "kind": "hard",
+        "path": "material/grid.asset"
+      }
+    ],
+    "displayName": "Grid",
+    "id": "71ff1047-0a36-4436-8cb0-6e3a7321f00a",
+    "sourceFiles": [],
+    "tags": {
+      "Overrides": 7
+    },
+    "type": "MaterialInstance"
+  }
+}

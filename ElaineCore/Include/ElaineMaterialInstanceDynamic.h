@@ -18,7 +18,7 @@ namespace Elaine
      *
      * 使用模式：
      *   // 逻辑线程
-     *   mMaterial->ChangeMaterial("material_instance/PBR.mi");
+     *   mMaterial->ChangeMaterial("material_instance/PBR.asset");
      *   mMaterial->SetTexture(BaseColor, albedoTex);
      *
      *   // Mesh / Sky 组件自动提交新快照，业务不需要手动标记渲染状态。
